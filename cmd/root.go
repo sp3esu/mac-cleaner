@@ -21,6 +21,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/browser"
 	"github.com/sp3esu/mac-cleaner/pkg/creative"
 	"github.com/sp3esu/mac-cleaner/pkg/developer"
+	"github.com/sp3esu/mac-cleaner/pkg/messaging"
 	"github.com/sp3esu/mac-cleaner/pkg/system"
 )
 
@@ -35,8 +36,9 @@ var (
 	flagBrowserData  bool
 	flagDevCaches    bool
 	flagAppLeftovers bool
-	flagCreativeCaches bool
-	flagAll            bool
+	flagCreativeCaches  bool
+	flagMessagingCaches bool
+	flagAll             bool
 	flagJSON           bool
 	flagVerbose      bool
 	flagForce        bool
@@ -48,7 +50,8 @@ var (
 	flagSkipBrowserData  bool
 	flagSkipDevCaches    bool
 	flagSkipAppLeftovers   bool
-	flagSkipCreativeCaches bool
+	flagSkipCreativeCaches  bool
+	flagSkipMessagingCaches bool
 )
 
 // Item-level skip flags filter specific categories from scan results.
@@ -73,6 +76,10 @@ var (
 	flagSkipAdobeMedia        bool
 	flagSkipSketch            bool
 	flagSkipFigma             bool
+	flagSkipSlack             bool
+	flagSkipDiscord           bool
+	flagSkipTeams             bool
+	flagSkipZoom              bool
 )
 
 var rootCmd = &cobra.Command{
@@ -103,9 +110,13 @@ var rootCmd = &cobra.Command{
 			allResults = append(allResults, runCreativeCachesScan(cmd)...)
 			ran = true
 		}
+		if flagMessagingCaches {
+			allResults = append(allResults, runMessagingCachesScan(cmd)...)
+			ran = true
+		}
 
 		if flagJSON && !ran {
-			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --app-leftovers, --creative-caches)")
+			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --app-leftovers, --creative-caches, --messaging-caches)")
 			os.Exit(1)
 		}
 
@@ -177,6 +188,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
 	rootCmd.Flags().BoolVar(&flagAppLeftovers, "app-leftovers", false, "scan orphaned preferences, iOS backups, and old Downloads")
 	rootCmd.Flags().BoolVar(&flagCreativeCaches, "creative-caches", false, "scan Adobe, Sketch, and Figma caches")
+	rootCmd.Flags().BoolVar(&flagMessagingCaches, "messaging-caches", false, "scan Slack, Discord, Teams, and Zoom caches")
 	rootCmd.Flags().BoolVar(&flagAll, "all", false, "scan all categories")
 	rootCmd.Flags().BoolVar(&flagJSON, "json", false, "output results as JSON")
 	rootCmd.Flags().BoolVar(&flagVerbose, "verbose", false, "show detailed file listing")
@@ -188,6 +200,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipDevCaches, "skip-dev-caches", false, "skip developer cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipAppLeftovers, "skip-app-leftovers", false, "skip app leftover scanning")
 	rootCmd.Flags().BoolVar(&flagSkipCreativeCaches, "skip-creative-caches", false, "skip creative app cache scanning")
+	rootCmd.Flags().BoolVar(&flagSkipMessagingCaches, "skip-messaging-caches", false, "skip messaging app cache scanning")
 
 	// Item-level skip flags.
 	rootCmd.Flags().BoolVar(&flagSkipDerivedData, "skip-derived-data", false, "skip Xcode DerivedData")
@@ -210,6 +223,10 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipAdobeMedia, "skip-adobe-media", false, "skip Adobe media caches")
 	rootCmd.Flags().BoolVar(&flagSkipSketch, "skip-sketch", false, "skip Sketch cache")
 	rootCmd.Flags().BoolVar(&flagSkipFigma, "skip-figma", false, "skip Figma cache")
+	rootCmd.Flags().BoolVar(&flagSkipSlack, "skip-slack", false, "skip Slack cache")
+	rootCmd.Flags().BoolVar(&flagSkipDiscord, "skip-discord", false, "skip Discord cache")
+	rootCmd.Flags().BoolVar(&flagSkipTeams, "skip-teams", false, "skip Microsoft Teams cache")
+	rootCmd.Flags().BoolVar(&flagSkipZoom, "skip-zoom", false, "skip Zoom cache")
 
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if flagAll {
@@ -218,6 +235,7 @@ func init() {
 			flagDevCaches = true
 			flagAppLeftovers = true
 			flagCreativeCaches = true
+			flagMessagingCaches = true
 		}
 		// Apply category-level skip overrides (after --all expansion).
 		if flagSkipSystemCaches {
@@ -234,6 +252,9 @@ func init() {
 		}
 		if flagSkipCreativeCaches {
 			flagCreativeCaches = false
+		}
+		if flagSkipMessagingCaches {
+			flagMessagingCaches = false
 		}
 		if flagJSON {
 			color.NoColor = true
@@ -301,6 +322,19 @@ func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
 	return results
 }
 
+// runMessagingCachesScan executes the messaging app cache scan and prints results.
+func runMessagingCachesScan(cmd *cobra.Command) []scan.CategoryResult {
+	results, err := messaging.Scan()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+	if !flagJSON {
+		printResults(results, flagDryRun, "Messaging App Caches")
+	}
+	return results
+}
+
 // runCreativeCachesScan executes the creative app cache scan and prints results.
 func runCreativeCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 	results, err := creative.Scan()
@@ -342,6 +376,10 @@ func buildSkipSet() map[string]bool {
 		{&flagSkipAdobeMedia, "creative-adobe-media"},
 		{&flagSkipSketch, "creative-sketch"},
 		{&flagSkipFigma, "creative-figma"},
+		{&flagSkipSlack, "msg-slack"},
+		{&flagSkipDiscord, "msg-discord"},
+		{&flagSkipTeams, "msg-teams"},
+		{&flagSkipZoom, "msg-zoom"},
 	}
 	skip := map[string]bool{}
 	for _, m := range mappings {
@@ -405,6 +443,13 @@ func scanAll() []scan.CategoryResult {
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 	} else if len(results) > 0 {
 		printResults(results, true, "Creative App Caches")
+		allResults = append(allResults, results...)
+	}
+
+	if results, err := messaging.Scan(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	} else if len(results) > 0 {
+		printResults(results, true, "Messaging App Caches")
 		allResults = append(allResults, results...)
 	}
 

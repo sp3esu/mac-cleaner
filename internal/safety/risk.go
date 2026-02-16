@@ -31,6 +31,10 @@ var categoryRisk = map[string]string{
 	"creative-adobe-media":     RiskModerate,
 	"creative-sketch":          RiskSafe,
 	"creative-figma":           RiskSafe,
+	"msg-slack":                RiskSafe,
+	"msg-discord":              RiskSafe,
+	"msg-teams":                RiskSafe,
+	"msg-zoom":                 RiskSafe,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

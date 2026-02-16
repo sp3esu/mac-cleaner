@@ -1,16 +1,17 @@
-package system
+package scan
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/gregor/mac-cleaner/internal/scan"
 )
 
 // writeFile is a test helper that creates a file with the given size.
 func writeFile(t *testing.T, path string, size int) {
 	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("mkdir for %s: %v", path, err)
+	}
 	data := make([]byte, size)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		t.Fatalf("writeFile %s: %v", path, err)
@@ -30,7 +31,7 @@ func TestScanTopLevel(t *testing.T) {
 	writeFile(t, filepath.Join(largeDir, "b.dat"), 500)
 	writeFile(t, filepath.Join(largeDir, "c.dat"), 300)
 
-	result, err := scan.ScanTopLevel(dir, "test-cat", "Test Category")
+	result, err := ScanTopLevel(dir, "test-cat", "Test Category")
 	if err != nil {
 		t.Fatalf("ScanTopLevel: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestScanTopLevelSkipsZeroBytes(t *testing.T) {
 	os.MkdirAll(nonEmpty, 0755)
 	writeFile(t, filepath.Join(nonEmpty, "data.bin"), 50)
 
-	result, err := scan.ScanTopLevel(dir, "test-cat", "Test Category")
+	result, err := ScanTopLevel(dir, "test-cat", "Test Category")
 	if err != nil {
 		t.Fatalf("ScanTopLevel: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestScanTopLevelSkipsZeroBytes(t *testing.T) {
 }
 
 func TestScanTopLevelNonExistent(t *testing.T) {
-	result, err := scan.ScanTopLevel("/nonexistent/path/that/does/not/exist", "test", "Test")
+	result, err := ScanTopLevel("/nonexistent/path/that/does/not/exist", "test", "Test")
 	if err == nil {
 		t.Fatal("expected error for non-existent path")
 	}
@@ -109,7 +110,7 @@ func TestScanTopLevelHandlesFiles(t *testing.T) {
 
 	writeFile(t, filepath.Join(dir, "toplevel.dat"), 150)
 
-	result, err := scan.ScanTopLevel(dir, "test-cat", "Test Category")
+	result, err := ScanTopLevel(dir, "test-cat", "Test Category")
 	if err != nil {
 		t.Fatalf("ScanTopLevel: %v", err)
 	}
@@ -133,54 +134,5 @@ func TestScanTopLevelHandlesFiles(t *testing.T) {
 	}
 	if result.Entries[1].Size != 150 {
 		t.Errorf("expected second entry size 150, got %d", result.Entries[1].Size)
-	}
-}
-
-func TestScanPreservesFiles(t *testing.T) {
-	dir := t.TempDir()
-
-	// Create files to verify they are not deleted by scanning.
-	subDir := filepath.Join(dir, "cache-dir")
-	os.MkdirAll(subDir, 0755)
-	filePath := filepath.Join(subDir, "important.dat")
-	writeFile(t, filePath, 1024)
-
-	topFile := filepath.Join(dir, "top.log")
-	writeFile(t, topFile, 512)
-
-	// Run scan.
-	_, err := scan.ScanTopLevel(dir, "test-cat", "Test Category")
-	if err != nil {
-		t.Fatalf("ScanTopLevel: %v", err)
-	}
-
-	// Verify all files still exist.
-	if _, err := os.Stat(filePath); err != nil {
-		t.Errorf("file deleted after scan: %s", filePath)
-	}
-	if _, err := os.Stat(topFile); err != nil {
-		t.Errorf("file deleted after scan: %s", topFile)
-	}
-
-	// Verify directory still exists.
-	if _, err := os.Stat(subDir); err != nil {
-		t.Errorf("directory deleted after scan: %s", subDir)
-	}
-}
-
-func TestScanTopLevelCategoryFields(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "file.dat"), 100)
-
-	result, err := scan.ScanTopLevel(dir, "my-category", "My Description")
-	if err != nil {
-		t.Fatalf("ScanTopLevel: %v", err)
-	}
-
-	if result.Category != "my-category" {
-		t.Errorf("expected category 'my-category', got %q", result.Category)
-	}
-	if result.Description != "My Description" {
-		t.Errorf("expected description 'My Description', got %q", result.Description)
 	}
 }

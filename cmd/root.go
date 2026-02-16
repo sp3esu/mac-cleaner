@@ -543,6 +543,7 @@ func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 
 	bold := color.New(color.Bold)
 	cyan := color.New(color.FgCyan)
+	faint := color.New(color.Faint)
 	greenBold := color.New(color.FgGreen, color.Bold)
 
 	fmt.Fprintln(w)
@@ -552,10 +553,15 @@ func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
 	for _, cat := range nonEmpty {
 		pct := float64(cat.TotalSize) / float64(total) * 100
-		fmt.Fprintf(tw, "  %s\t  %s\t  (%4.1f%%)\t\n",
+		hint := ""
+		if flag := flagForCategory(cat.Category); flag != "" {
+			hint = faint.Sprintf("(%s)", flag)
+		}
+		fmt.Fprintf(tw, "  %s\t  %s\t  (%4.1f%%)\t  %s\t\n",
 			cat.Description,
 			cyan.Sprint(scan.FormatSize(cat.TotalSize)),
-			pct)
+			pct,
+			hint)
 	}
 	tw.Flush()
 

@@ -201,6 +201,90 @@ func TestPrintDryRunSummary_TwoCategoriesOneEmpty_NoOutput(t *testing.T) {
 	}
 }
 
+func TestPrintDryRunSummary_ShowsFlagHints(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "dev-npm", Description: "npm Cache", TotalSize: 5_500_000_000},
+		{Category: "system-caches", Description: "User App Caches", TotalSize: 1_400_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	if !strings.Contains(out, "(--dev-caches)") {
+		t.Errorf("expected (--dev-caches) hint, got: %s", out)
+	}
+	if !strings.Contains(out, "(--system-caches)") {
+		t.Errorf("expected (--system-caches) hint, got: %s", out)
+	}
+}
+
+func TestPrintDryRunSummary_FlagHintForQuicklook(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "quicklook", Description: "QuickLook Thumbnails", TotalSize: 200_000_000},
+		{Category: "system-logs", Description: "User Logs", TotalSize: 300_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	if !strings.Contains(out, "(--system-caches)") {
+		t.Errorf("expected (--system-caches) hint for quicklook, got: %s", out)
+	}
+}
+
+func TestPrintDryRunSummary_UnknownCategoryNoFlagHint(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "unknown-a", Description: "Unknown A", TotalSize: 100_000_000},
+		{Category: "unknown-b", Description: "Unknown B", TotalSize: 200_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	if strings.Contains(out, "--") {
+		t.Errorf("expected no flag hints for unknown categories, got: %s", out)
+	}
+}
+
+func TestPrintDryRunSummary_AllScannerGroups(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "system-caches", Description: "User App Caches", TotalSize: 100_000_000},
+		{Category: "browser-safari", Description: "Safari Cache", TotalSize: 100_000_000},
+		{Category: "dev-npm", Description: "npm Cache", TotalSize: 100_000_000},
+		{Category: "app-orphaned-prefs", Description: "Orphaned Preferences", TotalSize: 100_000_000},
+		{Category: "creative-adobe", Description: "Adobe Caches", TotalSize: 100_000_000},
+		{Category: "msg-slack", Description: "Slack Cache", TotalSize: 100_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	for _, flag := range []string{
+		"--system-caches",
+		"--browser-data",
+		"--dev-caches",
+		"--app-leftovers",
+		"--creative-caches",
+		"--messaging-caches",
+	} {
+		if !strings.Contains(out, "("+flag+")") {
+			t.Errorf("expected (%s) hint in output, got: %s", flag, out)
+		}
+	}
+}
+
 func TestPrintCleanupSummary_NoFailures(t *testing.T) {
 	color.NoColor = true
 	defer func() { color.NoColor = false }()

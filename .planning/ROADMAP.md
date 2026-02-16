@@ -124,11 +124,11 @@ Plans:
   3. Tool gracefully handles permission errors (reports what it can't access without failing entire scan)
   4. Tool never requests Full Disk Access (works with standard user permissions)
   5. Safe items (system caches, browser caches) can be cleaned without elevated permissions
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md — Risk types, mapping function, and scanner integration (risk levels + permission collection)
+- [ ] 07-02-PLAN.md — Risk-aware display, confirmation warnings, permission issue reporting
 
 ## Progress
 

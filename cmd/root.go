@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/gregor/mac-cleaner/pkg/browser"
 	"github.com/gregor/mac-cleaner/pkg/system"
 )
 
@@ -22,6 +23,7 @@ var version = "dev"
 var (
 	flagDryRun       bool
 	flagSystemCaches bool
+	flagBrowserData  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -29,11 +31,18 @@ var rootCmd = &cobra.Command{
 	Short: "scan and remove macOS junk files",
 	Long:  "scan and remove system caches, browser data, developer caches, and app leftovers",
 	Run: func(cmd *cobra.Command, args []string) {
+		ran := false
 		if flagSystemCaches {
 			runSystemCachesScan(cmd)
-			return
+			ran = true
 		}
-		cmd.Help()
+		if flagBrowserData {
+			runBrowserDataScan(cmd)
+			ran = true
+		}
+		if !ran {
+			cmd.Help()
+		}
 	},
 }
 
@@ -42,6 +51,7 @@ func init() {
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 	rootCmd.PersistentFlags().BoolVar(&flagDryRun, "dry-run", false, "preview what would be removed without deleting")
 	rootCmd.Flags().BoolVar(&flagSystemCaches, "system-caches", false, "scan user app caches, logs, and QuickLook thumbnails")
+	rootCmd.Flags().BoolVar(&flagBrowserData, "browser-data", false, "scan Safari, Chrome, and Firefox caches")
 }
 
 // Execute runs the root command. Errors are printed to stderr.
@@ -59,13 +69,23 @@ func runSystemCachesScan(cmd *cobra.Command) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return
 	}
-	printResults(results, flagDryRun)
+	printResults(results, flagDryRun, "System Caches")
+}
+
+// runBrowserDataScan executes the browser data scan and prints results.
+func runBrowserDataScan(cmd *cobra.Command) {
+	results, err := browser.Scan()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return
+	}
+	printResults(results, flagDryRun, "Browser Data")
 }
 
 // printResults displays scan results as a formatted table with color.
-func printResults(results []scan.CategoryResult, dryRun bool) {
+func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	if len(results) == 0 {
-		fmt.Println("No system caches found.")
+		fmt.Printf("No %s found.\n", strings.ToLower(title))
 		return
 	}
 
@@ -76,7 +96,7 @@ func printResults(results []scan.CategoryResult, dryRun bool) {
 	greenBold := color.New(color.FgGreen, color.Bold)
 
 	// Header
-	header := "System Caches"
+	header := title
 	if dryRun {
 		header += " (dry run)"
 	}

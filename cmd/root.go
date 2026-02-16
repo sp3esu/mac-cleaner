@@ -15,6 +15,7 @@ import (
 	"github.com/gregor/mac-cleaner/internal/cleanup"
 	"github.com/gregor/mac-cleaner/internal/confirm"
 	"github.com/gregor/mac-cleaner/internal/interactive"
+	"github.com/gregor/mac-cleaner/internal/safety"
 	"github.com/gregor/mac-cleaner/internal/scan"
 	"github.com/gregor/mac-cleaner/pkg/appleftovers"
 	"github.com/gregor/mac-cleaner/pkg/browser"
@@ -97,6 +98,7 @@ var rootCmd = &cobra.Command{
 			allResults = scanAll()
 			// Apply item-level skip filtering in interactive mode.
 			allResults = filterSkipped(allResults, buildSkipSet())
+			printPermissionIssues(allResults)
 			if len(allResults) == 0 {
 				fmt.Println("Nothing to clean.")
 				return
@@ -125,6 +127,10 @@ var rootCmd = &cobra.Command{
 
 		// Apply item-level skip filtering.
 		allResults = filterSkipped(allResults, buildSkipSet())
+
+		if !flagJSON {
+			printPermissionIssues(allResults)
+		}
 
 		if flagJSON {
 			printJSON(allResults)
@@ -367,9 +373,14 @@ func printJSON(results []scan.CategoryResult) {
 	for _, cat := range results {
 		totalSize += cat.TotalSize
 	}
+	var permIssues []scan.PermissionIssue
+	for _, cat := range results {
+		permIssues = append(permIssues, cat.PermissionIssues...)
+	}
 	summary := scan.ScanSummary{
-		Categories: results,
-		TotalSize:  totalSize,
+		Categories:       results,
+		TotalSize:        totalSize,
+		PermissionIssues: permIssues,
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -391,6 +402,8 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	bold := color.New(color.Bold)
 	cyan := color.New(color.FgCyan)
 	greenBold := color.New(color.FgGreen, color.Bold)
+	red := color.New(color.FgRed)
+	yellow := color.New(color.FgYellow)
 
 	// Header
 	header := title
@@ -403,6 +416,10 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	var grandTotal int64
 
 	for _, cat := range results {
+		if len(cat.Entries) == 0 {
+			continue
+		}
+
 		fmt.Println()
 
 		// Category header with base directory path.
@@ -417,7 +434,14 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 		for _, entry := range cat.Entries {
 			sizeStr := scan.FormatSize(entry.Size)
-			fmt.Fprintf(w, "    %s\t  %s\t\n", entry.Description, cyan.Sprint(sizeStr))
+			riskTag := ""
+			switch entry.RiskLevel {
+			case safety.RiskRisky:
+				riskTag = red.Sprint("  [risky]")
+			case safety.RiskModerate:
+				riskTag = yellow.Sprint("  [moderate]")
+			}
+			fmt.Fprintf(w, "    %s%s\t  %s\t\n", entry.Description, riskTag, cyan.Sprint(sizeStr))
 			if flagVerbose {
 				path := shortenHome(entry.Path, home)
 				fmt.Fprintf(w, "      %s\t\t\n", path)
@@ -432,6 +456,26 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	fmt.Println()
 	greenBold.Printf("  Total: %s reclaimable\n", scan.FormatSize(grandTotal))
 	fmt.Println()
+}
+
+// printPermissionIssues collects permission issues from all categories
+// and prints them to stderr as a warning.
+func printPermissionIssues(results []scan.CategoryResult) {
+	var issues []scan.PermissionIssue
+	for _, cat := range results {
+		issues = append(issues, cat.PermissionIssues...)
+	}
+	if len(issues) == 0 {
+		return
+	}
+	home, _ := os.UserHomeDir()
+	yellow := color.New(color.FgYellow)
+	fmt.Fprintln(os.Stderr)
+	yellow.Fprintf(os.Stderr, "Note: %d path(s) could not be accessed (permission denied):\n", len(issues))
+	for _, issue := range issues {
+		path := shortenHome(issue.Path, home)
+		fmt.Fprintf(os.Stderr, "  %s — %s\n", path, issue.Description)
+	}
 }
 
 // shortenHome replaces the home directory prefix with ~ for display.

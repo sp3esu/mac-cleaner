@@ -448,6 +448,33 @@ func TestServer_CleanupWithoutScan(t *testing.T) {
 	}
 }
 
+func TestServer_ActiveServerBlocks(t *testing.T) {
+	socketPath := filepath.Join(os.TempDir(), "mc-test-active.sock")
+	os.Remove(socketPath) // ensure clean start
+	defer os.Remove(socketPath)
+
+	// Start a listener to simulate an active server on the socket path.
+	ln, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("create listener: %v", err)
+	}
+	defer ln.Close()
+
+	// Creating a new server and calling Serve should fail because
+	// cleanStaleSocket detects an active listener via dial probe.
+	srv := New(socketPath, "test", newTestEngine())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err = srv.Serve(ctx)
+	if err == nil {
+		t.Fatal("expected error when another server is already listening")
+	}
+	if !strings.Contains(err.Error(), "already listening") {
+		t.Errorf("expected 'already listening' error, got: %v", err)
+	}
+}
+
 func TestServer_CleanupWithInvalidToken(t *testing.T) {
 	socketPath := filepath.Join(os.TempDir(), "mc-test-badtoken.sock")
 	os.Remove(socketPath)

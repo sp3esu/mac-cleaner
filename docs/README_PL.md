@@ -176,4 +176,4 @@ Projekt nie zawiera obecnie pliku licencji.
 
 ## Zbudowano z pomocą
 
-Ten projekt został zbudowany przy użyciu [Claude Code](https://claude.ai/claude-code) i wtyczki [Get Shit Done](https://github.com/gsd-build/get-shit-done).
+Ten projekt został zbudowany przy użyciu [Claude Code](https://claude.com/product/claude-code) i wtyczki [Get Shit Done](https://github.com/gsd-build/get-shit-done).

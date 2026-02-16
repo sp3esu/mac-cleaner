@@ -176,4 +176,4 @@ Dieses Projekt enthält derzeit keine Lizenzdatei.
 
 ## Erstellt mit
 
-Dieses Projekt wurde mit [Claude Code](https://claude.ai/claude-code) und dem [Get Shit Done](https://github.com/gsd-build/get-shit-done)-Plugin erstellt.
+Dieses Projekt wurde mit [Claude Code](https://claude.com/product/claude-code) und dem [Get Shit Done](https://github.com/gsd-build/get-shit-done)-Plugin erstellt.

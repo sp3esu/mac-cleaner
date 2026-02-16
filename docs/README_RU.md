@@ -176,4 +176,4 @@ go build -o mac-cleaner .
 
 ## Создано с помощью
 
-Этот проект был создан с использованием [Claude Code](https://claude.ai/claude-code) и плагина [Get Shit Done](https://github.com/gsd-build/get-shit-done).
+Этот проект был создан с использованием [Claude Code](https://claude.com/product/claude-code) и плагина [Get Shit Done](https://github.com/gsd-build/get-shit-done).

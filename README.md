@@ -208,4 +208,4 @@ MIT
 
 ## Built With
 
-This project was built using [Claude Code](https://claude.ai/claude-code) and the [Get Shit Done](https://github.com/gsd-build/get-shit-done) plugin.
+This project was built using [Claude Code](https://claude.com/product/claude-code) and the [Get Shit Done](https://github.com/gsd-build/get-shit-done) plugin.

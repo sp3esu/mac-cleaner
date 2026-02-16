@@ -50,7 +50,7 @@ mac-cleaner wurde zum Schutz Ihres Systems entwickelt:
 ### Aus dem Quellcode bauen
 
 ```bash
-git clone https://github.com/gregor/mac-cleaner.git
+git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help

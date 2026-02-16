@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // writeFile is a test helper that creates a file with the given size,

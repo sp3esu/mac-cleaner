@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gregor/mac-cleaner/internal/safety"
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // CleanupResult summarises the outcome of a cleanup operation.

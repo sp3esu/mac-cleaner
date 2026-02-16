@@ -1,0 +1,46 @@
+version: 2
+project_name: mac-cleaner
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/sp3esu/mac-cleaner/cmd.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - name: mac-cleaner
+    repository:
+      owner: sp3esu
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: "https://github.com/sp3esu/mac-cleaner"
+    description: "Fast, safe CLI tool for macOS to scan and reclaim disk space"
+    license: "MIT"
+    install: |
+      bin.install "mac-cleaner"
+    test: |
+      system "#{bin}/mac-cleaner", "--version"

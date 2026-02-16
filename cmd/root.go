@@ -12,20 +12,20 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/gregor/mac-cleaner/internal/cleanup"
-	"github.com/gregor/mac-cleaner/internal/confirm"
-	"github.com/gregor/mac-cleaner/internal/interactive"
-	"github.com/gregor/mac-cleaner/internal/safety"
-	"github.com/gregor/mac-cleaner/internal/scan"
-	"github.com/gregor/mac-cleaner/pkg/appleftovers"
-	"github.com/gregor/mac-cleaner/pkg/browser"
-	"github.com/gregor/mac-cleaner/pkg/developer"
-	"github.com/gregor/mac-cleaner/pkg/system"
+	"github.com/sp3esu/mac-cleaner/internal/cleanup"
+	"github.com/sp3esu/mac-cleaner/internal/confirm"
+	"github.com/sp3esu/mac-cleaner/internal/interactive"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/pkg/appleftovers"
+	"github.com/sp3esu/mac-cleaner/pkg/browser"
+	"github.com/sp3esu/mac-cleaner/pkg/developer"
+	"github.com/sp3esu/mac-cleaner/pkg/system"
 )
 
 // version is set via ldflags at build time:
 //
-//	go build -ldflags "-X github.com/gregor/mac-cleaner/cmd.version=0.1.0"
+//	go build -ldflags "-X github.com/sp3esu/mac-cleaner/cmd.version=0.1.0"
 var version = "dev"
 
 var (

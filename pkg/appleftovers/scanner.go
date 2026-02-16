@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gregor/mac-cleaner/internal/safety"
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // CmdRunner executes an external command and returns its combined stdout output.

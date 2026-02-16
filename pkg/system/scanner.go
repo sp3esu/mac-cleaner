@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gregor/mac-cleaner/internal/safety"
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // Scan discovers and sizes system cache directories. It scans

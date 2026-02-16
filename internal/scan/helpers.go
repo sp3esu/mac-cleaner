@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/gregor/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
 )
 
 // ScanTopLevel scans the top-level entries of a directory and returns a

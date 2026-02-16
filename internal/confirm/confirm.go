@@ -12,8 +12,8 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/gregor/mac-cleaner/internal/safety"
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // PromptConfirmation displays a summary of items to be deleted and asks

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 func sampleResults() []scan.CategoryResult {

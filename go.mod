@@ -1,4 +1,4 @@
-module github.com/gregor/mac-cleaner
+module github.com/sp3esu/mac-cleaner
 
 go 1.25.7
 

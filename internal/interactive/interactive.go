@@ -11,8 +11,8 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/gregor/mac-cleaner/internal/safety"
-	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // RunWalkthrough presents each scan entry one-by-one and asks the user

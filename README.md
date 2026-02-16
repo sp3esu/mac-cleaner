@@ -42,15 +42,18 @@ mac-cleaner is designed to protect your system:
 
 ## Installation
 
-### Prerequisites
+### Homebrew
 
-- **Go 1.25+**
-- **macOS**
+```bash
+brew install sp3esu/tap/mac-cleaner
+```
 
 ### Build from source
 
+**Prerequisites:** Go 1.25+, macOS
+
 ```bash
-git clone https://github.com/gregor/mac-cleaner.git
+git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help
@@ -161,4 +164,4 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 
 ## License
 
-This project does not currently include a license file.
+MIT

@@ -36,6 +36,31 @@ var (
 	flagAll          bool
 	flagJSON         bool
 	flagVerbose      bool
+	flagForce        bool
+)
+
+// Category-level skip flags prevent entire scanner groups from running.
+var (
+	flagSkipSystemCaches bool
+	flagSkipBrowserData  bool
+	flagSkipDevCaches    bool
+	flagSkipAppLeftovers bool
+)
+
+// Item-level skip flags filter specific categories from scan results.
+var (
+	flagSkipDerivedData   bool
+	flagSkipNpm           bool
+	flagSkipYarn          bool
+	flagSkipHomebrew      bool
+	flagSkipDocker        bool
+	flagSkipSafari        bool
+	flagSkipChrome        bool
+	flagSkipFirefox       bool
+	flagSkipQuicklook     bool
+	flagSkipOrphanedPrefs bool
+	flagSkipIosBackups    bool
+	flagSkipOldDownloads  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -70,6 +95,8 @@ var rootCmd = &cobra.Command{
 
 		if !ran {
 			allResults = scanAll()
+			// Apply item-level skip filtering in interactive mode.
+			allResults = filterSkipped(allResults, buildSkipSet())
 			if len(allResults) == 0 {
 				fmt.Println("Nothing to clean.")
 				return
@@ -85,14 +112,19 @@ var rootCmd = &cobra.Command{
 				return
 			}
 
-			if !confirm.PromptConfirmation(reader, os.Stdout, marked) {
-				fmt.Println("Aborted.")
-				return
+			if !flagForce {
+				if !confirm.PromptConfirmation(reader, os.Stdout, marked) {
+					fmt.Println("Aborted.")
+					return
+				}
 			}
 			result := cleanup.Execute(marked)
 			printCleanupSummary(result)
 			return
 		}
+
+		// Apply item-level skip filtering.
+		allResults = filterSkipped(allResults, buildSkipSet())
 
 		if flagJSON {
 			printJSON(allResults)
@@ -103,9 +135,11 @@ var rootCmd = &cobra.Command{
 
 		// Deletion flow: only when not in dry-run mode and there are results.
 		if !flagDryRun && len(allResults) > 0 {
-			if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
-				fmt.Println("Aborted.")
-				return
+			if !flagForce {
+				if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
+					fmt.Println("Aborted.")
+					return
+				}
 			}
 			result := cleanup.Execute(allResults)
 			printCleanupSummary(result)
@@ -124,6 +158,27 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagAll, "all", false, "scan all categories")
 	rootCmd.Flags().BoolVar(&flagJSON, "json", false, "output results as JSON")
 	rootCmd.Flags().BoolVar(&flagVerbose, "verbose", false, "show detailed file listing")
+	rootCmd.Flags().BoolVar(&flagForce, "force", false, "bypass confirmation prompt (for automation)")
+
+	// Category-level skip flags.
+	rootCmd.Flags().BoolVar(&flagSkipSystemCaches, "skip-system-caches", false, "skip system cache scanning")
+	rootCmd.Flags().BoolVar(&flagSkipBrowserData, "skip-browser-data", false, "skip browser data scanning")
+	rootCmd.Flags().BoolVar(&flagSkipDevCaches, "skip-dev-caches", false, "skip developer cache scanning")
+	rootCmd.Flags().BoolVar(&flagSkipAppLeftovers, "skip-app-leftovers", false, "skip app leftover scanning")
+
+	// Item-level skip flags.
+	rootCmd.Flags().BoolVar(&flagSkipDerivedData, "skip-derived-data", false, "skip Xcode DerivedData")
+	rootCmd.Flags().BoolVar(&flagSkipNpm, "skip-npm", false, "skip npm cache")
+	rootCmd.Flags().BoolVar(&flagSkipYarn, "skip-yarn", false, "skip Yarn cache")
+	rootCmd.Flags().BoolVar(&flagSkipHomebrew, "skip-homebrew", false, "skip Homebrew cache")
+	rootCmd.Flags().BoolVar(&flagSkipDocker, "skip-docker", false, "skip Docker reclaimable space")
+	rootCmd.Flags().BoolVar(&flagSkipSafari, "skip-safari", false, "skip Safari cache")
+	rootCmd.Flags().BoolVar(&flagSkipChrome, "skip-chrome", false, "skip Chrome cache")
+	rootCmd.Flags().BoolVar(&flagSkipFirefox, "skip-firefox", false, "skip Firefox cache")
+	rootCmd.Flags().BoolVar(&flagSkipQuicklook, "skip-quicklook", false, "skip QuickLook thumbnails")
+	rootCmd.Flags().BoolVar(&flagSkipOrphanedPrefs, "skip-orphaned-prefs", false, "skip orphaned preferences")
+	rootCmd.Flags().BoolVar(&flagSkipIosBackups, "skip-ios-backups", false, "skip iOS device backups")
+	rootCmd.Flags().BoolVar(&flagSkipOldDownloads, "skip-old-downloads", false, "skip old Downloads files")
 
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if flagAll {
@@ -131,6 +186,19 @@ func init() {
 			flagBrowserData = true
 			flagDevCaches = true
 			flagAppLeftovers = true
+		}
+		// Apply category-level skip overrides (after --all expansion).
+		if flagSkipSystemCaches {
+			flagSystemCaches = false
+		}
+		if flagSkipBrowserData {
+			flagBrowserData = false
+		}
+		if flagSkipDevCaches {
+			flagDevCaches = false
+		}
+		if flagSkipAppLeftovers {
+			flagAppLeftovers = false
 		}
 		if flagJSON {
 			color.NoColor = true
@@ -196,6 +264,50 @@ func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
 		printResults(results, flagDryRun, "App Leftovers")
 	}
 	return results
+}
+
+// buildSkipSet collects category IDs that should be excluded from results
+// based on item-level skip flags.
+func buildSkipSet() map[string]bool {
+	type skipMapping struct {
+		flag       *bool
+		categoryID string
+	}
+	mappings := []skipMapping{
+		{&flagSkipDerivedData, "dev-xcode"},
+		{&flagSkipNpm, "dev-npm"},
+		{&flagSkipYarn, "dev-yarn"},
+		{&flagSkipHomebrew, "dev-homebrew"},
+		{&flagSkipDocker, "dev-docker"},
+		{&flagSkipSafari, "browser-safari"},
+		{&flagSkipChrome, "browser-chrome"},
+		{&flagSkipFirefox, "browser-firefox"},
+		{&flagSkipQuicklook, "quicklook"},
+		{&flagSkipOrphanedPrefs, "app-orphaned-prefs"},
+		{&flagSkipIosBackups, "app-ios-backups"},
+		{&flagSkipOldDownloads, "app-old-downloads"},
+	}
+	skip := map[string]bool{}
+	for _, m := range mappings {
+		if *m.flag {
+			skip[m.categoryID] = true
+		}
+	}
+	return skip
+}
+
+// filterSkipped removes categories matching the skip set from results.
+func filterSkipped(results []scan.CategoryResult, skip map[string]bool) []scan.CategoryResult {
+	if len(skip) == 0 {
+		return results
+	}
+	var filtered []scan.CategoryResult
+	for _, cat := range results {
+		if !skip[cat.Category] {
+			filtered = append(filtered, cat)
+		}
+	}
+	return filtered
 }
 
 // scanAll runs all four scanners and returns aggregated results.

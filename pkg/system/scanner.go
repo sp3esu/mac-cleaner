@@ -69,6 +69,10 @@ func quickLookCacheDir() (string, error) {
 		return "", fmt.Errorf("QuickLook cache dir not found: %w", err)
 	}
 
+	if blocked, reason := safety.IsPathBlocked(cacheDir); blocked {
+		return "", fmt.Errorf("QuickLook cache dir blocked: %s (%s)", cacheDir, reason)
+	}
+
 	return cacheDir, nil
 }
 
@@ -101,6 +105,11 @@ func scanQuickLook(cacheParent, category, description string) (*scan.CategoryRes
 		}
 
 		entryPath := filepath.Join(cacheParent, entry.Name())
+
+		if blocked, reason := safety.IsPathBlocked(entryPath); blocked {
+			safety.WarnBlocked(entryPath, reason)
+			continue
+		}
 
 		var size int64
 		if entry.IsDir() {

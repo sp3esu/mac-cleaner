@@ -60,6 +60,8 @@ mac-cleaner został zaprojektowany z myślą o ochronie systemu:
 - **Tryb podglądu** — podgląd wszystkiego przed zatwierdzeniem z `--dry-run`
 - **Interaktywne potwierdzenie** — wymagana jawna zgoda użytkownika przed usunięciem (chyba że użyto `--force`)
 
+Szczegółową analizę bezpieczeństwa znajdziesz w dokumencie [Architektura bezpieczeństwa](SECURITY_PL.md).
+
 ## Instalacja
 
 ### Wymagania

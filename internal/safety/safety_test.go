@@ -8,6 +8,11 @@ import (
 )
 
 func TestIsPathBlocked(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("cannot get home dir: %v", err)
+	}
+
 	tests := []struct {
 		name        string
 		path        string
@@ -36,18 +41,44 @@ func TestIsPathBlocked(t *testing.T) {
 		{name: "usr local bin", path: "/usr/local/bin", wantBlocked: false, wantReason: ""},
 		{name: "usr local Cellar", path: "/usr/local/Cellar", wantBlocked: false, wantReason: ""},
 
-		// Safe paths — not under any blocked prefix
-		{name: "user Library Caches", path: "/Users/test/Library/Caches", wantBlocked: false, wantReason: ""},
-		{name: "Library Caches", path: "/Library/Caches", wantBlocked: false, wantReason: ""},
-		{name: "tmp", path: "/tmp", wantBlocked: false, wantReason: ""},
-		{name: "Applications", path: "/Applications", wantBlocked: false, wantReason: ""},
+		// Paths that are now blocked by home containment or critical-path check
+		{name: "user Library Caches", path: home + "/Library/Caches", wantBlocked: false, wantReason: ""},
+		{name: "Library Caches", path: "/Library/Caches", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "tmp", path: "/tmp", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "Applications", path: "/Applications", wantBlocked: true, wantReason: "critical system path"},
 		{name: "private var folders", path: "/private/var/folders", wantBlocked: false, wantReason: ""},
 
-		// Edge cases — path boundary, must NOT false-positive
-		{name: "SystemVolume not System", path: "/SystemVolume", wantBlocked: false, wantReason: ""},
-		{name: "usrlocal not usr", path: "/usrlocal", wantBlocked: false, wantReason: ""},
-		{name: "sbinaries not sbin", path: "/sbinaries", wantBlocked: false, wantReason: ""},
-		{name: "binary not bin", path: "/binary", wantBlocked: false, wantReason: ""},
+		// Edge cases — path boundary, SIP prefix must NOT false-positive
+		// (but these are still blocked by home containment)
+		{name: "SystemVolume not System", path: "/SystemVolume", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "usrlocal not usr", path: "/usrlocal", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "sbinaries not sbin", path: "/sbinaries", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "binary not bin", path: "/binary", wantBlocked: true, wantReason: "outside home directory"},
+
+		// Critical paths — exact match blocks
+		{name: "root path", path: "/", wantBlocked: true, wantReason: "critical system path"},
+		{name: "Users root", path: "/Users", wantBlocked: true, wantReason: "critical system path"},
+		{name: "Library root", path: "/Library", wantBlocked: true, wantReason: "critical system path"},
+		{name: "Applications root", path: "/Applications", wantBlocked: true, wantReason: "critical system path"},
+		{name: "private root", path: "/private", wantBlocked: true, wantReason: "critical system path"},
+		// /var and /etc are symlinks to /private/var and /private/etc on macOS,
+		// so after symlink resolution they no longer match the critical path
+		// exact list; they are blocked by home containment instead.
+		{name: "var root", path: "/var", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "etc root", path: "/etc", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "Volumes root", path: "/Volumes", wantBlocked: true, wantReason: "critical system path"},
+		{name: "opt root", path: "/opt", wantBlocked: true, wantReason: "critical system path"},
+		{name: "cores root", path: "/cores", wantBlocked: true, wantReason: "critical system path"},
+
+		// Home containment — paths outside home dir and /private/var/folders
+		{name: "outside home var log", path: "/var/log", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "etc hosts", path: "/etc/hosts", wantBlocked: true, wantReason: "outside home directory"},
+
+		// Critical paths as prefixes — not exact match, but still outside home
+		// Note: /Applications/Safari.app is a symlink into /System on macOS,
+		// so we use a non-existent app to test the home containment path.
+		{name: "Applications subpath", path: "/Applications/SomeNonExistentApp.app", wantBlocked: true, wantReason: "outside home directory"},
+		{name: "Library subpath", path: "/Library/Caches/something", wantBlocked: true, wantReason: "outside home directory"},
 
 		// Path traversal — caught by filepath.Clean
 		{name: "traversal to System Library", path: "/System/../System/Library", wantBlocked: true, wantReason: "SIP-protected"},

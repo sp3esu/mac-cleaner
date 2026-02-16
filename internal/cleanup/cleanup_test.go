@@ -146,13 +146,18 @@ func TestExecuteBlockedPath(t *testing.T) {
 }
 
 func TestExecuteAlreadyGone(t *testing.T) {
+	// Use a path under a temp dir (which is under the home or /private/var/folders/)
+	// so it passes the home containment check. The path itself does not exist.
+	tmp := t.TempDir()
+	gonePath := filepath.Join(tmp, "definitely-does-not-exist-abc123")
+
 	// os.RemoveAll returns nil for nonexistent paths, so this counts as Removed.
 	results := []scan.CategoryResult{
 		{
 			Category:    "test",
 			Description: "Test",
 			Entries: []scan.ScanEntry{
-				{Path: "/tmp/definitely-does-not-exist-abc123", Description: "gone", Size: 50},
+				{Path: gonePath, Description: "gone", Size: 50},
 			},
 			TotalSize: 50,
 		},
@@ -263,6 +268,30 @@ func TestExecuteProgressCallback(t *testing.T) {
 	// Entry for B: entryPath=f2, current=2, total=2.
 	if calls[3].categoryDesc != "Category B" || calls[3].entryPath != f2 || calls[3].current != 2 || calls[3].total != 2 {
 		t.Errorf("call[3] = %+v, want entry for Category B", calls[3])
+	}
+}
+
+func TestIsPseudoPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "docker pseudo-path", path: "docker:BuildCache", want: true},
+		{name: "empty string", path: "", want: true},
+		{name: "relative path", path: "relative/path", want: true},
+		{name: "absolute path", path: "/Users/foo/bar", want: false},
+		{name: "path with colon", path: "/Users/foo/my:file", want: false},
+		{name: "root path", path: "/", want: false},
+		{name: "tmp path", path: "/tmp/test", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isPseudoPath(tt.path); got != tt.want {
+				t.Errorf("isPseudoPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 

@@ -20,7 +20,10 @@ func DirSize(root string) (int64, error) {
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Skip entries we cannot access (permission denied, etc.)
+			// Skip entries we cannot access. This covers permission-denied
+			// errors and also I/O errors on damaged filesystems. Propagating
+			// errors here would abort the entire scan for a single bad entry,
+			// which is undesirable for a cleanup tool.
 			return nil
 		}
 		if d.Type().IsRegular() {

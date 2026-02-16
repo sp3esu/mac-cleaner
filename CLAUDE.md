@@ -94,3 +94,12 @@ gh run list --workflow=release.yml --limit=1
 gh run watch <run-id>
 gh release view v<X.Y.Z>
 ```
+
+## Security
+
+- All security-sensitive code must include tests covering edge cases
+- Path construction must use `filepath.Join` — never string concatenation
+- New scan targets must be under `~/` or explicitly allowlisted in `safety.go`
+- External command execution must use `exec.CommandContext` with separate args — never shell invocation
+- `safety.IsPathBlocked()` must be called on every path before scanning or deletion
+- Run `gosec ./...` before submitting changes touching safety/cleanup/scan packages

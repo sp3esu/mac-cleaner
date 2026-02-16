@@ -400,3 +400,25 @@ func TestQuickLookCacheDir_MissingSiblingC(t *testing.T) {
 		t.Fatal("expected error when sibling C dir is missing")
 	}
 }
+
+func TestQuickLookCacheDir_PassesSafetyCheck(t *testing.T) {
+	base := t.TempDir()
+
+	// On macOS, t.TempDir() is under /private/var/folders/ which is
+	// allowed by the home containment check. Verify that a valid TMPDIR
+	// structure passes the safety check integrated into quickLookCacheDir.
+	tDir := filepath.Join(base, "var", "folders", "xx", "yy", "T")
+	cDir := filepath.Join(base, "var", "folders", "xx", "yy", "C")
+	os.MkdirAll(tDir, 0755)
+	os.MkdirAll(cDir, 0755)
+
+	t.Setenv("TMPDIR", tDir+"/")
+
+	got, err := quickLookCacheDir()
+	if err != nil {
+		t.Fatalf("quickLookCacheDir: %v", err)
+	}
+	if got != cDir {
+		t.Errorf("expected %q, got %q", cDir, got)
+	}
+}

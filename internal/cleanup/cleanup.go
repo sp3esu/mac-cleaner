@@ -83,6 +83,7 @@ func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResu
 
 // isPseudoPath returns true for paths that represent non-filesystem entries
 // (e.g. Docker resource identifiers like "docker:BuildCache").
+// Real filesystem paths on macOS always start with "/".
 func isPseudoPath(path string) bool {
-	return strings.Contains(path, ":")
+	return !strings.HasPrefix(path, "/")
 }

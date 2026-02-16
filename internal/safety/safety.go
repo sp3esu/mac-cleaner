@@ -10,6 +10,21 @@ import (
 	"strings"
 )
 
+// criticalPaths lists root-level paths that must never be deleted.
+// These are blocked as exact matches for defense-in-depth.
+var criticalPaths = []string{
+	"/",
+	"/Users",
+	"/Library",
+	"/Applications",
+	"/private",
+	"/var",
+	"/etc",
+	"/Volumes",
+	"/opt",
+	"/cores",
+}
+
 // sipProtectedPrefixes lists path prefixes protected by System Integrity
 // Protection. Any path equal to or under these prefixes is blocked, unless
 // it falls under a sipException.
@@ -46,10 +61,25 @@ func IsPathBlocked(path string) (bool, string) {
 			// Path exists but cannot be resolved — block for safety.
 			return true, fmt.Sprintf("cannot resolve path: %v", err)
 		}
-		// Path does not exist; check the literal cleaned path.
-		resolved = cleaned
+		// Path does not exist; try resolving the parent directory so that
+		// symlinks in ancestor components are still resolved (e.g. on macOS,
+		// /var -> /private/var). Fall back to the literal cleaned path if
+		// the parent also cannot be resolved.
+		resolvedDir, dirErr := filepath.EvalSymlinks(filepath.Dir(cleaned))
+		if dirErr != nil {
+			resolved = cleaned
+		} else {
+			resolved = filepath.Join(resolvedDir, filepath.Base(cleaned))
+		}
 	}
 	resolved = filepath.Clean(resolved)
+
+	// Check critical root-level paths (exact match).
+	for _, cp := range criticalPaths {
+		if resolved == cp {
+			return true, "critical system path"
+		}
+	}
 
 	// Check swap/VM prefixes first (no exceptions, simplest check).
 	for _, prefix := range swapProtectedPrefixes {
@@ -68,6 +98,17 @@ func IsPathBlocked(path string) (bool, string) {
 				}
 			}
 			return true, "SIP-protected"
+		}
+	}
+
+	// Positive containment: path must be under user's home directory
+	// or under /private/var/folders/ (for QuickLook caches).
+	// This is a defense-in-depth measure — scanners already construct
+	// paths from the home directory, but this catches any future mistakes.
+	home, err := os.UserHomeDir()
+	if err == nil {
+		if !pathHasPrefix(resolved, home) && !pathHasPrefix(resolved, "/private/var/folders") {
+			return true, "outside home directory"
 		}
 	}
 

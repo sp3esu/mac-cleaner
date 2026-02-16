@@ -60,6 +60,8 @@ mac-cleaner is designed to protect your system:
 - **Dry-run mode** — preview everything before committing with `--dry-run`
 - **Interactive confirmation** — explicit user approval required before anything is deleted (unless `--force` is used)
 
+For a detailed security analysis, see [Security Architecture](docs/SECURITY.md).
+
 ## Installation
 
 ### Homebrew

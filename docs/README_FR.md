@@ -60,6 +60,8 @@ mac-cleaner est conçu pour protéger votre système :
 - **Mode aperçu** — prévisualiser tout avant d'agir avec `--dry-run`
 - **Confirmation interactive** — approbation explicite de l'utilisateur requise avant toute suppression (sauf si `--force` est utilisé)
 
+Pour une analyse de sécurité détaillée, voir [Architecture de sécurité](SECURITY_FR.md).
+
 ## Installation
 
 ### Prérequis

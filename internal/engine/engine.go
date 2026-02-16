@@ -3,24 +3,10 @@
 package engine
 
 import (
-	"github.com/sp3esu/mac-cleaner/internal/scan"
-	"github.com/sp3esu/mac-cleaner/pkg/appleftovers"
-	"github.com/sp3esu/mac-cleaner/pkg/browser"
-	"github.com/sp3esu/mac-cleaner/pkg/creative"
-	"github.com/sp3esu/mac-cleaner/pkg/developer"
-	"github.com/sp3esu/mac-cleaner/pkg/messaging"
-	"github.com/sp3esu/mac-cleaner/pkg/system"
-)
+	"sync"
 
-// Scanner defines a pluggable scanner group.
-type Scanner struct {
-	// ID is a machine-readable identifier (e.g. "system", "browser").
-	ID string
-	// Label is a human-readable name (e.g. "System Caches").
-	Label string
-	// ScanFn executes the scan and returns category results.
-	ScanFn func() ([]scan.CategoryResult, error)
-}
+	"github.com/sp3esu/mac-cleaner/internal/scan"
+)
 
 // ScanEvent reports progress during a scan operation.
 type ScanEvent struct {
@@ -43,63 +29,15 @@ const (
 	EventScannerError = "scanner_error"
 )
 
-// ScanProgressFunc is called for each scan event.
-type ScanProgressFunc func(ScanEvent)
-
-// DefaultScanners returns all built-in scanner groups in execution order.
-func DefaultScanners() []Scanner {
-	return []Scanner{
-		{ID: "system", Label: "System Caches", ScanFn: system.Scan},
-		{ID: "browser", Label: "Browser Data", ScanFn: browser.Scan},
-		{ID: "developer", Label: "Developer Caches", ScanFn: developer.Scan},
-		{ID: "appleftovers", Label: "App Leftovers", ScanFn: appleftovers.Scan},
-		{ID: "creative", Label: "Creative App Caches", ScanFn: creative.Scan},
-		{ID: "messaging", Label: "Messaging App Caches", ScanFn: messaging.Scan},
+// Engine orchestrates scanning and cleanup operations. It holds the
+// scanner registry and token store. Safe for concurrent use.
+type Engine struct {
+	scanners  []Scanner
+	mu        sync.Mutex
+	lastToken struct {
+		token ScanToken
+		entry *tokenEntry
 	}
-}
-
-// ScanAll runs the given scanners sequentially and returns aggregated results.
-// If onProgress is non-nil it is called before and after each scanner.
-// Scanner errors are reported via progress events; partial results are still
-// returned. The skip set filters category IDs from the final output.
-func ScanAll(scanners []Scanner, skip map[string]bool, onProgress ScanProgressFunc) []scan.CategoryResult {
-	var all []scan.CategoryResult
-
-	for _, s := range scanners {
-		if onProgress != nil {
-			onProgress(ScanEvent{
-				Type:      EventScannerStart,
-				ScannerID: s.ID,
-				Label:     s.Label,
-			})
-		}
-
-		results, err := s.ScanFn()
-		if err != nil {
-			if onProgress != nil {
-				onProgress(ScanEvent{
-					Type:      EventScannerError,
-					ScannerID: s.ID,
-					Label:     s.Label,
-					Err:       err,
-				})
-			}
-			continue
-		}
-
-		if onProgress != nil {
-			onProgress(ScanEvent{
-				Type:      EventScannerDone,
-				ScannerID: s.ID,
-				Label:     s.Label,
-				Results:   results,
-			})
-		}
-
-		all = append(all, results...)
-	}
-
-	return FilterSkipped(all, skip)
 }
 
 // FilterSkipped removes categories matching the skip set from results.

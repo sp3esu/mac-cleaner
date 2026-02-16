@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 2 complete -- system cache scanner operational, ready for Phase 3
+**Current focus:** Phase 3 in progress -- browser scanner complete, developer caches next
 
 ## Current Position
 
-Phase: 2 of 7 (System Cache Scanning)
-Plan: 2 of 2 completed in current phase
-Status: Phase complete
-Last activity: 2026-02-16 - Completed 02-02-PLAN.md (System cache scanner and CLI wiring)
+Phase: 3 of 7 (Browser & Developer Caches)
+Plan: 1 of 2 completed in current phase
+Status: In progress
+Last activity: 2026-02-16 - Completed 03-01-PLAN.md (Browser cache scanner)
 
-Progress: [████░░░░░░] ~29%
+Progress: [█████░░░░░] ~36%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 1.8 min
-- Total execution time: 0.12 hours
+- Total plans completed: 5
+- Average duration: 2.2 min
+- Total execution time: 0.18 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: [████░░░░░░] ~29%
 |-------|-------|-------|----------|
 | 01-project-setup-safety-foundation | 2/2 | 3 min | 1.5 min |
 | 02-system-cache-scanning | 2/2 | 5 min | 2.5 min |
+| 03-browser-developer-caches | 1/2 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (1 min), 01-02 (2 min), 02-01 (2 min), 02-02 (3 min)
+- Last 5 plans: 01-02 (2 min), 02-01 (2 min), 02-02 (3 min), 03-01 (4 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -57,6 +58,11 @@ Recent decisions affecting current work:
 - Zero-byte entries excluded from results to reduce noise
 - Entries sorted by size descending within each category
 - tabwriter with AlignRight for size column alignment
+- Safari uses DirSize on single directory (not ScanTopLevel) since it is one cache entry
+- Chrome scans all subdirectories as profiles (Default, Profile 1, etc.)
+- Firefox uses shared ScanTopLevel since its cache follows directory-of-subdirectories pattern
+- printResults generalized with title parameter instead of separate print functions per scan type
+- Multiple scan flags supported via ran boolean tracker (not early return)
 
 ### Patterns Established
 
@@ -69,7 +75,10 @@ Recent decisions affecting current work:
 - Stderr-only warnings via WarnBlocked
 - Scan types: ScanEntry/CategoryResult/ScanSummary as shared result types for all scanners
 - DirSize pattern: WalkDir with error-skipping for resilient directory traversal
-- Scanner pattern: scanTopLevel(dir, category, description) for directory-based categories
+- Shared scan helper: scan.ScanTopLevel for directory-of-subdirectories pattern
+- Browser scanner pattern: private helpers take home string for testability with temp dirs
+- Generalized printResults(results, dryRun, title) for all scan categories
+- Multi-flag CLI pattern: ran boolean tracker allowing combined flags
 - CLI flag wiring: package-level bool vars, init() registration, Run func dispatch
 - Output pattern: fatih/color bold headers, cyan sizes, green+bold total line
 - Home path shortening: replace home prefix with ~ for display
@@ -85,8 +94,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed Phase 2 (02-02), ready for Phase 3
-Resume file: Next phase planning
+Stopped at: Completed 03-01 (browser scanner), ready for 03-02 (developer caches)
+Resume file: .planning/phases/03-browser-developer-caches/03-02-PLAN.md
 
 ---
 *State initialized: 2026-02-16*

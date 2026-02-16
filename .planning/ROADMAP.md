@@ -5,10 +5,21 @@
 
 **Requirements:** ENG-01, ENG-02, ENG-03, ENG-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Build engine package: Scanner interface, Engine struct, channel-based ScanAll/Cleanup, token store, custom errors, tests
+- [ ] 08-02-PLAN.md — Wire CLI and server to use Engine struct, remove direct pkg/* imports, verify zero behavior change
+
 **Key deliverables:**
-- `internal/engine/engine.go` — Scanner type, DefaultScanners(), ScanAll(), FilterSkipped()
-- `internal/engine/engine_test.go` — Unit tests with mock scanners
+- `internal/engine/engine.go` — Engine struct, ScanAll(), Run(), Cleanup()
+- `internal/engine/scanner.go` — Scanner interface, ScannerInfo, adapter
+- `internal/engine/registry.go` — Register(), RegisterDefaults(), Categories()
+- `internal/engine/token.go` — ScanToken, replay protection
+- `internal/engine/errors.go` — ScanError, CancelledError, TokenError
+- `internal/engine/engine_test.go` — 24+ tests with mock scanners
 - `cmd/root.go` modified to delegate to engine (no behavior change)
+- `internal/server/` updated to use Engine struct instance
 
 **Success criteria:**
 - `go test ./...` passes

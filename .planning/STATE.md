@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 6 in progress -- CLI polish and automation flags
+**Current focus:** Phase 6 complete -- ready for Phase 7 (Packaging & Release)
 
 ## Current Position
 
 Phase: 6 of 7 (CLI Polish & Automation)
-Plan: 1 of 2 completed in current phase
-Status: In progress
-Last activity: 2026-02-16 - Completed 06-01-PLAN.md (JSON/all/verbose flags)
+Plan: 2 of 2 completed in current phase
+Status: Phase complete
+Last activity: 2026-02-16 - Completed 06-02-PLAN.md (skip flags and force bypass)
 
-Progress: [█████████░] ~71%
+Progress: [██████████░] ~86%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 2.8 min
-- Total execution time: 0.47 hours
+- Total execution time: 0.51 hours
 
 **By Phase:**
 
@@ -32,10 +32,10 @@ Progress: [█████████░] ~71%
 | 03-browser-developer-caches | 2/2 | 8 min | 4 min |
 | 04-app-leftover-scanning | 2/2 | 6 min | 3 min |
 | 05-interactive-mode | 1/1 | 3 min | 3 min |
-| 06-cli-polish-automation | 1/2 | 3 min | 3 min |
+| 06-cli-polish-automation | 2/2 | 6 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 (3 min), 04-02 (3 min), 05-01 (3 min), 06-01 (3 min)
+- Last 5 plans: 04-02 (3 min), 05-01 (3 min), 06-01 (3 min), 06-02 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -89,6 +89,11 @@ Recent decisions affecting current work:
 - --json without scan flags exits with error (requires --all or specific flag)
 - --json suppresses per-category printResults calls; single printJSON at end
 - --verbose adds path line below each entry in tabwriter (no effect in JSON mode)
+- Category-level skip flags negate scan booleans in PreRun (scanner never runs)
+- Item-level skip flags filter results after scanning via buildSkipSet/filterSkipped
+- --force only bypasses confirmation prompt, NOT the safety layer
+- Skip flags compose with --all: --all --skip-browser-data correctly excludes browser
+- Data-driven skipMapping pattern for maintainable flag-to-category-ID mapping
 
 ### Patterns Established
 
@@ -123,6 +128,9 @@ Recent decisions affecting current work:
 - PreRun hook pattern: flag expansion and output mode setup before Run
 - JSON output mode: suppress human-readable output, emit structured JSON to stdout
 - Flag guard pattern: !flagJSON check before printResults in each runner function
+- Category-level skip: negate scan flag in PreRun hook (prevents scanner execution)
+- Item-level skip: data-driven buildSkipSet + filterSkipped post-scan filtering
+- Force bypass: nested !flagForce guard around confirmation prompt
 
 ### Pending Todos
 
@@ -135,9 +143,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 06-01-PLAN.md (JSON/all/verbose flags), Phase 6 plan 1 of 2 done
-Resume file: .planning/phases/06-cli-polish-automation/06-02-PLAN.md
+Stopped at: Completed 06-02-PLAN.md (skip flags and force bypass), Phase 6 complete
+Resume file: .planning/phases/07-packaging-release/ (next phase)
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (06-01 complete)*
+*Last updated: 2026-02-16 (06-02 complete, Phase 6 complete)*

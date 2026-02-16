@@ -27,6 +27,10 @@ var categoryRisk = map[string]string{
 	"dev-simulator-logs":       RiskSafe,
 	"dev-xcode-device-support": RiskModerate,
 	"dev-xcode-archives":       RiskRisky,
+	"creative-adobe":           RiskSafe,
+	"creative-adobe-media":     RiskModerate,
+	"creative-sketch":          RiskSafe,
+	"creative-figma":           RiskSafe,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

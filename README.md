@@ -205,3 +205,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ## License
 
 MIT
+
+## Built With
+
+This project was built using [Claude Code](https://claude.ai/claude-code) and the [Get Shit Done](https://github.com/gsd-build/get-shit-done) plugin.

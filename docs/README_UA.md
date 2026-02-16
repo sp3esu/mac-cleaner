@@ -173,3 +173,7 @@ go build -o mac-cleaner .
 ## Ліцензія
 
 Проєкт наразі не містить файлу ліцензії.
+
+## Створено за допомогою
+
+Цей проєкт було створено за допомогою [Claude Code](https://claude.ai/claude-code) та плагіна [Get Shit Done](https://github.com/gsd-build/get-shit-done).

@@ -173,3 +173,7 @@ go build -o mac-cleaner .
 ## Licencja
 
 Projekt nie zawiera obecnie pliku licencji.
+
+## Zbudowano z pomocą
+
+Ten projekt został zbudowany przy użyciu [Claude Code](https://claude.ai/claude-code) i wtyczki [Get Shit Done](https://github.com/gsd-build/get-shit-done).

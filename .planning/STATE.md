@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 3 in progress -- browser scanner complete, developer caches next
+**Current focus:** Phase 3 complete -- ready for Phase 4 (app leftover scanning)
 
 ## Current Position
 
-Phase: 3 of 7 (Browser & Developer Caches)
-Plan: 1 of 2 completed in current phase
-Status: In progress
-Last activity: 2026-02-16 - Completed 03-01-PLAN.md (Browser cache scanner)
+Phase: 3 of 7 (Browser & Developer Caches) -- COMPLETE
+Plan: 2 of 2 completed in current phase
+Status: Phase complete
+Last activity: 2026-02-16 - Completed 03-02-PLAN.md (Developer cache scanner)
 
-Progress: [█████░░░░░] ~36%
+Progress: [████░░░░░░] ~43%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 2.2 min
-- Total execution time: 0.18 hours
+- Total plans completed: 6
+- Average duration: 2.5 min
+- Total execution time: 0.25 hours
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [█████░░░░░] ~36%
 |-------|-------|-------|----------|
 | 01-project-setup-safety-foundation | 2/2 | 3 min | 1.5 min |
 | 02-system-cache-scanning | 2/2 | 5 min | 2.5 min |
-| 03-browser-developer-caches | 1/2 | 4 min | 4 min |
+| 03-browser-developer-caches | 2/2 | 8 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (2 min), 02-01 (2 min), 02-02 (3 min), 03-01 (4 min)
+- Last 5 plans: 02-01 (2 min), 02-02 (3 min), 03-01 (4 min), 03-02 (4 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -63,6 +63,11 @@ Recent decisions affecting current work:
 - Firefox uses shared ScanTopLevel since its cache follows directory-of-subdirectories pattern
 - printResults generalized with title parameter instead of separate print functions per scan type
 - Multiple scan flags supported via ran boolean tracker (not early return)
+- npm cache scanned at ~/.npm/ (not ~/Library/Caches/) per npm documentation
+- Yarn cache treated as single blob with DirSize rather than ScanTopLevel
+- Docker size parsing uses ordered suffix slice to prevent map iteration ambiguity
+- Docker entries use docker:Type pseudo-paths for non-filesystem entries
+- exec.LookPath guard before Docker CLI calls
 
 ### Patterns Established
 
@@ -82,6 +87,9 @@ Recent decisions affecting current work:
 - CLI flag wiring: package-level bool vars, init() registration, Run func dispatch
 - Output pattern: fatih/color bold headers, cyan sizes, green+bold total line
 - Home path shortening: replace home prefix with ~ for display
+- CmdRunner dependency injection for external CLI testability (Docker)
+- External CLI integration: LookPath guard -> context timeout -> JSON parsing -> graceful nil on failure
+- fakeDockerPath test helper for PATH manipulation in tests
 
 ### Pending Todos
 
@@ -94,8 +102,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 03-01 (browser scanner), ready for 03-02 (developer caches)
-Resume file: .planning/phases/03-browser-developer-caches/03-02-PLAN.md
+Stopped at: Completed Phase 3 (browser + developer caches), ready for Phase 4
+Resume file: .planning/phases/04-app-leftover-scanning/
 
 ---
 *State initialized: 2026-02-16*

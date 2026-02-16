@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 4 in progress -- app leftover scanning
+**Current focus:** Phase 4 complete -- ready for Phase 5
 
 ## Current Position
 
 Phase: 4 of 7 (App Leftover Scanning)
-Plan: 1 of 2 completed in current phase
-Status: In progress
-Last activity: 2026-02-16 - Completed 04-01-PLAN.md (App leftovers scanner)
+Plan: 2 of 2 completed in current phase
+Status: Phase complete
+Last activity: 2026-02-16 - Completed 04-02-PLAN.md (Confirmation & cleanup execution)
 
-Progress: [█████░░░░░] ~50%
+Progress: [██████░░░░] ~57%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 2.7 min
-- Total execution time: 0.32 hours
+- Total plans completed: 8
+- Average duration: 2.8 min
+- Total execution time: 0.37 hours
 
 **By Phase:**
 
@@ -30,10 +30,10 @@ Progress: [█████░░░░░] ~50%
 | 01-project-setup-safety-foundation | 2/2 | 3 min | 1.5 min |
 | 02-system-cache-scanning | 2/2 | 5 min | 2.5 min |
 | 03-browser-developer-caches | 2/2 | 8 min | 4 min |
-| 04-app-leftover-scanning | 1/2 | 3 min | 3 min |
+| 04-app-leftover-scanning | 2/2 | 6 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (3 min), 03-01 (4 min), 03-02 (4 min), 04-01 (3 min)
+- Last 5 plans: 03-01 (4 min), 03-02 (4 min), 04-01 (3 min), 04-02 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -73,6 +73,11 @@ Recent decisions affecting current work:
 - Prefix matching for bundle IDs: domain == id OR HasPrefix(domain, id+".") catches sub-preferences
 - 90-day maxAge hardcoded in Scan(), configurability deferred to Phase 6
 - entry.Info() used for Downloads (ReadDir provides Lstat semantics)
+- PromptConfirmation uses io.Reader/io.Writer for full testability without stdin/stdout coupling
+- Exact "yes" required for confirmation (case-sensitive, whitespace-trimmed)
+- Pseudo-paths containing ":" skipped during cleanup (macOS paths never contain colons)
+- os.RemoveAll for all entries (handles files and directories; nil on nonexistent = success)
+- Combined scan flags produce single aggregated confirmation prompt
 
 ### Patterns Established
 
@@ -98,6 +103,10 @@ Recent decisions affecting current work:
 - PlistBuddy path injection: pass path as parameter instead of LookPath with PATH manipulation
 - Age-based filtering: time.Since(modTime) > maxAge with configurable duration parameter
 - Bundle ID prefix matching for orphaned preference detection
+- io.Reader/io.Writer injection for testable interactive prompts
+- Safety re-check at deletion time (IsPathBlocked before each os.RemoveAll)
+- Pseudo-path filtering: entries with ":" skipped in filesystem operations
+- Scan result aggregation: runner functions return []CategoryResult for Root to aggregate
 
 ### Pending Todos
 
@@ -110,9 +119,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 04-01-PLAN.md (app leftovers scanner), ready for 04-02
-Resume file: .planning/phases/04-app-leftover-scanning/04-02-PLAN.md
+Stopped at: Completed 04-02-PLAN.md (confirmation & cleanup), Phase 4 complete
+Resume file: .planning/phases/05-interactive-tui/ (next phase)
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (04-01 complete)*
+*Last updated: 2026-02-16 (04-02 complete, Phase 4 done)*

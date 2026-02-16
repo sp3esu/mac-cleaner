@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: System Cache Scanning** - First category implementation with dry-run architecture
 - [x] **Phase 3: Browser & Developer Caches** - Multi-category expansion (browser data, dev caches)
 - [x] **Phase 4: App Leftovers & Cleanup Execution** - Third category plus actual deletion capability
-- [ ] **Phase 5: Interactive Mode** - Walkthrough mode with item-by-item confirmation
+- [x] **Phase 5: Interactive Mode** - Walkthrough mode with item-by-item confirmation
 - [ ] **Phase 6: CLI Polish & Automation** - Advanced flags (JSON, verbose, skip, force)
 - [ ] **Phase 7: Safety Enforcement** - Risk categorization and permission handling
 
@@ -96,7 +96,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — Interactive walkthrough package and CLI wiring (scan all, per-item keep/remove, confirm, execute)
+- [x] 05-01-PLAN.md — Interactive walkthrough package and CLI wiring (scan all, per-item keep/remove, confirm, execute)
 
 ### Phase 6: CLI Polish & Automation
 **Goal**: User can automate cleaning with flags and get structured output for AI agents
@@ -142,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. System Cache Scanning | 2/2 | ✓ Complete | 2026-02-16 |
 | 3. Browser & Developer Caches | 2/2 | ✓ Complete | 2026-02-16 |
 | 4. App Leftovers & Cleanup Execution | 2/2 | ✓ Complete | 2026-02-16 |
-| 5. Interactive Mode | 0/TBD | Not started | - |
+| 5. Interactive Mode | 1/1 | ✓ Complete | 2026-02-16 |
 | 6. CLI Polish & Automation | 0/TBD | Not started | - |
 | 7. Safety Enforcement | 0/TBD | Not started | - |
 

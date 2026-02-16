@@ -56,6 +56,35 @@ go build -o mac-cleaner .
 ./mac-cleaner --help
 ```
 
+## Shell Completion
+
+Generate shell completion scripts for tab-completing flags and subcommands.
+
+**Bash:**
+```bash
+# Load in current session:
+source <(mac-cleaner completion bash)
+
+# Install permanently:
+mac-cleaner completion bash > /usr/local/etc/bash_completion.d/mac-cleaner
+```
+
+**Zsh:**
+```bash
+mac-cleaner completion zsh > "${fpath[1]}/_mac-cleaner"
+# Then restart your shell or run: compinit
+```
+
+**Fish:**
+```bash
+mac-cleaner completion fish > ~/.config/fish/completions/mac-cleaner.fish
+```
+
+**PowerShell:**
+```powershell
+mac-cleaner completion powershell | Out-String | Invoke-Expression
+```
+
 ## Usage
 
 **Interactive mode** (default — walks you through each category):

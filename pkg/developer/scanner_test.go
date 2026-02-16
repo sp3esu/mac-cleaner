@@ -445,6 +445,115 @@ func TestScanXcodeArchivesWithData(t *testing.T) {
 	}
 }
 
+// --- pnpm Store tests ---
+
+func TestScanPnpmStoreMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanPnpmStore(home)
+	if result != nil {
+		t.Fatal("expected nil for missing pnpm store")
+	}
+}
+
+func TestScanPnpmStoreWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "pnpm", "store")
+	writeFile(t, filepath.Join(dir, "v3", "files", "pkg.tgz"), 5000)
+
+	result := scanPnpmStore(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for pnpm store with data")
+	}
+	if result.Category != "dev-pnpm" {
+		t.Errorf("expected category 'dev-pnpm', got %q", result.Category)
+	}
+	if result.TotalSize != 5000 {
+		t.Errorf("expected total size 5000, got %d", result.TotalSize)
+	}
+}
+
+// --- CocoaPods cache tests ---
+
+func TestScanCocoaPodsMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanCocoaPods(home)
+	if result != nil {
+		t.Fatal("expected nil for missing CocoaPods cache")
+	}
+}
+
+func TestScanCocoaPodsWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "Caches", "CocoaPods")
+	writeFile(t, filepath.Join(dir, "Pods", "Release", "Alamofire", "pod.tar.gz"), 3000)
+	writeFile(t, filepath.Join(dir, "Pods", "Release", "SDWebImage", "pod.tar.gz"), 2000)
+
+	result := scanCocoaPods(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for CocoaPods with data")
+	}
+	if result.Category != "dev-cocoapods" {
+		t.Errorf("expected category 'dev-cocoapods', got %q", result.Category)
+	}
+	if result.TotalSize != 5000 {
+		t.Errorf("expected total size 5000, got %d", result.TotalSize)
+	}
+}
+
+// --- Gradle cache tests ---
+
+func TestScanGradleMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanGradle(home)
+	if result != nil {
+		t.Fatal("expected nil for missing Gradle cache")
+	}
+}
+
+func TestScanGradleWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".gradle", "caches")
+	writeFile(t, filepath.Join(dir, "modules-2", "files-2.1", "lib.jar"), 4000)
+
+	result := scanGradle(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for Gradle with data")
+	}
+	if result.Category != "dev-gradle" {
+		t.Errorf("expected category 'dev-gradle', got %q", result.Category)
+	}
+	if result.TotalSize != 4000 {
+		t.Errorf("expected total size 4000, got %d", result.TotalSize)
+	}
+}
+
+// --- pip cache tests ---
+
+func TestScanPipMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanPip(home)
+	if result != nil {
+		t.Fatal("expected nil for missing pip cache")
+	}
+}
+
+func TestScanPipWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "Caches", "pip")
+	writeFile(t, filepath.Join(dir, "wheels", "numpy.whl"), 6000)
+
+	result := scanPip(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for pip with data")
+	}
+	if result.Category != "dev-pip" {
+		t.Errorf("expected category 'dev-pip', got %q", result.Category)
+	}
+	if result.TotalSize != 6000 {
+		t.Errorf("expected total size 6000, got %d", result.TotalSize)
+	}
+}
+
 // --- Integration test ---
 
 func TestScanIntegration(t *testing.T) {

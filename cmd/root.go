@@ -72,6 +72,10 @@ var (
 	flagSkipSimulatorLogs     bool
 	flagSkipXcodeDevSupport   bool
 	flagSkipXcodeArchives     bool
+	flagSkipPnpm              bool
+	flagSkipCocoapods         bool
+	flagSkipGradle            bool
+	flagSkipPip               bool
 	flagSkipAdobe             bool
 	flagSkipAdobeMedia        bool
 	flagSkipSketch            bool
@@ -219,6 +223,10 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipSimulatorLogs, "skip-simulator-logs", false, "skip iOS Simulator logs")
 	rootCmd.Flags().BoolVar(&flagSkipXcodeDevSupport, "skip-xcode-device-support", false, "skip Xcode Device Support files")
 	rootCmd.Flags().BoolVar(&flagSkipXcodeArchives, "skip-xcode-archives", false, "skip Xcode Archives")
+	rootCmd.Flags().BoolVar(&flagSkipPnpm, "skip-pnpm", false, "skip pnpm store")
+	rootCmd.Flags().BoolVar(&flagSkipCocoapods, "skip-cocoapods", false, "skip CocoaPods cache")
+	rootCmd.Flags().BoolVar(&flagSkipGradle, "skip-gradle", false, "skip Gradle cache")
+	rootCmd.Flags().BoolVar(&flagSkipPip, "skip-pip", false, "skip pip cache")
 	rootCmd.Flags().BoolVar(&flagSkipAdobe, "skip-adobe", false, "skip Adobe caches")
 	rootCmd.Flags().BoolVar(&flagSkipAdobeMedia, "skip-adobe-media", false, "skip Adobe media caches")
 	rootCmd.Flags().BoolVar(&flagSkipSketch, "skip-sketch", false, "skip Sketch cache")
@@ -372,6 +380,10 @@ func buildSkipSet() map[string]bool {
 		{&flagSkipSimulatorLogs, "dev-simulator-logs"},
 		{&flagSkipXcodeDevSupport, "dev-xcode-device-support"},
 		{&flagSkipXcodeArchives, "dev-xcode-archives"},
+		{&flagSkipPnpm, "dev-pnpm"},
+		{&flagSkipCocoapods, "dev-cocoapods"},
+		{&flagSkipGradle, "dev-gradle"},
+		{&flagSkipPip, "dev-pip"},
 		{&flagSkipAdobe, "creative-adobe"},
 		{&flagSkipAdobeMedia, "creative-adobe-media"},
 		{&flagSkipSketch, "creative-sketch"},

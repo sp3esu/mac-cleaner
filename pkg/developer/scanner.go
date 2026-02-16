@@ -74,6 +74,22 @@ func Scan() ([]scan.CategoryResult, error) {
 		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
+	if cr := scanPnpmStore(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
+	if cr := scanCocoaPods(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
+	if cr := scanGradle(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
+	if cr := scanPip(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
 
 	return results, nil
 }
@@ -447,6 +463,151 @@ func scanXcodeArchives(home string) *scan.CategoryResult {
 	}
 
 	cr, err := scan.ScanTopLevel(dir, "dev-xcode-archives", "Xcode Archives")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
+}
+
+// scanPnpmStore scans ~/Library/pnpm/store/.
+// Returns nil if the directory does not exist.
+func scanPnpmStore(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "pnpm", "store")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-pnpm",
+				Description: "pnpm Store",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "pnpm Store (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	size, err := scan.DirSize(dir)
+	if err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-pnpm",
+				Description: "pnpm Store",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "pnpm Store (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	if size == 0 {
+		return nil
+	}
+
+	return &scan.CategoryResult{
+		Category:    "dev-pnpm",
+		Description: "pnpm Store",
+		Entries: []scan.ScanEntry{
+			{
+				Path:        dir,
+				Description: "pnpm",
+				Size:        size,
+			},
+		},
+		TotalSize: size,
+	}
+}
+
+// scanCocoaPods scans ~/Library/Caches/CocoaPods/.
+// Returns nil if the directory does not exist.
+func scanCocoaPods(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "Caches", "CocoaPods")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-cocoapods",
+				Description: "CocoaPods Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "CocoaPods Cache (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-cocoapods", "CocoaPods Cache")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
+}
+
+// scanGradle scans ~/.gradle/caches/.
+// Returns nil if the directory does not exist.
+func scanGradle(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, ".gradle", "caches")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-gradle",
+				Description: "Gradle Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "Gradle Cache (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-gradle", "Gradle Cache")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
+}
+
+// scanPip scans ~/Library/Caches/pip/.
+// Returns nil if the directory does not exist.
+func scanPip(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "Caches", "pip")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-pip",
+				Description: "pip Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "pip Cache (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-pip", "pip Cache")
 	if err != nil {
 		return nil
 	}

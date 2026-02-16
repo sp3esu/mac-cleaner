@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Browser & Developer Caches** - Multi-category expansion (browser data, dev caches)
 - [x] **Phase 4: App Leftovers & Cleanup Execution** - Third category plus actual deletion capability
 - [x] **Phase 5: Interactive Mode** - Walkthrough mode with item-by-item confirmation
-- [ ] **Phase 6: CLI Polish & Automation** - Advanced flags (JSON, verbose, skip, force)
+- [x] **Phase 6: CLI Polish & Automation** - Advanced flags (JSON, verbose, skip, force)
 - [ ] **Phase 7: Safety Enforcement** - Risk categorization and permission handling
 
 ## Phase Details
@@ -111,8 +111,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — JSON struct tags, --all flag, --json output, --verbose display, PreRun hook
-- [ ] 06-02-PLAN.md — Skip flags (4 category + 12 item), --force confirmation bypass, filtering functions
+- [x] 06-01-PLAN.md — JSON struct tags, --all flag, --json output, --verbose display, PreRun hook
+- [x] 06-02-PLAN.md — Skip flags (4 category + 12 item), --force confirmation bypass, filtering functions
 
 ### Phase 7: Safety Enforcement
 **Goal**: User sees risk categorization for all items and tool respects permission boundaries
@@ -142,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Browser & Developer Caches | 2/2 | ✓ Complete | 2026-02-16 |
 | 4. App Leftovers & Cleanup Execution | 2/2 | ✓ Complete | 2026-02-16 |
 | 5. Interactive Mode | 1/1 | ✓ Complete | 2026-02-16 |
-| 6. CLI Polish & Automation | 0/2 | Not started | - |
+| 6. CLI Polish & Automation | 2/2 | ✓ Complete | 2026-02-16 |
 | 7. Safety Enforcement | 0/TBD | Not started | - |
 
 ---

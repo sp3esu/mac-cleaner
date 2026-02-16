@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sp3esu/mac-cleaner/internal/engine"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // newTestEngine creates an engine with all default scanners registered.
@@ -51,6 +53,401 @@ func readResponse(t *testing.T, conn net.Conn) Response {
 		t.Fatalf("read response: %v", err)
 	}
 	return resp
+}
+
+// newMockTestEngine creates an engine with 2 deterministic mock scanners.
+// This avoids hitting the real filesystem and produces predictable results.
+func newMockTestEngine() *engine.Engine {
+	eng := engine.New()
+	eng.Register(engine.NewScanner(engine.ScannerInfo{
+		ID:   "mock-sys",
+		Name: "Mock System",
+	}, func() ([]scan.CategoryResult, error) {
+		return []scan.CategoryResult{{
+			Category:    "mock-caches",
+			Description: "Mock Caches",
+			TotalSize:   1024,
+			Entries: []scan.ScanEntry{
+				{Path: "/tmp/mock-test/cache1", Description: "Cache 1", Size: 512},
+				{Path: "/tmp/mock-test/cache2", Description: "Cache 2", Size: 512},
+			},
+		}}, nil
+	}))
+	eng.Register(engine.NewScanner(engine.ScannerInfo{
+		ID:   "mock-browser",
+		Name: "Mock Browser",
+	}, func() ([]scan.CategoryResult, error) {
+		return []scan.CategoryResult{{
+			Category:    "mock-browser-data",
+			Description: "Mock Browser Data",
+			TotalSize:   2048,
+			Entries: []scan.ScanEntry{
+				{Path: "/tmp/mock-test/browser1", Description: "Browser 1", Size: 2048},
+			},
+		}}, nil
+	}))
+	return eng
+}
+
+// isTimeout reports whether an error is a network timeout.
+func isTimeout(err error) bool {
+	netErr, ok := err.(net.Error)
+	return ok && netErr.Timeout()
+}
+
+// readAllResponses reads NDJSON responses from conn until a final response
+// (result or error) is received or the timeout expires. It uses a line-based
+// scanner instead of json.Decoder to avoid internal buffering issues with
+// streaming NDJSON.
+func readAllResponses(t *testing.T, conn net.Conn, timeout time.Duration) []Response {
+	t.Helper()
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	var responses []Response
+	sc := bufio.NewScanner(conn)
+	for sc.Scan() {
+		var resp Response
+		if err := json.Unmarshal(sc.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal response: %v", err)
+		}
+		responses = append(responses, resp)
+		// Check if this is a final response (result or error type).
+		if resp.Type == ResponseResult || resp.Type == ResponseError {
+			break
+		}
+	}
+	if err := sc.Err(); err != nil {
+		// Ignore deadline exceeded -- we got what we needed.
+		if !isTimeout(err) {
+			t.Fatalf("scanner error: %v", err)
+		}
+	}
+	return responses
+}
+
+func TestServer_ScanStreaming(t *testing.T) {
+	socketPath := filepath.Join(os.TempDir(), "mc-test-scan-stream.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", newMockTestEngine())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Send scan request.
+	sendRequest(t, conn, Request{ID: "s1", Method: MethodScan})
+
+	// Read all responses (progress + final result).
+	responses := readAllResponses(t, conn, 5*time.Second)
+
+	// Count progress and result responses.
+	var progressCount int
+	var resultCount int
+	for _, resp := range responses {
+		if resp.ID != "s1" {
+			t.Errorf("expected id s1, got %q", resp.ID)
+		}
+		switch resp.Type {
+		case ResponseProgress:
+			progressCount++
+		case ResponseResult:
+			resultCount++
+		}
+	}
+
+	// 2 scanners x (scanner_start + scanner_done) = 4 progress events minimum.
+	if progressCount < 4 {
+		t.Errorf("expected at least 4 progress responses, got %d", progressCount)
+	}
+	if resultCount != 1 {
+		t.Errorf("expected exactly 1 result response, got %d", resultCount)
+	}
+
+	// Verify progress events contain expected fields.
+	for _, resp := range responses {
+		if resp.Type != ResponseProgress {
+			continue
+		}
+		resultBytes, _ := json.Marshal(resp.Result)
+		var progress ScanProgress
+		if err := json.Unmarshal(resultBytes, &progress); err != nil {
+			t.Fatalf("unmarshal progress: %v", err)
+		}
+		if progress.Event == "" {
+			t.Error("progress event field is empty")
+		}
+		if progress.ScannerID == "" {
+			t.Error("progress scanner_id field is empty")
+		}
+		if progress.Label == "" {
+			t.Error("progress label field is empty")
+		}
+	}
+
+	// Verify final result.
+	final := responses[len(responses)-1]
+	resultBytes, _ := json.Marshal(final.Result)
+	var scanResult struct {
+		Categories []json.RawMessage `json:"categories"`
+		TotalSize  int64             `json:"total_size"`
+		Token      string            `json:"token"`
+	}
+	if err := json.Unmarshal(resultBytes, &scanResult); err != nil {
+		t.Fatalf("unmarshal scan result: %v", err)
+	}
+	if len(scanResult.Categories) == 0 {
+		t.Error("expected non-empty categories")
+	}
+	if scanResult.TotalSize != 3072 {
+		t.Errorf("expected total_size 3072, got %d", scanResult.TotalSize)
+	}
+	if scanResult.Token == "" {
+		t.Error("expected non-empty token")
+	}
+}
+
+func TestServer_ScanThenCleanup(t *testing.T) {
+	socketPath := filepath.Join(os.TempDir(), "mc-test-scan-clean.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", newMockTestEngine())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Step 1: Send scan and collect all responses.
+	sendRequest(t, conn, Request{ID: "s1", Method: MethodScan})
+	scanResponses := readAllResponses(t, conn, 5*time.Second)
+
+	// Extract token from final result.
+	final := scanResponses[len(scanResponses)-1]
+	if final.Type != ResponseResult {
+		t.Fatalf("expected result type, got %q", final.Type)
+	}
+	resultBytes, _ := json.Marshal(final.Result)
+	var scanResult struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(resultBytes, &scanResult); err != nil {
+		t.Fatalf("unmarshal scan result: %v", err)
+	}
+	if scanResult.Token == "" {
+		t.Fatal("scan returned empty token")
+	}
+
+	// Step 2: Send cleanup with the scan token.
+	params, _ := json.Marshal(CleanupParams{Token: scanResult.Token})
+	sendRequest(t, conn, Request{ID: "c1", Method: MethodCleanup, Params: params})
+	cleanupResponses := readAllResponses(t, conn, 5*time.Second)
+
+	// Verify at least 1 progress response (cleanup events for mock entries).
+	var cleanProgressCount int
+	var cleanResultCount int
+	for _, resp := range cleanupResponses {
+		if resp.ID != "c1" {
+			t.Errorf("expected id c1, got %q", resp.ID)
+		}
+		switch resp.Type {
+		case ResponseProgress:
+			cleanProgressCount++
+		case ResponseResult:
+			cleanResultCount++
+		}
+	}
+
+	if cleanProgressCount < 1 {
+		t.Errorf("expected at least 1 cleanup progress response, got %d", cleanProgressCount)
+	}
+	if cleanResultCount != 1 {
+		t.Errorf("expected exactly 1 cleanup result response, got %d", cleanResultCount)
+	}
+
+	// Verify cleanup result has expected fields.
+	cleanFinal := cleanupResponses[len(cleanupResponses)-1]
+	cleanResultBytes, _ := json.Marshal(cleanFinal.Result)
+	var cleanupResult struct {
+		Removed    int   `json:"removed"`
+		Failed     int   `json:"failed"`
+		BytesFreed int64 `json:"bytes_freed"`
+	}
+	if err := json.Unmarshal(cleanResultBytes, &cleanupResult); err != nil {
+		t.Fatalf("unmarshal cleanup result: %v", err)
+	}
+
+	// Mock paths don't exist on disk, so all entries should be reported as
+	// failed. The key assertion is that the fields are present and the handler
+	// completed the full flow.
+	totalEntries := cleanupResult.Removed + cleanupResult.Failed
+	if totalEntries == 0 {
+		t.Error("expected non-zero removed+failed count")
+	}
+}
+
+func TestServer_ConcurrentScanRejected(t *testing.T) {
+	// The server processes requests sequentially per connection, so true
+	// socket-level concurrent scans can't happen on one connection. Instead,
+	// we test the busy flag mechanism by calling Dispatch directly on a
+	// second writer while the first scan handler is running.
+	blocker := make(chan struct{})
+	eng := engine.New()
+	eng.Register(engine.NewScanner(engine.ScannerInfo{
+		ID:   "slow",
+		Name: "Slow Scanner",
+	}, func() ([]scan.CategoryResult, error) {
+		<-blocker // block until released
+		return []scan.CategoryResult{{
+			Category:  "slow-cat",
+			TotalSize: 100,
+		}}, nil
+	}))
+
+	socketPath := filepath.Join(os.TempDir(), "mc-test-concurrent.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", eng)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Start the first scan on the connection.
+	sendRequest(t, conn, Request{ID: "s1", Method: MethodScan})
+
+	// Read first progress event to confirm scan started and busy flag is set.
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	sc := bufio.NewScanner(conn)
+	if !sc.Scan() {
+		t.Fatalf("failed to read first progress event: %v", sc.Err())
+	}
+	var firstResp Response
+	if err := json.Unmarshal(sc.Bytes(), &firstResp); err != nil {
+		t.Fatalf("unmarshal first response: %v", err)
+	}
+	if firstResp.Type != ResponseProgress {
+		t.Fatalf("expected progress, got %q", firstResp.Type)
+	}
+
+	// While scan is running (scanner is blocked), call Dispatch directly
+	// with a second scan request. This simulates what would happen if two
+	// requests could arrive concurrently (e.g., in a future multi-connection server).
+	var secondBuf strings.Builder
+	secondWriter := NewNDJSONWriter(&secondBuf)
+	srv.handler.Dispatch(ctx, Request{ID: "s2", Method: MethodScan}, secondWriter)
+
+	// Parse the response written to secondBuf.
+	var secondResp Response
+	if err := json.Unmarshal([]byte(secondBuf.String()), &secondResp); err != nil {
+		t.Fatalf("unmarshal second response: %v", err)
+	}
+	if secondResp.Type != ResponseError {
+		t.Errorf("expected error type for concurrent scan, got %q", secondResp.Type)
+	}
+	if !strings.Contains(secondResp.Error, "another operation is in progress") {
+		t.Errorf("expected 'another operation is in progress' error, got: %q", secondResp.Error)
+	}
+
+	// Release the blocker so the first scan completes.
+	close(blocker)
+
+	// Drain remaining responses from the first scan.
+	for sc.Scan() {
+		var resp Response
+		if err := json.Unmarshal(sc.Bytes(), &resp); err != nil {
+			break
+		}
+		if resp.Type == ResponseResult || resp.Type == ResponseError {
+			break
+		}
+	}
+}
+
+func TestServer_ScanWithSkipParam(t *testing.T) {
+	socketPath := filepath.Join(os.TempDir(), "mc-test-scan-skip.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", newMockTestEngine())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Send scan with skip param to exclude "mock-caches".
+	params, _ := json.Marshal(ScanParams{Skip: []string{"mock-caches"}})
+	sendRequest(t, conn, Request{ID: "sk1", Method: MethodScan, Params: params})
+
+	responses := readAllResponses(t, conn, 5*time.Second)
+
+	// Find the final result.
+	var final *Response
+	for i := range responses {
+		if responses[i].Type == ResponseResult {
+			final = &responses[i]
+			break
+		}
+	}
+	if final == nil {
+		t.Fatal("no result response received")
+	}
+
+	resultBytes, _ := json.Marshal(final.Result)
+	var scanResult struct {
+		Categories []struct {
+			Category  string `json:"category"`
+			TotalSize int64  `json:"total_size"`
+		} `json:"categories"`
+		TotalSize int64  `json:"total_size"`
+		Token     string `json:"token"`
+	}
+	if err := json.Unmarshal(resultBytes, &scanResult); err != nil {
+		t.Fatalf("unmarshal scan result: %v", err)
+	}
+
+	// Only "mock-browser-data" should be present (not "mock-caches").
+	if len(scanResult.Categories) != 1 {
+		t.Fatalf("expected 1 category after skip, got %d", len(scanResult.Categories))
+	}
+	if scanResult.Categories[0].Category != "mock-browser-data" {
+		t.Errorf("expected mock-browser-data, got %q", scanResult.Categories[0].Category)
+	}
+	if scanResult.TotalSize != 2048 {
+		t.Errorf("expected total_size 2048, got %d", scanResult.TotalSize)
+	}
+	if scanResult.Token == "" {
+		t.Error("expected non-empty token")
+	}
 }
 
 func TestServer_PingIntegration(t *testing.T) {

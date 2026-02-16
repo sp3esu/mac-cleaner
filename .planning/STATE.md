@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 3 complete -- ready for Phase 4 (app leftover scanning)
+**Current focus:** Phase 4 in progress -- app leftover scanning
 
 ## Current Position
 
-Phase: 3 of 7 (Browser & Developer Caches) -- COMPLETE
-Plan: 2 of 2 completed in current phase
-Status: Phase complete
-Last activity: 2026-02-16 - Completed 03-02-PLAN.md (Developer cache scanner)
+Phase: 4 of 7 (App Leftover Scanning)
+Plan: 1 of 2 completed in current phase
+Status: In progress
+Last activity: 2026-02-16 - Completed 04-01-PLAN.md (App leftovers scanner)
 
-Progress: [████░░░░░░] ~43%
+Progress: [█████░░░░░] ~50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 2.5 min
-- Total execution time: 0.25 hours
+- Total plans completed: 7
+- Average duration: 2.7 min
+- Total execution time: 0.32 hours
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [████░░░░░░] ~43%
 | 01-project-setup-safety-foundation | 2/2 | 3 min | 1.5 min |
 | 02-system-cache-scanning | 2/2 | 5 min | 2.5 min |
 | 03-browser-developer-caches | 2/2 | 8 min | 4 min |
+| 04-app-leftover-scanning | 1/2 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (2 min), 02-02 (3 min), 03-01 (4 min), 03-02 (4 min)
+- Last 5 plans: 02-02 (3 min), 03-01 (4 min), 03-02 (4 min), 04-01 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -68,6 +69,10 @@ Recent decisions affecting current work:
 - Docker size parsing uses ordered suffix slice to prevent map iteration ambiguity
 - Docker entries use docker:Type pseudo-paths for non-filesystem entries
 - exec.LookPath guard before Docker CLI calls
+- scanOrphanedPrefs takes plistBuddyPath parameter for testability (no PATH manipulation needed)
+- Prefix matching for bundle IDs: domain == id OR HasPrefix(domain, id+".") catches sub-preferences
+- 90-day maxAge hardcoded in Scan(), configurability deferred to Phase 6
+- entry.Info() used for Downloads (ReadDir provides Lstat semantics)
 
 ### Patterns Established
 
@@ -90,6 +95,9 @@ Recent decisions affecting current work:
 - CmdRunner dependency injection for external CLI testability (Docker)
 - External CLI integration: LookPath guard -> context timeout -> JSON parsing -> graceful nil on failure
 - fakeDockerPath test helper for PATH manipulation in tests
+- PlistBuddy path injection: pass path as parameter instead of LookPath with PATH manipulation
+- Age-based filtering: time.Since(modTime) > maxAge with configurable duration parameter
+- Bundle ID prefix matching for orphaned preference detection
 
 ### Pending Todos
 
@@ -102,9 +110,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed Phase 3 (browser + developer caches), ready for Phase 4
-Resume file: .planning/phases/04-app-leftover-scanning/
+Stopped at: Completed 04-01-PLAN.md (app leftovers scanner), ready for 04-02
+Resume file: .planning/phases/04-app-leftover-scanning/04-02-PLAN.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-16 (04-01 complete)*

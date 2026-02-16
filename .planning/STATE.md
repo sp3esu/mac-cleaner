@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 5 complete -- ready for Phase 6
+**Current focus:** Phase 6 in progress -- CLI polish and automation flags
 
 ## Current Position
 
-Phase: 5 of 7 (Interactive Mode)
-Plan: 1 of 1 completed in current phase
-Status: Phase complete
-Last activity: 2026-02-16 - Completed 05-01-PLAN.md (Interactive walkthrough mode)
+Phase: 6 of 7 (CLI Polish & Automation)
+Plan: 1 of 2 completed in current phase
+Status: In progress
+Last activity: 2026-02-16 - Completed 06-01-PLAN.md (JSON/all/verbose flags)
 
-Progress: [████████░░] ~64%
+Progress: [█████████░] ~71%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 2.8 min
-- Total execution time: 0.42 hours
+- Total execution time: 0.47 hours
 
 **By Phase:**
 
@@ -32,9 +32,10 @@ Progress: [████████░░] ~64%
 | 03-browser-developer-caches | 2/2 | 8 min | 4 min |
 | 04-app-leftover-scanning | 2/2 | 6 min | 3 min |
 | 05-interactive-mode | 1/1 | 3 min | 3 min |
+| 06-cli-polish-automation | 1/2 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (4 min), 04-01 (3 min), 04-02 (3 min), 05-01 (3 min)
+- Last 5 plans: 04-01 (3 min), 04-02 (3 min), 05-01 (3 min), 06-01 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -83,6 +84,11 @@ Recent decisions affecting current work:
 - EOF defaults remaining items to keep (safe default)
 - scanAll always prints with dryRun=true since interactive mode handles deletion decisions
 - Scanner errors in scanAll logged to stderr, partial results still returned
+- --all uses PreRun hook to set all four category flags before Run
+- --json sets color.NoColor=true in PreRun to prevent ANSI contamination
+- --json without scan flags exits with error (requires --all or specific flag)
+- --json suppresses per-category printResults calls; single printJSON at end
+- --verbose adds path line below each entry in tabwriter (no effect in JSON mode)
 
 ### Patterns Established
 
@@ -114,6 +120,9 @@ Recent decisions affecting current work:
 - Scan result aggregation: runner functions return []CategoryResult for Root to aggregate
 - Interactive walkthrough: io.Reader/io.Writer injection with readChoice re-prompt loop
 - Shared bufio.Reader: single reader for multi-stage interactive flows
+- PreRun hook pattern: flag expansion and output mode setup before Run
+- JSON output mode: suppress human-readable output, emit structured JSON to stdout
+- Flag guard pattern: !flagJSON check before printResults in each runner function
 
 ### Pending Todos
 
@@ -126,9 +135,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 05-01-PLAN.md (interactive walkthrough mode), Phase 5 complete
-Resume file: .planning/phases/06-polish-testing/ (next phase)
+Stopped at: Completed 06-01-PLAN.md (JSON/all/verbose flags), Phase 6 plan 1 of 2 done
+Resume file: .planning/phases/06-cli-polish-automation/06-02-PLAN.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (05-01 complete, Phase 5 done)*
+*Last updated: 2026-02-16 (06-01 complete)*

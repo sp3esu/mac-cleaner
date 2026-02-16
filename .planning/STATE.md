@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 4 complete -- ready for Phase 5
+**Current focus:** Phase 5 complete -- ready for Phase 6
 
 ## Current Position
 
-Phase: 4 of 7 (App Leftover Scanning)
-Plan: 2 of 2 completed in current phase
+Phase: 5 of 7 (Interactive Mode)
+Plan: 1 of 1 completed in current phase
 Status: Phase complete
-Last activity: 2026-02-16 - Completed 04-02-PLAN.md (Confirmation & cleanup execution)
+Last activity: 2026-02-16 - Completed 05-01-PLAN.md (Interactive walkthrough mode)
 
-Progress: [██████░░░░] ~57%
+Progress: [████████░░] ~64%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 2.8 min
-- Total execution time: 0.37 hours
+- Total execution time: 0.42 hours
 
 **By Phase:**
 
@@ -31,9 +31,10 @@ Progress: [██████░░░░] ~57%
 | 02-system-cache-scanning | 2/2 | 5 min | 2.5 min |
 | 03-browser-developer-caches | 2/2 | 8 min | 4 min |
 | 04-app-leftover-scanning | 2/2 | 6 min | 3 min |
+| 05-interactive-mode | 1/1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (4 min), 03-02 (4 min), 04-01 (3 min), 04-02 (3 min)
+- Last 5 plans: 03-02 (4 min), 04-01 (3 min), 04-02 (3 min), 05-01 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -46,7 +47,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - Version output is bare (no prefix) via SetVersionTemplate
-- Root command runs Help() as default action (interactive mode deferred to Phase 5)
+- Root command runs interactive walkthrough as default no-args action
 - Errors printed to stderr with os.Exit(1) on failure
 - Core safety protections are hardcoded -- no config can override them
 - Swap/VM prefixes checked before SIP prefixes (simpler, no exceptions)
@@ -78,6 +79,10 @@ Recent decisions affecting current work:
 - Pseudo-paths containing ":" skipped during cleanup (macOS paths never contain colons)
 - os.RemoveAll for all entries (handles files and directories; nil on nonexistent = success)
 - Combined scan flags produce single aggregated confirmation prompt
+- Shared bufio.Reader between walkthrough and confirmation prevents buffered data loss
+- EOF defaults remaining items to keep (safe default)
+- scanAll always prints with dryRun=true since interactive mode handles deletion decisions
+- Scanner errors in scanAll logged to stderr, partial results still returned
 
 ### Patterns Established
 
@@ -107,6 +112,8 @@ Recent decisions affecting current work:
 - Safety re-check at deletion time (IsPathBlocked before each os.RemoveAll)
 - Pseudo-path filtering: entries with ":" skipped in filesystem operations
 - Scan result aggregation: runner functions return []CategoryResult for Root to aggregate
+- Interactive walkthrough: io.Reader/io.Writer injection with readChoice re-prompt loop
+- Shared bufio.Reader: single reader for multi-stage interactive flows
 
 ### Pending Todos
 
@@ -119,9 +126,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 04-02-PLAN.md (confirmation & cleanup), Phase 4 complete
-Resume file: .planning/phases/05-interactive-tui/ (next phase)
+Stopped at: Completed 05-01-PLAN.md (interactive walkthrough mode), Phase 5 complete
+Resume file: .planning/phases/06-polish-testing/ (next phase)
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (04-02 complete, Phase 4 done)*
+*Last updated: 2026-02-16 (05-01 complete, Phase 5 done)*

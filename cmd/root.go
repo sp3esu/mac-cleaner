@@ -12,6 +12,7 @@ import (
 
 	"github.com/gregor/mac-cleaner/internal/scan"
 	"github.com/gregor/mac-cleaner/pkg/browser"
+	"github.com/gregor/mac-cleaner/pkg/developer"
 	"github.com/gregor/mac-cleaner/pkg/system"
 )
 
@@ -24,6 +25,7 @@ var (
 	flagDryRun       bool
 	flagSystemCaches bool
 	flagBrowserData  bool
+	flagDevCaches    bool
 )
 
 var rootCmd = &cobra.Command{
@@ -40,6 +42,10 @@ var rootCmd = &cobra.Command{
 			runBrowserDataScan(cmd)
 			ran = true
 		}
+		if flagDevCaches {
+			runDevCachesScan(cmd)
+			ran = true
+		}
 		if !ran {
 			cmd.Help()
 		}
@@ -52,6 +58,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagDryRun, "dry-run", false, "preview what would be removed without deleting")
 	rootCmd.Flags().BoolVar(&flagSystemCaches, "system-caches", false, "scan user app caches, logs, and QuickLook thumbnails")
 	rootCmd.Flags().BoolVar(&flagBrowserData, "browser-data", false, "scan Safari, Chrome, and Firefox caches")
+	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
 }
 
 // Execute runs the root command. Errors are printed to stderr.
@@ -80,6 +87,16 @@ func runBrowserDataScan(cmd *cobra.Command) {
 		return
 	}
 	printResults(results, flagDryRun, "Browser Data")
+}
+
+// runDevCachesScan executes the developer cache scan and prints results.
+func runDevCachesScan(cmd *cobra.Command) {
+	results, err := developer.Scan()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return
+	}
+	printResults(results, flagDryRun, "Developer Caches")
 }
 
 // printResults displays scan results as a formatted table with color.

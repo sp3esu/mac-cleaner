@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 1 complete, ready for Phase 2
+**Current focus:** Phase 2 in progress -- building scan types and size utilities
 
 ## Current Position
 
-Phase: 1 of 7 (Project Setup & Safety Foundation)
-Plan: 2 of 2 completed in current phase
-Status: Phase complete
-Last activity: 2026-02-16 - Completed 01-02-PLAN.md (Safety layer path blocklist)
+Phase: 2 of 7 (System Cache Scanning)
+Plan: 1 of 2 completed in current phase
+Status: In progress
+Last activity: 2026-02-16 - Completed 02-01-PLAN.md (Core scan types and size utilities)
 
-Progress: [██░░░░░░░░] ~14%
+Progress: [███░░░░░░░] ~21%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 1.5 min
-- Total execution time: 0.05 hours
+- Total plans completed: 3
+- Average duration: 1.7 min
+- Total execution time: 0.08 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-project-setup-safety-foundation | 2/2 | 3 min | 1.5 min |
+| 02-system-cache-scanning | 1/2 | 2 min | 2.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (1 min), 01-02 (2 min)
+- Last 5 plans: 01-01 (1 min), 01-02 (2 min), 02-01 (2 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -49,6 +50,9 @@ Recent decisions affecting current work:
 - Swap/VM prefixes checked before SIP prefixes (simpler, no exceptions)
 - filepath.EvalSymlinks failure on existing path blocks for safety
 - Non-existent path checked against literal cleaned path
+- SI units (base 1000) for FormatSize to match macOS Finder convention
+- os.Lstat pre-check before WalkDir to distinguish nonexistent root from permission-denied
+- Category field is plain string (not enum) for extensibility
 
 ### Patterns Established
 
@@ -59,6 +63,8 @@ Recent decisions affecting current work:
 - Boundary-safe prefix matching: path == prefix OR HasPrefix(path, prefix + /)
 - Table-driven tests for exhaustive edge case coverage
 - Stderr-only warnings via WarnBlocked
+- Scan types: ScanEntry/CategoryResult/ScanSummary as shared result types for all scanners
+- DirSize pattern: WalkDir with error-skipping for resilient directory traversal
 
 ### Pending Todos
 
@@ -71,8 +77,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed Phase 1 (01-01 + 01-02), ready for Phase 2
-Resume file: None (phase boundary)
+Stopped at: Completed 02-01 (scan types and size utilities), ready for 02-02
+Resume file: .planning/phases/02-system-cache-scanning/02-02-PLAN.md
 
 ---
 *State initialized: 2026-02-16*

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/sp3esu/mac-cleaner/internal/engine"
 	"github.com/sp3esu/mac-cleaner/internal/server"
 )
 
@@ -26,7 +27,9 @@ var serveCmd = &cobra.Command{
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-		srv := server.New(flagSocket, version)
+		eng := engine.New()
+		engine.RegisterDefaults(eng)
+		srv := server.New(flagSocket, version, eng)
 
 		go func() {
 			<-sigCh

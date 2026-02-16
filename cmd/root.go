@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,18 +22,15 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/safety"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 	"github.com/sp3esu/mac-cleaner/internal/spinner"
-	"github.com/sp3esu/mac-cleaner/pkg/appleftovers"
-	"github.com/sp3esu/mac-cleaner/pkg/browser"
-	"github.com/sp3esu/mac-cleaner/pkg/creative"
-	"github.com/sp3esu/mac-cleaner/pkg/developer"
-	"github.com/sp3esu/mac-cleaner/pkg/messaging"
-	"github.com/sp3esu/mac-cleaner/pkg/system"
 )
 
 // version is set via ldflags at build time:
 //
 //	go build -ldflags "-X github.com/sp3esu/mac-cleaner/cmd.version=0.1.0"
 var version = "dev"
+
+// eng is the scan/cleanup engine, initialized in PreRun.
+var eng *engine.Engine
 
 var (
 	flagDryRun       bool
@@ -90,6 +88,12 @@ var (
 	flagSkipZoom              bool
 )
 
+// scannerMapping maps a CLI flag to a scanner ID in the engine.
+type scannerMapping struct {
+	flag      *bool
+	scannerID string
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "mac-cleaner",
 	Short: "scan and remove macOS junk files",
@@ -99,29 +103,19 @@ var rootCmd = &cobra.Command{
 		ran := false
 		var allResults []scan.CategoryResult
 
-		if flagSystemCaches {
-			allResults = append(allResults, runSystemCachesScan(cmd, sp)...)
-			ran = true
+		flagScanners := []scannerMapping{
+			{&flagSystemCaches, "system"},
+			{&flagBrowserData, "browser"},
+			{&flagDevCaches, "developer"},
+			{&flagAppLeftovers, "appleftovers"},
+			{&flagCreativeCaches, "creative"},
+			{&flagMessagingCaches, "messaging"},
 		}
-		if flagBrowserData {
-			allResults = append(allResults, runBrowserDataScan(cmd, sp)...)
-			ran = true
-		}
-		if flagDevCaches {
-			allResults = append(allResults, runDevCachesScan(cmd, sp)...)
-			ran = true
-		}
-		if flagAppLeftovers {
-			allResults = append(allResults, runAppLeftoversScan(cmd, sp)...)
-			ran = true
-		}
-		if flagCreativeCaches {
-			allResults = append(allResults, runCreativeCachesScan(cmd, sp)...)
-			ran = true
-		}
-		if flagMessagingCaches {
-			allResults = append(allResults, runMessagingCachesScan(cmd, sp)...)
-			ran = true
+		for _, m := range flagScanners {
+			if *m.flag {
+				allResults = append(allResults, runScannerByID(m.scannerID, sp)...)
+				ran = true
+			}
 		}
 
 		if flagJSON && !ran {
@@ -132,7 +126,7 @@ var rootCmd = &cobra.Command{
 		if !ran {
 			allResults = scanAll(sp)
 			// Apply item-level skip filtering in interactive mode.
-			allResults = filterSkipped(allResults, buildSkipSet())
+			allResults = engine.FilterSkipped(allResults, buildSkipSet())
 			printPermissionIssues(allResults)
 			printDryRunSummary(os.Stdout, allResults)
 			if len(allResults) == 0 {
@@ -165,7 +159,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Apply item-level skip filtering.
-		allResults = filterSkipped(allResults, buildSkipSet())
+		allResults = engine.FilterSkipped(allResults, buildSkipSet())
 
 		if !flagJSON {
 			printPermissionIssues(allResults)
@@ -253,6 +247,10 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipZoom, "skip-zoom", false, "skip Zoom cache")
 
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		// Initialize the engine.
+		eng = engine.New()
+		engine.RegisterDefaults(eng)
+
 		if flagAll {
 			flagSystemCaches = true
 			flagBrowserData = true
@@ -294,98 +292,29 @@ func Execute() {
 	}
 }
 
-// runSystemCachesScan executes the system cache scan and prints results.
-func runSystemCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
-	sp.UpdateMessage("Scanning system caches...")
-	sp.Start()
-	results, err := system.Scan()
-	sp.Stop()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return nil
+// findScannerInfo looks up scanner metadata from the engine's registry.
+func findScannerInfo(scannerID string) engine.ScannerInfo {
+	for _, info := range eng.Categories() {
+		if info.ID == scannerID {
+			return info
+		}
 	}
-	if !flagJSON {
-		printResults(results, flagDryRun, "System Caches")
-	}
-	return results
+	return engine.ScannerInfo{ID: scannerID, Name: scannerID}
 }
 
-// runBrowserDataScan executes the browser data scan and prints results.
-func runBrowserDataScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
-	sp.UpdateMessage("Scanning browser data...")
+// runScannerByID runs a single scanner by ID using the engine and prints results.
+func runScannerByID(scannerID string, sp *spinner.Spinner) []scan.CategoryResult {
+	info := findScannerInfo(scannerID)
+	sp.UpdateMessage("Scanning " + strings.ToLower(info.Name) + "...")
 	sp.Start()
-	results, err := browser.Scan()
+	results, err := eng.Run(context.Background(), scannerID)
 	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
 	}
 	if !flagJSON {
-		printResults(results, flagDryRun, "Browser Data")
-	}
-	return results
-}
-
-// runDevCachesScan executes the developer cache scan and prints results.
-func runDevCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
-	sp.UpdateMessage("Scanning developer caches...")
-	sp.Start()
-	results, err := developer.Scan()
-	sp.Stop()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return nil
-	}
-	if !flagJSON {
-		printResults(results, flagDryRun, "Developer Caches")
-	}
-	return results
-}
-
-// runAppLeftoversScan executes the app leftovers scan and prints results.
-func runAppLeftoversScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
-	sp.UpdateMessage("Scanning app leftovers...")
-	sp.Start()
-	results, err := appleftovers.Scan()
-	sp.Stop()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return nil
-	}
-	if !flagJSON {
-		printResults(results, flagDryRun, "App Leftovers")
-	}
-	return results
-}
-
-// runMessagingCachesScan executes the messaging app cache scan and prints results.
-func runMessagingCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
-	sp.UpdateMessage("Scanning messaging app caches...")
-	sp.Start()
-	results, err := messaging.Scan()
-	sp.Stop()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return nil
-	}
-	if !flagJSON {
-		printResults(results, flagDryRun, "Messaging App Caches")
-	}
-	return results
-}
-
-// runCreativeCachesScan executes the creative app cache scan and prints results.
-func runCreativeCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
-	sp.UpdateMessage("Scanning creative app caches...")
-	sp.Start()
-	results, err := creative.Scan()
-	sp.Stop()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return nil
-	}
-	if !flagJSON {
-		printResults(results, flagDryRun, "Creative App Caches")
+		printResults(results, flagDryRun, info.Name)
 	}
 	return results
 }
@@ -436,31 +365,29 @@ func buildSkipSet() map[string]bool {
 	return skip
 }
 
-// filterSkipped removes categories matching the skip set from results.
-func filterSkipped(results []scan.CategoryResult, skip map[string]bool) []scan.CategoryResult {
-	return engine.FilterSkipped(results, skip)
-}
-
-// scanAll runs all six scanners via the engine and returns aggregated results.
-// Scanner errors are logged to stderr; partial results are still returned.
-// Results are printed with dryRun=true since interactive mode handles
-// deletion decisions separately.
+// scanAll runs all registered scanners via the engine's channel-based API
+// and returns aggregated results. Scanner errors are logged to stderr; partial
+// results are still returned. Results are printed with dryRun=true since
+// interactive mode handles deletion decisions separately.
 func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
-	return engine.ScanAll(engine.DefaultScanners(), nil, func(e engine.ScanEvent) {
-		switch e.Type {
+	events, done := eng.ScanAll(context.Background(), nil)
+	for event := range events {
+		switch event.Type {
 		case engine.EventScannerStart:
-			sp.UpdateMessage("Scanning " + strings.ToLower(e.Label) + "...")
+			sp.UpdateMessage("Scanning " + strings.ToLower(event.Label) + "...")
 			sp.Start()
 		case engine.EventScannerDone:
 			sp.Stop()
-			if len(e.Results) > 0 {
-				printResults(e.Results, true, e.Label)
+			if len(event.Results) > 0 {
+				printResults(event.Results, true, event.Label)
 			}
 		case engine.EventScannerError:
 			sp.Stop()
-			fmt.Fprintf(os.Stderr, "Warning: %v\n", e.Err)
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", event.Err)
 		}
-	})
+	}
+	result := <-done
+	return result.Results
 }
 
 // printCleanupSummary displays the results of a cleanup operation.

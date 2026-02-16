@@ -11,6 +11,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/sp3esu/mac-cleaner/internal/cleanup"
+	"github.com/sp3esu/mac-cleaner/internal/engine"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 	"github.com/sp3esu/mac-cleaner/internal/spinner"
 )
@@ -382,14 +383,14 @@ func captureStderr(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
-// --- filterSkipped tests ---
+// --- engine.FilterSkipped tests (called through engine package) ---
 
 func TestFilterSkipped_EmptySkipSet(t *testing.T) {
 	results := []scan.CategoryResult{
 		{Category: "a"},
 		{Category: "b"},
 	}
-	got := filterSkipped(results, map[string]bool{})
+	got := engine.FilterSkipped(results, map[string]bool{})
 	if len(got) != 2 {
 		t.Errorf("expected 2 results, got %d", len(got))
 	}
@@ -401,7 +402,7 @@ func TestFilterSkipped_SingleSkip(t *testing.T) {
 		{Category: "b"},
 		{Category: "c"},
 	}
-	got := filterSkipped(results, map[string]bool{"b": true})
+	got := engine.FilterSkipped(results, map[string]bool{"b": true})
 	if len(got) != 2 {
 		t.Errorf("expected 2 results, got %d", len(got))
 	}
@@ -418,7 +419,7 @@ func TestFilterSkipped_MultipleSkips(t *testing.T) {
 		{Category: "b"},
 		{Category: "c"},
 	}
-	got := filterSkipped(results, map[string]bool{"a": true, "c": true})
+	got := engine.FilterSkipped(results, map[string]bool{"a": true, "c": true})
 	if len(got) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(got))
 	}
@@ -432,14 +433,14 @@ func TestFilterSkipped_NonMatchingSkip(t *testing.T) {
 		{Category: "a"},
 		{Category: "b"},
 	}
-	got := filterSkipped(results, map[string]bool{"z": true})
+	got := engine.FilterSkipped(results, map[string]bool{"z": true})
 	if len(got) != 2 {
 		t.Errorf("expected 2 results, got %d", len(got))
 	}
 }
 
 func TestFilterSkipped_EmptyResults(t *testing.T) {
-	got := filterSkipped(nil, map[string]bool{"a": true})
+	got := engine.FilterSkipped(nil, map[string]bool{"a": true})
 	if len(got) != 0 {
 		t.Errorf("expected 0 results, got %d", len(got))
 	}

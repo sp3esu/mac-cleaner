@@ -131,6 +131,7 @@ var rootCmd = &cobra.Command{
 			// Apply item-level skip filtering in interactive mode.
 			allResults = filterSkipped(allResults, buildSkipSet())
 			printPermissionIssues(allResults)
+			printDryRunSummary(os.Stdout, allResults)
 			if len(allResults) == 0 {
 				fmt.Println("Nothing to clean.")
 				return
@@ -169,6 +170,10 @@ var rootCmd = &cobra.Command{
 			if flagDryRun {
 				return
 			}
+		}
+
+		if flagDryRun && !flagJSON {
+			printDryRunSummary(os.Stdout, allResults)
 		}
 
 		// Deletion flow: only when not in dry-run mode and there are results.

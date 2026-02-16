@@ -47,3 +47,50 @@ Go CLI (cobra) for scanning and cleaning macOS junk files. Entry point: `main.go
 - Permission errors collected as `PermissionIssue` rather than failing the scan
 - Safety checks (SIP/swap blocking) resolve symlinks before checking path prefixes
 - Every change, fix, or new feature must include tests covering all code paths
+
+## Releasing
+
+### Infrastructure
+
+- `.goreleaser.yml` — GoReleaser v2 config: builds dual-arch darwin binaries (`amd64`/`arm64`), publishes to `sp3esu/homebrew-tap`, generates changelog
+- `.github/workflows/release.yml` — triggers on `v*` tag push, runs GoReleaser
+- Version is injected from the git tag via ldflags (no code changes needed for a release)
+
+### Version bump rules
+
+Commits use conventional prefixes: `feat:`, `fix:`, `chore:`, `docs:`, `test:`
+
+- **Patch** (e.g. `v1.1.0` -> `v1.1.1`): only `fix:`, `docs:`, `test:`, `chore:` commits since last tag
+- **Minor** (e.g. `v1.1.0` -> `v1.2.0`): at least one `feat:` commit since last tag
+- **Major** (e.g. `v1.1.0` -> `v2.0.0`): breaking changes (indicated by `BREAKING CHANGE` in commit body or `!` after type, e.g. `feat!:`)
+
+### Pre-release checklist
+
+- Must be on `main` branch
+- Working tree must be clean (no uncommitted changes)
+- All tests must pass (`go test ./...`)
+
+### Release procedure
+
+```bash
+# 1. Get the latest tag
+git tag --sort=-v:refname | head -1
+
+# 2. List commits since last tag to determine bump type
+git log --oneline <last-tag>..HEAD
+
+# 3. Ensure working tree is clean
+git status
+
+# 4. Ensure all tests pass
+go test ./...
+
+# 5. Create annotated tag and push
+git tag -a v<X.Y.Z> -m "Release v<X.Y.Z>"
+git push origin v<X.Y.Z>
+
+# 6. Verify
+gh run list --workflow=release.yml --limit=1
+gh run watch <run-id>
+gh release view v<X.Y.Z>
+```

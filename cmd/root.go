@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gregor/mac-cleaner/internal/scan"
+	"github.com/gregor/mac-cleaner/pkg/appleftovers"
 	"github.com/gregor/mac-cleaner/pkg/browser"
 	"github.com/gregor/mac-cleaner/pkg/developer"
 	"github.com/gregor/mac-cleaner/pkg/system"
@@ -26,6 +27,7 @@ var (
 	flagSystemCaches bool
 	flagBrowserData  bool
 	flagDevCaches    bool
+	flagAppLeftovers bool
 )
 
 var rootCmd = &cobra.Command{
@@ -46,6 +48,10 @@ var rootCmd = &cobra.Command{
 			runDevCachesScan(cmd)
 			ran = true
 		}
+		if flagAppLeftovers {
+			runAppLeftoversScan(cmd)
+			ran = true
+		}
 		if !ran {
 			cmd.Help()
 		}
@@ -59,6 +65,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSystemCaches, "system-caches", false, "scan user app caches, logs, and QuickLook thumbnails")
 	rootCmd.Flags().BoolVar(&flagBrowserData, "browser-data", false, "scan Safari, Chrome, and Firefox caches")
 	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
+	rootCmd.Flags().BoolVar(&flagAppLeftovers, "app-leftovers", false, "scan orphaned preferences, iOS backups, and old Downloads")
 }
 
 // Execute runs the root command. Errors are printed to stderr.
@@ -97,6 +104,16 @@ func runDevCachesScan(cmd *cobra.Command) {
 		return
 	}
 	printResults(results, flagDryRun, "Developer Caches")
+}
+
+// runAppLeftoversScan executes the app leftovers scan and prints results.
+func runAppLeftoversScan(cmd *cobra.Command) {
+	results, err := appleftovers.Scan()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return
+	}
+	printResults(results, flagDryRun, "App Leftovers")
 }
 
 // printResults displays scan results as a formatted table with color.

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gregor/mac-cleaner/internal/cleanup"
 	"github.com/gregor/mac-cleaner/internal/confirm"
+	"github.com/gregor/mac-cleaner/internal/interactive"
 	"github.com/gregor/mac-cleaner/internal/scan"
 	"github.com/gregor/mac-cleaner/pkg/appleftovers"
 	"github.com/gregor/mac-cleaner/pkg/browser"
@@ -58,7 +60,28 @@ var rootCmd = &cobra.Command{
 		}
 
 		if !ran {
-			cmd.Help()
+			allResults = scanAll()
+			if len(allResults) == 0 {
+				fmt.Println("Nothing to clean.")
+				return
+			}
+
+			reader := bufio.NewReader(os.Stdin)
+			marked := interactive.RunWalkthrough(reader, os.Stdout, allResults)
+			if marked == nil {
+				return
+			}
+
+			if flagDryRun {
+				return
+			}
+
+			if !confirm.PromptConfirmation(reader, os.Stdout, marked) {
+				fmt.Println("Aborted.")
+				return
+			}
+			result := cleanup.Execute(marked)
+			printCleanupSummary(result)
 			return
 		}
 
@@ -134,6 +157,44 @@ func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
 	}
 	printResults(results, flagDryRun, "App Leftovers")
 	return results
+}
+
+// scanAll runs all four scanners and returns aggregated results.
+// Scanner errors are logged to stderr; partial results are still returned.
+// Results are printed with dryRun=true since interactive mode handles
+// deletion decisions separately.
+func scanAll() []scan.CategoryResult {
+	var allResults []scan.CategoryResult
+
+	if results, err := system.Scan(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	} else if len(results) > 0 {
+		printResults(results, true, "System Caches")
+		allResults = append(allResults, results...)
+	}
+
+	if results, err := browser.Scan(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	} else if len(results) > 0 {
+		printResults(results, true, "Browser Data")
+		allResults = append(allResults, results...)
+	}
+
+	if results, err := developer.Scan(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	} else if len(results) > 0 {
+		printResults(results, true, "Developer Caches")
+		allResults = append(allResults, results...)
+	}
+
+	if results, err := appleftovers.Scan(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+	} else if len(results) > 0 {
+		printResults(results, true, "App Leftovers")
+		allResults = append(allResults, results...)
+	}
+
+	return allResults
 }
 
 // printCleanupSummary displays the results of a cleanup operation.

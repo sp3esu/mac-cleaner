@@ -22,11 +22,31 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 - **Pamięć podręczna Yarn** — `~/Library/Caches/yarn/` (umiarkowane)
 - **Pamięć podręczna Homebrew** — `~/Library/Caches/Homebrew/` (umiarkowane)
 - **Docker — zasoby do odzyskania** — kontenery, obrazy, pamięć podręczna budowania, wolumeny (ryzykowne)
+- **Pamięć podręczna symulatora iOS** — `~/Library/Developer/CoreSimulator/Caches/` (bezpieczne)
+- **Logi symulatora iOS** — `~/Library/Logs/CoreSimulator/` (bezpieczne)
+- **Xcode Device Support** — `~/Library/Developer/Xcode/iOS DeviceSupport/` (umiarkowane)
+- **Xcode Archives** — `~/Library/Developer/Xcode/Archives/` (ryzykowne)
+- **Magazyn pnpm** — `~/Library/pnpm/store/` (umiarkowane)
+- **Pamięć podręczna CocoaPods** — `~/Library/Caches/CocoaPods/` (umiarkowane)
+- **Pamięć podręczna Gradle** — `~/.gradle/caches/` (umiarkowane)
+- **Pamięć podręczna pip** — `~/Library/Caches/pip/` (bezpieczne)
 
 ### Pozostałości aplikacji
 - **Osierocone preferencje** — pliki `.plist` w `~/Library/Preferences/` dla odinstalowanych aplikacji (ryzykowne)
 - **Kopie zapasowe urządzeń iOS** — `~/Library/Application Support/MobileSync/Backup/` (ryzykowne)
 - **Stare pobrania** — pliki w `~/Downloads/` starsze niż 90 dni (umiarkowane)
+
+### Pamięci podręczne aplikacji kreatywnych
+- **Pamięć podręczna Adobe** — `~/Library/Caches/Adobe/` (bezpieczne)
+- **Pamięć podręczna multimediów Adobe** — `~/Library/Application Support/Adobe/Common/Media Cache Files/` + `Media Cache/` (umiarkowane)
+- **Pamięć podręczna Sketch** — `~/Library/Caches/com.bohemiancoding.sketch3/` (bezpieczne)
+- **Pamięć podręczna Figma** — `~/Library/Application Support/Figma/` (bezpieczne)
+
+### Pamięci podręczne komunikatorów
+- **Pamięć podręczna Slack** — `~/Library/Application Support/Slack/Cache/` + `Service Worker/CacheStorage/` (bezpieczne)
+- **Pamięć podręczna Discord** — `~/Library/Application Support/discord/Cache/` + `Code Cache/` (bezpieczne)
+- **Pamięć podręczna Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (bezpieczne)
+- **Pamięć podręczna Zoom** — `~/Library/Application Support/zoom.us/data/` (bezpieczne)
 
 ## Bezpieczeństwo
 
@@ -94,6 +114,8 @@ go build -o mac-cleaner .
 | `--browser-data` | Skanuj pamięci podręczne Safari, Chrome i Firefox |
 | `--dev-caches` | Skanuj pamięci podręczne Xcode, npm/yarn, Homebrew i Docker |
 | `--app-leftovers` | Skanuj osierocone preferencje, kopie zapasowe iOS i stare pobrania |
+| `--creative-caches` | Skanuj pamięci podręczne Adobe, Sketch i Figma |
+| `--messaging-caches` | Skanuj pamięci podręczne Slack, Discord, Teams i Zoom |
 
 ### Wyjście i zachowanie
 
@@ -112,6 +134,8 @@ go build -o mac-cleaner .
 | `--skip-browser-data` | Pomiń skanowanie danych przeglądarek |
 | `--skip-dev-caches` | Pomiń skanowanie pamięci podręcznych deweloperskich |
 | `--skip-app-leftovers` | Pomiń skanowanie pozostałości aplikacji |
+| `--skip-creative-caches` | Pomiń skanowanie pamięci podręcznych aplikacji kreatywnych |
+| `--skip-messaging-caches` | Pomiń skanowanie pamięci podręcznych komunikatorów |
 
 ### Flagi pomijania elementów
 
@@ -129,6 +153,22 @@ go build -o mac-cleaner .
 | `--skip-orphaned-prefs` | Pomiń osierocone preferencje |
 | `--skip-ios-backups` | Pomiń kopie zapasowe urządzeń iOS |
 | `--skip-old-downloads` | Pomiń stare pobrania |
+| `--skip-simulator-caches` | Pomiń pamięć podręczną symulatora iOS |
+| `--skip-simulator-logs` | Pomiń logi symulatora iOS |
+| `--skip-xcode-device-support` | Pomiń pliki Xcode Device Support |
+| `--skip-xcode-archives` | Pomiń Xcode Archives |
+| `--skip-pnpm` | Pomiń magazyn pnpm |
+| `--skip-cocoapods` | Pomiń pamięć podręczną CocoaPods |
+| `--skip-gradle` | Pomiń pamięć podręczną Gradle |
+| `--skip-pip` | Pomiń pamięć podręczną pip |
+| `--skip-adobe` | Pomiń pamięć podręczną Adobe |
+| `--skip-adobe-media` | Pomiń pamięć podręczną multimediów Adobe |
+| `--skip-sketch` | Pomiń pamięć podręczną Sketch |
+| `--skip-figma` | Pomiń pamięć podręczną Figma |
+| `--skip-slack` | Pomiń pamięć podręczną Slack |
+| `--skip-discord` | Pomiń pamięć podręczną Discord |
+| `--skip-teams` | Pomiń pamięć podręczną Microsoft Teams |
+| `--skip-zoom` | Pomiń pamięć podręczną Zoom |
 
 ## Licencja
 

@@ -22,11 +22,31 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 - **Yarn-Cache** — `~/Library/Caches/yarn/` (moderat)
 - **Homebrew-Cache** — `~/Library/Caches/Homebrew/` (moderat)
 - **Docker — rückgewinnbar** — Container, Images, Build-Cache, Volumes (riskant)
+- **iOS-Simulator-Caches** — `~/Library/Developer/CoreSimulator/Caches/` (sicher)
+- **iOS-Simulator-Logs** — `~/Library/Logs/CoreSimulator/` (sicher)
+- **Xcode Device Support** — `~/Library/Developer/Xcode/iOS DeviceSupport/` (moderat)
+- **Xcode Archives** — `~/Library/Developer/Xcode/Archives/` (riskant)
+- **pnpm Store** — `~/Library/pnpm/store/` (moderat)
+- **CocoaPods-Cache** — `~/Library/Caches/CocoaPods/` (moderat)
+- **Gradle-Cache** — `~/.gradle/caches/` (moderat)
+- **pip-Cache** — `~/Library/Caches/pip/` (sicher)
 
 ### App-Überbleibsel
 - **Verwaiste Einstellungen** — `.plist`-Dateien in `~/Library/Preferences/` für deinstallierte Apps (riskant)
 - **iOS-Gerätesicherungen** — `~/Library/Application Support/MobileSync/Backup/` (riskant)
 - **Alte Downloads** — Dateien in `~/Downloads/` älter als 90 Tage (moderat)
+
+### Kreativ-App-Caches
+- **Adobe-Caches** — `~/Library/Caches/Adobe/` (sicher)
+- **Adobe Media Cache** — `~/Library/Application Support/Adobe/Common/Media Cache Files/` + `Media Cache/` (moderat)
+- **Sketch-Cache** — `~/Library/Caches/com.bohemiancoding.sketch3/` (sicher)
+- **Figma-Cache** — `~/Library/Application Support/Figma/` (sicher)
+
+### Messaging-App-Caches
+- **Slack-Cache** — `~/Library/Application Support/Slack/Cache/` + `Service Worker/CacheStorage/` (sicher)
+- **Discord-Cache** — `~/Library/Application Support/discord/Cache/` + `Code Cache/` (sicher)
+- **Microsoft Teams-Cache** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (sicher)
+- **Zoom-Cache** — `~/Library/Application Support/zoom.us/data/` (sicher)
 
 ## Sicherheit
 
@@ -94,6 +114,8 @@ go build -o mac-cleaner .
 | `--browser-data` | Safari-, Chrome- und Firefox-Caches scannen |
 | `--dev-caches` | Xcode-, npm/yarn-, Homebrew- und Docker-Caches scannen |
 | `--app-leftovers` | Verwaiste Einstellungen, iOS-Backups und alte Downloads scannen |
+| `--creative-caches` | Adobe-, Sketch- und Figma-Caches scannen |
+| `--messaging-caches` | Slack-, Discord-, Teams- und Zoom-Caches scannen |
 
 ### Ausgabe & Verhalten
 
@@ -112,6 +134,8 @@ go build -o mac-cleaner .
 | `--skip-browser-data` | Browser-Daten-Scan überspringen |
 | `--skip-dev-caches` | Entwickler-Cache-Scan überspringen |
 | `--skip-app-leftovers` | App-Überbleibsel-Scan überspringen |
+| `--skip-creative-caches` | Kreativ-App-Cache-Scan überspringen |
+| `--skip-messaging-caches` | Messaging-App-Cache-Scan überspringen |
 
 ### Element-Skip-Flags
 
@@ -129,6 +153,22 @@ go build -o mac-cleaner .
 | `--skip-orphaned-prefs` | Verwaiste Einstellungen überspringen |
 | `--skip-ios-backups` | iOS-Gerätesicherungen überspringen |
 | `--skip-old-downloads` | Alte Downloads überspringen |
+| `--skip-simulator-caches` | iOS-Simulator-Caches überspringen |
+| `--skip-simulator-logs` | iOS-Simulator-Logs überspringen |
+| `--skip-xcode-device-support` | Xcode Device Support überspringen |
+| `--skip-xcode-archives` | Xcode Archives überspringen |
+| `--skip-pnpm` | pnpm Store überspringen |
+| `--skip-cocoapods` | CocoaPods-Cache überspringen |
+| `--skip-gradle` | Gradle-Cache überspringen |
+| `--skip-pip` | pip-Cache überspringen |
+| `--skip-adobe` | Adobe-Caches überspringen |
+| `--skip-adobe-media` | Adobe Media Cache überspringen |
+| `--skip-sketch` | Sketch-Cache überspringen |
+| `--skip-figma` | Figma-Cache überspringen |
+| `--skip-slack` | Slack-Cache überspringen |
+| `--skip-discord` | Discord-Cache überspringen |
+| `--skip-teams` | Microsoft Teams-Cache überspringen |
+| `--skip-zoom` | Zoom-Cache überspringen |
 
 ## Lizenz
 

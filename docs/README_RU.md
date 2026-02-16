@@ -22,11 +22,31 @@
 - **Кэш Yarn** — `~/Library/Caches/yarn/` (умеренный риск)
 - **Кэш Homebrew** — `~/Library/Caches/Homebrew/` (умеренный риск)
 - **Docker — освобождаемые ресурсы** — контейнеры, образы, кэш сборки, тома (рискованно)
+- **Кэш симулятора iOS** — `~/Library/Developer/CoreSimulator/Caches/` (безопасно)
+- **Логи симулятора iOS** — `~/Library/Logs/CoreSimulator/` (безопасно)
+- **Xcode Device Support** — `~/Library/Developer/Xcode/iOS DeviceSupport/` (умеренный риск)
+- **Xcode Archives** — `~/Library/Developer/Xcode/Archives/` (рискованно)
+- **Хранилище pnpm** — `~/Library/pnpm/store/` (умеренный риск)
+- **Кэш CocoaPods** — `~/Library/Caches/CocoaPods/` (умеренный риск)
+- **Кэш Gradle** — `~/.gradle/caches/` (умеренный риск)
+- **Кэш pip** — `~/Library/Caches/pip/` (безопасно)
 
 ### Остатки приложений
 - **Осиротевшие настройки** — файлы `.plist` в `~/Library/Preferences/` для удалённых приложений (рискованно)
 - **Резервные копии устройств iOS** — `~/Library/Application Support/MobileSync/Backup/` (рискованно)
 - **Старые загрузки** — файлы в `~/Downloads/` старше 90 дней (умеренный риск)
+
+### Кэши креативных приложений
+- **Кэш Adobe** — `~/Library/Caches/Adobe/` (безопасно)
+- **Медиа-кэш Adobe** — `~/Library/Application Support/Adobe/Common/Media Cache Files/` + `Media Cache/` (умеренный риск)
+- **Кэш Sketch** — `~/Library/Caches/com.bohemiancoding.sketch3/` (безопасно)
+- **Кэш Figma** — `~/Library/Application Support/Figma/` (безопасно)
+
+### Кэши мессенджеров
+- **Кэш Slack** — `~/Library/Application Support/Slack/Cache/` + `Service Worker/CacheStorage/` (безопасно)
+- **Кэш Discord** — `~/Library/Application Support/discord/Cache/` + `Code Cache/` (безопасно)
+- **Кэш Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (безопасно)
+- **Кэш Zoom** — `~/Library/Application Support/zoom.us/data/` (безопасно)
 
 ## Безопасность
 
@@ -94,6 +114,8 @@ go build -o mac-cleaner .
 | `--browser-data` | Сканировать кэши Safari, Chrome и Firefox |
 | `--dev-caches` | Сканировать кэши Xcode, npm/yarn, Homebrew и Docker |
 | `--app-leftovers` | Сканировать осиротевшие настройки, резервные копии iOS и старые загрузки |
+| `--creative-caches` | Сканировать кэши Adobe, Sketch и Figma |
+| `--messaging-caches` | Сканировать кэши Slack, Discord, Teams и Zoom |
 
 ### Вывод и поведение
 
@@ -112,6 +134,8 @@ go build -o mac-cleaner .
 | `--skip-browser-data` | Пропустить сканирование данных браузеров |
 | `--skip-dev-caches` | Пропустить сканирование кэшей разработчика |
 | `--skip-app-leftovers` | Пропустить сканирование остатков приложений |
+| `--skip-creative-caches` | Пропустить сканирование кэшей креативных приложений |
+| `--skip-messaging-caches` | Пропустить сканирование кэшей мессенджеров |
 
 ### Флаги пропуска элементов
 
@@ -129,6 +153,22 @@ go build -o mac-cleaner .
 | `--skip-orphaned-prefs` | Пропустить осиротевшие настройки |
 | `--skip-ios-backups` | Пропустить резервные копии устройств iOS |
 | `--skip-old-downloads` | Пропустить старые загрузки |
+| `--skip-simulator-caches` | Пропустить кэш симулятора iOS |
+| `--skip-simulator-logs` | Пропустить логи симулятора iOS |
+| `--skip-xcode-device-support` | Пропустить файлы Xcode Device Support |
+| `--skip-xcode-archives` | Пропустить Xcode Archives |
+| `--skip-pnpm` | Пропустить хранилище pnpm |
+| `--skip-cocoapods` | Пропустить кэш CocoaPods |
+| `--skip-gradle` | Пропустить кэш Gradle |
+| `--skip-pip` | Пропустить кэш pip |
+| `--skip-adobe` | Пропустить кэш Adobe |
+| `--skip-adobe-media` | Пропустить медиа-кэш Adobe |
+| `--skip-sketch` | Пропустить кэш Sketch |
+| `--skip-figma` | Пропустить кэш Figma |
+| `--skip-slack` | Пропустить кэш Slack |
+| `--skip-discord` | Пропустить кэш Discord |
+| `--skip-teams` | Пропустить кэш Microsoft Teams |
+| `--skip-zoom` | Пропустить кэш Zoom |
 
 ## Лицензия
 

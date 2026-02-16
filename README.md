@@ -22,11 +22,31 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 - **Yarn Cache** — `~/Library/Caches/yarn/` (moderate)
 - **Homebrew Cache** — `~/Library/Caches/Homebrew/` (moderate)
 - **Docker Reclaimable** — containers, images, build cache, volumes (risky)
+- **iOS Simulator Caches** — `~/Library/Developer/CoreSimulator/Caches/` (safe)
+- **iOS Simulator Logs** — `~/Library/Logs/CoreSimulator/` (safe)
+- **Xcode Device Support** — `~/Library/Developer/Xcode/iOS DeviceSupport/` (moderate)
+- **Xcode Archives** — `~/Library/Developer/Xcode/Archives/` (risky)
+- **pnpm Store** — `~/Library/pnpm/store/` (moderate)
+- **CocoaPods Cache** — `~/Library/Caches/CocoaPods/` (moderate)
+- **Gradle Cache** — `~/.gradle/caches/` (moderate)
+- **pip Cache** — `~/Library/Caches/pip/` (safe)
 
 ### App Leftovers
 - **Orphaned Preferences** — `.plist` files in `~/Library/Preferences/` for uninstalled apps (risky)
 - **iOS Device Backups** — `~/Library/Application Support/MobileSync/Backup/` (risky)
 - **Old Downloads** — files in `~/Downloads/` older than 90 days (moderate)
+
+### Creative App Caches
+- **Adobe Caches** — `~/Library/Caches/Adobe/` (safe)
+- **Adobe Media Cache** — `~/Library/Application Support/Adobe/Common/Media Cache Files/` + `Media Cache/` (moderate)
+- **Sketch Cache** — `~/Library/Caches/com.bohemiancoding.sketch3/` (safe)
+- **Figma Cache** — `~/Library/Application Support/Figma/` (safe)
+
+### Messaging App Caches
+- **Slack Cache** — `~/Library/Application Support/Slack/Cache/` + `Service Worker/CacheStorage/` (safe)
+- **Discord Cache** — `~/Library/Application Support/discord/Cache/` + `Code Cache/` (safe)
+- **Microsoft Teams Cache** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (safe)
+- **Zoom Cache** — `~/Library/Application Support/zoom.us/data/` (safe)
 
 ## Safety
 
@@ -126,6 +146,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--browser-data` | Scan Safari, Chrome, and Firefox caches |
 | `--dev-caches` | Scan Xcode, npm/yarn, Homebrew, and Docker caches |
 | `--app-leftovers` | Scan orphaned preferences, iOS backups, and old Downloads |
+| `--creative-caches` | Scan Adobe, Sketch, and Figma caches |
+| `--messaging-caches` | Scan Slack, Discord, Teams, and Zoom caches |
 
 ### Output & Behavior
 
@@ -144,6 +166,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-browser-data` | Skip browser data scanning |
 | `--skip-dev-caches` | Skip developer cache scanning |
 | `--skip-app-leftovers` | Skip app leftover scanning |
+| `--skip-creative-caches` | Skip creative app cache scanning |
+| `--skip-messaging-caches` | Skip messaging app cache scanning |
 
 ### Item Skip Flags
 
@@ -161,6 +185,22 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-orphaned-prefs` | Skip orphaned preferences |
 | `--skip-ios-backups` | Skip iOS device backups |
 | `--skip-old-downloads` | Skip old Downloads files |
+| `--skip-simulator-caches` | Skip iOS Simulator caches |
+| `--skip-simulator-logs` | Skip iOS Simulator logs |
+| `--skip-xcode-device-support` | Skip Xcode Device Support files |
+| `--skip-xcode-archives` | Skip Xcode Archives |
+| `--skip-pnpm` | Skip pnpm store |
+| `--skip-cocoapods` | Skip CocoaPods cache |
+| `--skip-gradle` | Skip Gradle cache |
+| `--skip-pip` | Skip pip cache |
+| `--skip-adobe` | Skip Adobe caches |
+| `--skip-adobe-media` | Skip Adobe media caches |
+| `--skip-sketch` | Skip Sketch cache |
+| `--skip-figma` | Skip Figma cache |
+| `--skip-slack` | Skip Slack cache |
+| `--skip-discord` | Skip Discord cache |
+| `--skip-teams` | Skip Microsoft Teams cache |
+| `--skip-zoom` | Skip Zoom cache |
 
 ## License
 

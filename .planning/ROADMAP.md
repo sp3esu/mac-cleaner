@@ -77,12 +77,11 @@ Plans:
   3. User can proceed with deletion and files are permanently removed
   4. User sees post-cleanup summary showing items removed and space freed
   5. Deletion never proceeds without explicit confirmation (must type "yes" or press enter)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01-PLAN.md — App leftovers scanner (orphaned prefs, iOS backups, old Downloads) with CLI wiring
+- [ ] 04-02-PLAN.md — Confirmation prompt, cleanup execution, and deletion flow wiring
 
 ### Phase 5: Interactive Mode
 **Goal**: User can run walkthrough mode that asks keep/remove for each cleaning item
@@ -143,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Project Setup & Safety Foundation | 2/2 | ✓ Complete | 2026-02-16 |
 | 2. System Cache Scanning | 2/2 | ✓ Complete | 2026-02-16 |
 | 3. Browser & Developer Caches | 2/2 | ✓ Complete | 2026-02-16 |
-| 4. App Leftovers & Cleanup Execution | 0/TBD | Not started | - |
+| 4. App Leftovers & Cleanup Execution | 0/2 | Not started | - |
 | 5. Interactive Mode | 0/TBD | Not started | - |
 | 6. CLI Polish & Automation | 0/TBD | Not started | - |
 | 7. Safety Enforcement | 0/TBD | Not started | - |

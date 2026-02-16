@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 7 Safety Enforcement -- Plan 01 complete, Plan 02 next
+**Current focus:** All phases complete -- project is feature-complete
 
 ## Current Position
 
 Phase: 7 of 7 (Safety Enforcement)
-Plan: 1 of 2 completed in current phase
-Status: In progress
-Last activity: 2026-02-16 - Completed 07-01-PLAN.md (risk levels and permission collection)
+Plan: 2 of 2 completed in current phase
+Status: Complete
+Last activity: 2026-02-16 - Completed 07-02-PLAN.md (risk-aware display and permission reporting)
 
-Progress: [███████████░] ~93%
+Progress: [████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: 2.9 min
-- Total execution time: 0.58 hours
+- Total plans completed: 13
+- Average duration: 2.8 min
+- Total execution time: 0.62 hours
 
 **By Phase:**
 
@@ -33,10 +33,10 @@ Progress: [███████████░] ~93%
 | 04-app-leftover-scanning | 2/2 | 6 min | 3 min |
 | 05-interactive-mode | 1/1 | 3 min | 3 min |
 | 06-cli-polish-automation | 2/2 | 6 min | 3 min |
-| 07-safety-enforcement | 1/2 | 4 min | 4 min |
+| 07-safety-enforcement | 2/2 | 7 min | 3.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 (3 min), 06-01 (3 min), 06-02 (3 min), 07-01 (4 min)
+- Last 5 plans: 06-01 (3 min), 06-02 (3 min), 07-01 (4 min), 07-02 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -100,6 +100,11 @@ Recent decisions affecting current work:
 - Safari TCC error returns structured PermissionIssue instead of stderr print
 - Permission-only CategoryResults propagate through nil guards via PermissionIssues length check
 - Unknown category IDs default to moderate risk
+- Risk tags appended after Description in tabwriter format (not as separate column)
+- printPermissionIssues writes to stderr (not stdout) to avoid contaminating pipeable output
+- Permission issues suppressed from stderr in JSON mode (included in JSON payload instead)
+- Empty categories (zero entries, only permission issues) skipped in printResults display
+- WARNING line placed after total size but before Type yes prompt in confirmation
 
 ### Patterns Established
 
@@ -140,6 +145,9 @@ Recent decisions affecting current work:
 - Risk tagging: every scanner calls cr.SetRiskLevels(safety.RiskForCategory) before returning
 - Permission collection: os.IsPermission checks at Stat, ReadDir, and entry-level errors
 - Permission-only CategoryResult: zero entries + PermissionIssues still included in results
+- Risk tag display: switch on entry.RiskLevel with red/yellow/none coloring
+- Permission stderr reporting: collect from all CategoryResults, print summary to os.Stderr
+- hasRiskyItems helper: scan entries across categories for any RiskRisky entry
 
 ### Pending Todos
 
@@ -152,9 +160,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 07-01-PLAN.md (risk levels and permission collection)
-Resume file: .planning/phases/07-safety-enforcement/07-02-PLAN.md
+Stopped at: Completed 07-02-PLAN.md (risk-aware display and permission reporting) -- ALL PHASES COMPLETE
+Resume file: N/A (project complete)
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (07-01 complete, Phase 7 in progress)*
+*Last updated: 2026-02-16 (07-02 complete, all phases complete)*

@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: App Leftovers & Cleanup Execution** - Third category plus actual deletion capability
 - [x] **Phase 5: Interactive Mode** - Walkthrough mode with item-by-item confirmation
 - [x] **Phase 6: CLI Polish & Automation** - Advanced flags (JSON, verbose, skip, force)
-- [ ] **Phase 7: Safety Enforcement** - Risk categorization and permission handling
+- [x] **Phase 7: Safety Enforcement** - Risk categorization and permission handling
 
 ## Phase Details
 
@@ -127,8 +127,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Risk types, mapping function, and scanner integration (risk levels + permission collection)
-- [ ] 07-02-PLAN.md — Risk-aware display, confirmation warnings, permission issue reporting
+- [x] 07-01-PLAN.md — Risk types, mapping function, and scanner integration (risk levels + permission collection)
+- [x] 07-02-PLAN.md — Risk-aware display, confirmation warnings, permission issue reporting
 
 ## Progress
 
@@ -143,7 +143,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. App Leftovers & Cleanup Execution | 2/2 | ✓ Complete | 2026-02-16 |
 | 5. Interactive Mode | 1/1 | ✓ Complete | 2026-02-16 |
 | 6. CLI Polish & Automation | 2/2 | ✓ Complete | 2026-02-16 |
-| 7. Safety Enforcement | 0/TBD | Not started | - |
+| 7. Safety Enforcement | 2/2 | Complete | 2026-02-16 |
 
 ---
 *Roadmap created: 2026-02-16*

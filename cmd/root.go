@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,6 +33,9 @@ var (
 	flagBrowserData  bool
 	flagDevCaches    bool
 	flagAppLeftovers bool
+	flagAll          bool
+	flagJSON         bool
+	flagVerbose      bool
 )
 
 var rootCmd = &cobra.Command{
@@ -57,6 +61,11 @@ var rootCmd = &cobra.Command{
 		if flagAppLeftovers {
 			allResults = append(allResults, runAppLeftoversScan(cmd)...)
 			ran = true
+		}
+
+		if flagJSON && !ran {
+			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --app-leftovers)")
+			os.Exit(1)
 		}
 
 		if !ran {
@@ -85,6 +94,13 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
+		if flagJSON {
+			printJSON(allResults)
+			if flagDryRun {
+				return
+			}
+		}
+
 		// Deletion flow: only when not in dry-run mode and there are results.
 		if !flagDryRun && len(allResults) > 0 {
 			if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
@@ -105,6 +121,21 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagBrowserData, "browser-data", false, "scan Safari, Chrome, and Firefox caches")
 	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
 	rootCmd.Flags().BoolVar(&flagAppLeftovers, "app-leftovers", false, "scan orphaned preferences, iOS backups, and old Downloads")
+	rootCmd.Flags().BoolVar(&flagAll, "all", false, "scan all categories")
+	rootCmd.Flags().BoolVar(&flagJSON, "json", false, "output results as JSON")
+	rootCmd.Flags().BoolVar(&flagVerbose, "verbose", false, "show detailed file listing")
+
+	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
+		if flagAll {
+			flagSystemCaches = true
+			flagBrowserData = true
+			flagDevCaches = true
+			flagAppLeftovers = true
+		}
+		if flagJSON {
+			color.NoColor = true
+		}
+	}
 }
 
 // Execute runs the root command. Errors are printed to stderr.
@@ -122,7 +153,9 @@ func runSystemCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
 	}
-	printResults(results, flagDryRun, "System Caches")
+	if !flagJSON {
+		printResults(results, flagDryRun, "System Caches")
+	}
 	return results
 }
 
@@ -133,7 +166,9 @@ func runBrowserDataScan(cmd *cobra.Command) []scan.CategoryResult {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
 	}
-	printResults(results, flagDryRun, "Browser Data")
+	if !flagJSON {
+		printResults(results, flagDryRun, "Browser Data")
+	}
 	return results
 }
 
@@ -144,7 +179,9 @@ func runDevCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
 	}
-	printResults(results, flagDryRun, "Developer Caches")
+	if !flagJSON {
+		printResults(results, flagDryRun, "Developer Caches")
+	}
 	return results
 }
 
@@ -155,7 +192,9 @@ func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
 	}
-	printResults(results, flagDryRun, "App Leftovers")
+	if !flagJSON {
+		printResults(results, flagDryRun, "App Leftovers")
+	}
 	return results
 }
 
@@ -210,6 +249,24 @@ func printCleanupSummary(result cleanup.CleanupResult) {
 	fmt.Println()
 }
 
+// printJSON outputs scan results as formatted JSON to stdout.
+func printJSON(results []scan.CategoryResult) {
+	var totalSize int64
+	for _, cat := range results {
+		totalSize += cat.TotalSize
+	}
+	summary := scan.ScanSummary{
+		Categories: results,
+		TotalSize:  totalSize,
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(summary); err != nil {
+		fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 // printResults displays scan results as a formatted table with color.
 func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	if len(results) == 0 {
@@ -249,6 +306,10 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 		for _, entry := range cat.Entries {
 			sizeStr := scan.FormatSize(entry.Size)
 			fmt.Fprintf(w, "    %s\t  %s\t\n", entry.Description, cyan.Sprint(sizeStr))
+			if flagVerbose {
+				path := shortenHome(entry.Path, home)
+				fmt.Fprintf(w, "      %s\t\t\n", path)
+			}
 		}
 		w.Flush()
 

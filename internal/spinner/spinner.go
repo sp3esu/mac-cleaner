@@ -8,15 +8,8 @@ import (
 	"github.com/briandowns/spinner"
 )
 
-// broomFrames is a custom broom-sweep animation.
-var broomFrames = []string{
-	"🧹",
-	"🧹 ✨",
-	"🧹 ✨✨",
-	"🧹 ✨✨✨",
-	"🧹 ✨✨",
-	"🧹 ✨",
-}
+// frames is a braille-dot spinner animation (fixed-width characters).
+var frames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // Spinner wraps briandowns/spinner with an enable/disable toggle.
 // When disabled, all methods are safe no-ops.
@@ -31,7 +24,7 @@ func New(message string, enabled bool) *Spinner {
 	if !enabled {
 		return &Spinner{enabled: false}
 	}
-	s := spinner.New(broomFrames, 120*time.Millisecond, spinner.WithWriter(os.Stderr))
+	s := spinner.New(frames, 120*time.Millisecond, spinner.WithWriter(os.Stderr))
 	s.Suffix = " " + message
 	return &Spinner{inner: s, enabled: true}
 }

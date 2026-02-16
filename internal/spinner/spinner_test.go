@@ -5,8 +5,8 @@ import (
 )
 
 func TestFramesNonEmpty(t *testing.T) {
-	if len(broomFrames) == 0 {
-		t.Fatal("broomFrames must not be empty")
+	if len(frames) == 0 {
+		t.Fatal("frames must not be empty")
 	}
 }
 

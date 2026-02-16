@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gregor/mac-cleaner/internal/safety"
 	"github.com/gregor/mac-cleaner/internal/scan"
 )
 
@@ -37,12 +38,15 @@ func Scan() ([]scan.CategoryResult, error) {
 	var results []scan.CategoryResult
 
 	if cr := scanOrphanedPrefs(home, "/usr/libexec/PlistBuddy", defaultRunner); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 	if cr := scanIOSBackups(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 	if cr := scanOldDownloads(home, 90*24*time.Hour); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 
@@ -61,6 +65,16 @@ func scanOrphanedPrefs(home, plistBuddyPath string, runner CmdRunner) *scan.Cate
 
 	prefsDir := filepath.Join(home, "Library", "Preferences")
 	if _, err := os.Stat(prefsDir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "app-orphaned-prefs",
+				Description: "Orphaned Preferences",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        prefsDir,
+					Description: "Preferences directory (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
@@ -103,10 +117,21 @@ func scanOrphanedPrefs(home, plistBuddyPath string, runner CmdRunner) *scan.Cate
 	// Read preference files and find orphans.
 	prefEntries, err := os.ReadDir(prefsDir)
 	if err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "app-orphaned-prefs",
+				Description: "Orphaned Preferences",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        prefsDir,
+					Description: "Preferences directory (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
 	var entries []scan.ScanEntry
+	var permIssues []scan.PermissionIssue
 	var totalSize int64
 
 	for _, entry := range prefEntries {
@@ -129,6 +154,12 @@ func scanOrphanedPrefs(home, plistBuddyPath string, runner CmdRunner) *scan.Cate
 
 		info, err := os.Lstat(filepath.Join(prefsDir, name))
 		if err != nil {
+			if os.IsPermission(err) {
+				permIssues = append(permIssues, scan.PermissionIssue{
+					Path:        filepath.Join(prefsDir, name),
+					Description: domain + " (permission denied)",
+				})
+			}
 			continue
 		}
 
@@ -145,7 +176,7 @@ func scanOrphanedPrefs(home, plistBuddyPath string, runner CmdRunner) *scan.Cate
 		totalSize += size
 	}
 
-	if len(entries) == 0 {
+	if len(entries) == 0 && len(permIssues) == 0 {
 		return nil
 	}
 
@@ -155,10 +186,11 @@ func scanOrphanedPrefs(home, plistBuddyPath string, runner CmdRunner) *scan.Cate
 	})
 
 	return &scan.CategoryResult{
-		Category:    "app-orphaned-prefs",
-		Description: "Orphaned Preferences",
-		Entries:     entries,
-		TotalSize:   totalSize,
+		Category:         "app-orphaned-prefs",
+		Description:      "Orphaned Preferences",
+		Entries:          entries,
+		TotalSize:        totalSize,
+		PermissionIssues: permIssues,
 	}
 }
 
@@ -181,6 +213,16 @@ func scanIOSBackups(home string) *scan.CategoryResult {
 	backupDir := filepath.Join(home, "Library", "Application Support", "MobileSync", "Backup")
 
 	if _, err := os.Stat(backupDir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "app-ios-backups",
+				Description: "iOS Device Backups",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        backupDir,
+					Description: "iOS backups (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
@@ -189,7 +231,7 @@ func scanIOSBackups(home string) *scan.CategoryResult {
 		return nil
 	}
 
-	if len(cr.Entries) == 0 {
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
 		return nil
 	}
 
@@ -203,20 +245,47 @@ func scanOldDownloads(home string, maxAge time.Duration) *scan.CategoryResult {
 	downloadsDir := filepath.Join(home, "Downloads")
 
 	if _, err := os.Stat(downloadsDir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "app-old-downloads",
+				Description: "Old Downloads (90+ days)",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        downloadsDir,
+					Description: "Downloads directory (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
 	dirEntries, err := os.ReadDir(downloadsDir)
 	if err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "app-old-downloads",
+				Description: "Old Downloads (90+ days)",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        downloadsDir,
+					Description: "Downloads directory (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
 	var entries []scan.ScanEntry
+	var permIssues []scan.PermissionIssue
 	var totalSize int64
 
 	for _, entry := range dirEntries {
 		info, err := entry.Info()
 		if err != nil {
+			if os.IsPermission(err) {
+				permIssues = append(permIssues, scan.PermissionIssue{
+					Path:        filepath.Join(downloadsDir, entry.Name()),
+					Description: entry.Name() + " (permission denied)",
+				})
+			}
 			continue
 		}
 
@@ -230,6 +299,12 @@ func scanOldDownloads(home string, maxAge time.Duration) *scan.CategoryResult {
 		if entry.IsDir() {
 			s, err := scan.DirSize(entryPath)
 			if err != nil {
+				if os.IsPermission(err) {
+					permIssues = append(permIssues, scan.PermissionIssue{
+						Path:        entryPath,
+						Description: entry.Name() + " (permission denied)",
+					})
+				}
 				continue
 			}
 			size = s
@@ -249,7 +324,7 @@ func scanOldDownloads(home string, maxAge time.Duration) *scan.CategoryResult {
 		totalSize += size
 	}
 
-	if len(entries) == 0 {
+	if len(entries) == 0 && len(permIssues) == 0 {
 		return nil
 	}
 
@@ -259,9 +334,10 @@ func scanOldDownloads(home string, maxAge time.Duration) *scan.CategoryResult {
 	})
 
 	return &scan.CategoryResult{
-		Category:    "app-old-downloads",
-		Description: "Old Downloads (90+ days)",
-		Entries:     entries,
-		TotalSize:   totalSize,
+		Category:         "app-old-downloads",
+		Description:      "Old Downloads (90+ days)",
+		Entries:          entries,
+		TotalSize:        totalSize,
+		PermissionIssues: permIssues,
 	}
 }

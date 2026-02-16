@@ -20,10 +20,21 @@ func ScanTopLevel(dir, category, description string) (*CategoryResult, error) {
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		if os.IsPermission(err) {
+			return &CategoryResult{
+				Category:    category,
+				Description: description,
+				PermissionIssues: []PermissionIssue{{
+					Path:        dir,
+					Description: description + " (permission denied)",
+				}},
+			}, nil
+		}
 		return nil, err
 	}
 
 	var scanEntries []ScanEntry
+	var permIssues []PermissionIssue
 	var totalSize int64
 
 	for _, entry := range entries {
@@ -38,12 +49,24 @@ func ScanTopLevel(dir, category, description string) (*CategoryResult, error) {
 		if entry.IsDir() {
 			s, err := DirSize(entryPath)
 			if err != nil {
+				if os.IsPermission(err) {
+					permIssues = append(permIssues, PermissionIssue{
+						Path:        entryPath,
+						Description: entry.Name() + " (permission denied)",
+					})
+				}
 				continue
 			}
 			size = s
 		} else {
 			info, err := entry.Info()
 			if err != nil {
+				if os.IsPermission(err) {
+					permIssues = append(permIssues, PermissionIssue{
+						Path:        entryPath,
+						Description: entry.Name() + " (permission denied)",
+					})
+				}
 				continue
 			}
 			size = info.Size()
@@ -67,9 +90,10 @@ func ScanTopLevel(dir, category, description string) (*CategoryResult, error) {
 	})
 
 	return &CategoryResult{
-		Category:    category,
-		Description: description,
-		Entries:     scanEntries,
-		TotalSize:   totalSize,
+		Category:         category,
+		Description:      description,
+		Entries:          scanEntries,
+		TotalSize:        totalSize,
+		PermissionIssues: permIssues,
 	}, nil
 }

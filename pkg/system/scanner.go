@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gregor/mac-cleaner/internal/safety"
 	"github.com/gregor/mac-cleaner/internal/scan"
 )
 
@@ -24,17 +25,24 @@ func Scan() ([]scan.CategoryResult, error) {
 
 	// User App Caches
 	if cr, err := scan.ScanTopLevel(filepath.Join(home, "Library", "Caches"), "system-caches", "User App Caches"); err == nil && cr != nil {
-		results = append(results, *cr)
+		cr.SetRiskLevels(safety.RiskForCategory)
+		if len(cr.Entries) > 0 || len(cr.PermissionIssues) > 0 {
+			results = append(results, *cr)
+		}
 	}
 
 	// User Logs
 	if cr, err := scan.ScanTopLevel(filepath.Join(home, "Library", "Logs"), "system-logs", "User Logs"); err == nil && cr != nil {
-		results = append(results, *cr)
+		cr.SetRiskLevels(safety.RiskForCategory)
+		if len(cr.Entries) > 0 || len(cr.PermissionIssues) > 0 {
+			results = append(results, *cr)
+		}
 	}
 
 	// QuickLook Thumbnails
 	if cacheDir, err := quickLookCacheDir(); err == nil {
 		if cr, err := scanQuickLook(cacheDir, "quicklook", "QuickLook Thumbnails"); err == nil && cr != nil {
+			cr.SetRiskLevels(safety.RiskForCategory)
 			results = append(results, *cr)
 		}
 	}
@@ -70,10 +78,21 @@ func quickLookCacheDir() (string, error) {
 func scanQuickLook(cacheParent, category, description string) (*scan.CategoryResult, error) {
 	entries, err := os.ReadDir(cacheParent)
 	if err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    category,
+				Description: description,
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        cacheParent,
+					Description: description + " (permission denied)",
+				}},
+			}, nil
+		}
 		return nil, err
 	}
 
 	var scanEntries []scan.ScanEntry
+	var permIssues []scan.PermissionIssue
 	var totalSize int64
 
 	for _, entry := range entries {
@@ -87,12 +106,24 @@ func scanQuickLook(cacheParent, category, description string) (*scan.CategoryRes
 		if entry.IsDir() {
 			s, err := scan.DirSize(entryPath)
 			if err != nil {
+				if os.IsPermission(err) {
+					permIssues = append(permIssues, scan.PermissionIssue{
+						Path:        entryPath,
+						Description: entry.Name() + " (permission denied)",
+					})
+				}
 				continue
 			}
 			size = s
 		} else {
 			info, err := entry.Info()
 			if err != nil {
+				if os.IsPermission(err) {
+					permIssues = append(permIssues, scan.PermissionIssue{
+						Path:        entryPath,
+						Description: entry.Name() + " (permission denied)",
+					})
+				}
 				continue
 			}
 			size = info.Size()
@@ -110,7 +141,7 @@ func scanQuickLook(cacheParent, category, description string) (*scan.CategoryRes
 		totalSize += size
 	}
 
-	if len(scanEntries) == 0 {
+	if len(scanEntries) == 0 && len(permIssues) == 0 {
 		return nil, nil
 	}
 
@@ -119,9 +150,10 @@ func scanQuickLook(cacheParent, category, description string) (*scan.CategoryRes
 	})
 
 	return &scan.CategoryResult{
-		Category:    category,
-		Description: description,
-		Entries:     scanEntries,
-		TotalSize:   totalSize,
+		Category:         category,
+		Description:      description,
+		Entries:          scanEntries,
+		TotalSize:        totalSize,
+		PermissionIssues: permIssues,
 	}, nil
 }

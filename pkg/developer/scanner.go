@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gregor/mac-cleaner/internal/safety"
 	"github.com/gregor/mac-cleaner/internal/scan"
 )
 
@@ -38,18 +39,23 @@ func Scan() ([]scan.CategoryResult, error) {
 	var results []scan.CategoryResult
 
 	if cr := scanXcodeDerivedData(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 	if cr := scanNpmCache(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 	if cr := scanYarnCache(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 	if cr := scanHomebrew(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 	if cr := scanDocker(defaultRunner); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
 
@@ -62,6 +68,16 @@ func scanXcodeDerivedData(home string) *scan.CategoryResult {
 	derivedData := filepath.Join(home, "Library", "Developer", "Xcode", "DerivedData")
 
 	if _, err := os.Stat(derivedData); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-xcode",
+				Description: "Xcode DerivedData",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        derivedData,
+					Description: "Xcode DerivedData (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
@@ -70,7 +86,7 @@ func scanXcodeDerivedData(home string) *scan.CategoryResult {
 		return nil
 	}
 
-	if len(cr.Entries) == 0 {
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
 		return nil
 	}
 
@@ -83,6 +99,16 @@ func scanNpmCache(home string) *scan.CategoryResult {
 	npmDir := filepath.Join(home, ".npm")
 
 	if _, err := os.Stat(npmDir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-npm",
+				Description: "npm Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        npmDir,
+					Description: "npm cache (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
@@ -91,7 +117,7 @@ func scanNpmCache(home string) *scan.CategoryResult {
 		return nil
 	}
 
-	if len(cr.Entries) == 0 {
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
 		return nil
 	}
 
@@ -105,11 +131,31 @@ func scanYarnCache(home string) *scan.CategoryResult {
 	yarnDir := filepath.Join(home, "Library", "Caches", "yarn")
 
 	if _, err := os.Stat(yarnDir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-yarn",
+				Description: "Yarn Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        yarnDir,
+					Description: "Yarn cache (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
 	size, err := scan.DirSize(yarnDir)
 	if err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-yarn",
+				Description: "Yarn Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        yarnDir,
+					Description: "Yarn cache (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
@@ -137,6 +183,16 @@ func scanHomebrew(home string) *scan.CategoryResult {
 	brewDir := filepath.Join(home, "Library", "Caches", "Homebrew")
 
 	if _, err := os.Stat(brewDir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-homebrew",
+				Description: "Homebrew Cache",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        brewDir,
+					Description: "Homebrew cache (permission denied)",
+				}},
+			}
+		}
 		return nil
 	}
 
@@ -145,7 +201,7 @@ func scanHomebrew(home string) *scan.CategoryResult {
 		return nil
 	}
 
-	if len(cr.Entries) == 0 {
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
 		return nil
 	}
 

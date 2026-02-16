@@ -36,7 +36,7 @@ brews:
       owner: sp3esu
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    folder: Formula
+    directory: Formula
     homepage: "https://github.com/sp3esu/mac-cleaner"
     description: "Fast, safe CLI tool for macOS to scan and reclaim disk space"
     license: "MIT"

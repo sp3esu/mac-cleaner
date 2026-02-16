@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 6 complete -- ready for Phase 7 (Packaging & Release)
+**Current focus:** Phase 7 Safety Enforcement -- Plan 01 complete, Plan 02 next
 
 ## Current Position
 
-Phase: 6 of 7 (CLI Polish & Automation)
-Plan: 2 of 2 completed in current phase
-Status: Phase complete
-Last activity: 2026-02-16 - Completed 06-02-PLAN.md (skip flags and force bypass)
+Phase: 7 of 7 (Safety Enforcement)
+Plan: 1 of 2 completed in current phase
+Status: In progress
+Last activity: 2026-02-16 - Completed 07-01-PLAN.md (risk levels and permission collection)
 
-Progress: [██████████░] ~86%
+Progress: [███████████░] ~93%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 2.8 min
-- Total execution time: 0.51 hours
+- Total plans completed: 12
+- Average duration: 2.9 min
+- Total execution time: 0.58 hours
 
 **By Phase:**
 
@@ -33,9 +33,10 @@ Progress: [██████████░] ~86%
 | 04-app-leftover-scanning | 2/2 | 6 min | 3 min |
 | 05-interactive-mode | 1/1 | 3 min | 3 min |
 | 06-cli-polish-automation | 2/2 | 6 min | 3 min |
+| 07-safety-enforcement | 1/2 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 04-02 (3 min), 05-01 (3 min), 06-01 (3 min), 06-02 (3 min)
+- Last 5 plans: 05-01 (3 min), 06-01 (3 min), 06-02 (3 min), 07-01 (4 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -94,6 +95,11 @@ Recent decisions affecting current work:
 - --force only bypasses confirmation prompt, NOT the safety layer
 - Skip flags compose with --all: --all --skip-browser-data correctly excludes browser
 - Data-driven skipMapping pattern for maintainable flag-to-category-ID mapping
+- Risk constants live in safety package (not scan) to avoid circular imports
+- SetRiskLevels uses callback pattern: cr.SetRiskLevels(safety.RiskForCategory)
+- Safari TCC error returns structured PermissionIssue instead of stderr print
+- Permission-only CategoryResults propagate through nil guards via PermissionIssues length check
+- Unknown category IDs default to moderate risk
 
 ### Patterns Established
 
@@ -131,6 +137,9 @@ Recent decisions affecting current work:
 - Category-level skip: negate scan flag in PreRun hook (prevents scanner execution)
 - Item-level skip: data-driven buildSkipSet + filterSkipped post-scan filtering
 - Force bypass: nested !flagForce guard around confirmation prompt
+- Risk tagging: every scanner calls cr.SetRiskLevels(safety.RiskForCategory) before returning
+- Permission collection: os.IsPermission checks at Stat, ReadDir, and entry-level errors
+- Permission-only CategoryResult: zero entries + PermissionIssues still included in results
 
 ### Pending Todos
 
@@ -143,9 +152,9 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 06-02-PLAN.md (skip flags and force bypass), Phase 6 complete
-Resume file: .planning/phases/07-packaging-release/ (next phase)
+Stopped at: Completed 07-01-PLAN.md (risk levels and permission collection)
+Resume file: .planning/phases/07-safety-enforcement/07-02-PLAN.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (06-02 complete, Phase 6 complete)*
+*Last updated: 2026-02-16 (07-01 complete, Phase 7 in progress)*

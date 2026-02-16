@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Project Setup & Safety Foundation** - Go project initialization, safety layer, core types
 - [x] **Phase 2: System Cache Scanning** - First category implementation with dry-run architecture
 - [x] **Phase 3: Browser & Developer Caches** - Multi-category expansion (browser data, dev caches)
-- [ ] **Phase 4: App Leftovers & Cleanup Execution** - Third category plus actual deletion capability
+- [x] **Phase 4: App Leftovers & Cleanup Execution** - Third category plus actual deletion capability
 - [ ] **Phase 5: Interactive Mode** - Walkthrough mode with item-by-item confirmation
 - [ ] **Phase 6: CLI Polish & Automation** - Advanced flags (JSON, verbose, skip, force)
 - [ ] **Phase 7: Safety Enforcement** - Risk categorization and permission handling
@@ -80,8 +80,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — App leftovers scanner (orphaned prefs, iOS backups, old Downloads) with CLI wiring
-- [ ] 04-02-PLAN.md — Confirmation prompt, cleanup execution, and deletion flow wiring
+- [x] 04-01-PLAN.md — App leftovers scanner (orphaned prefs, iOS backups, old Downloads) with CLI wiring
+- [x] 04-02-PLAN.md — Confirmation prompt, cleanup execution, and deletion flow wiring
 
 ### Phase 5: Interactive Mode
 **Goal**: User can run walkthrough mode that asks keep/remove for each cleaning item
@@ -142,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Project Setup & Safety Foundation | 2/2 | ✓ Complete | 2026-02-16 |
 | 2. System Cache Scanning | 2/2 | ✓ Complete | 2026-02-16 |
 | 3. Browser & Developer Caches | 2/2 | ✓ Complete | 2026-02-16 |
-| 4. App Leftovers & Cleanup Execution | 0/2 | Not started | - |
+| 4. App Leftovers & Cleanup Execution | 2/2 | ✓ Complete | 2026-02-16 |
 | 5. Interactive Mode | 0/TBD | Not started | - |
 | 6. CLI Polish & Automation | 0/TBD | Not started | - |
 | 7. Safety Enforcement | 0/TBD | Not started | - |

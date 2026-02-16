@@ -14,6 +14,135 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
+// --- printDryRunSummary tests ---
+
+func TestPrintDryRunSummary_MultipleCategoriesSortedBySize(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "a", Description: "Small Cat", TotalSize: 300_000_000},
+		{Category: "b", Description: "Big Cat", TotalSize: 2_300_000_000},
+		{Category: "c", Description: "Medium Cat", TotalSize: 1_100_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	// Verify header present.
+	if !strings.Contains(out, "Dry-Run Summary") {
+		t.Errorf("expected header, got: %s", out)
+	}
+	// Verify descending order: Big Cat before Medium Cat before Small Cat.
+	bigIdx := strings.Index(out, "Big Cat")
+	medIdx := strings.Index(out, "Medium Cat")
+	smallIdx := strings.Index(out, "Small Cat")
+	if bigIdx < 0 || medIdx < 0 || smallIdx < 0 {
+		t.Fatalf("expected all categories in output, got: %s", out)
+	}
+	if bigIdx > medIdx || medIdx > smallIdx {
+		t.Errorf("categories not sorted descending by size, got: %s", out)
+	}
+	// Verify percentages exist.
+	if !strings.Contains(out, "%") {
+		t.Errorf("expected percentage in output, got: %s", out)
+	}
+	// Verify total line.
+	if !strings.Contains(out, "Total:") || !strings.Contains(out, "reclaimable") {
+		t.Errorf("expected total line, got: %s", out)
+	}
+}
+
+func TestPrintDryRunSummary_SingleCategory_NoOutput(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "a", Description: "Only One", TotalSize: 500_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	if buf.Len() != 0 {
+		t.Errorf("expected no output for single category, got: %s", buf.String())
+	}
+}
+
+func TestPrintDryRunSummary_EmptyResults_NoOutput(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	printDryRunSummary(&buf, nil)
+	if buf.Len() != 0 {
+		t.Errorf("expected no output for nil results, got: %s", buf.String())
+	}
+
+	buf.Reset()
+	printDryRunSummary(&buf, []scan.CategoryResult{})
+	if buf.Len() != 0 {
+		t.Errorf("expected no output for empty results, got: %s", buf.String())
+	}
+}
+
+func TestPrintDryRunSummary_ZeroSizeCategoriesFiltered(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "a", Description: "Has Data", TotalSize: 1_000_000_000},
+		{Category: "b", Description: "Empty One", TotalSize: 0},
+		{Category: "c", Description: "Also Data", TotalSize: 500_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	if strings.Contains(out, "Empty One") {
+		t.Errorf("zero-size category should be filtered, got: %s", out)
+	}
+	if !strings.Contains(out, "Has Data") || !strings.Contains(out, "Also Data") {
+		t.Errorf("non-zero categories should be present, got: %s", out)
+	}
+}
+
+func TestPrintDryRunSummary_ExactlyTwoCategories(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "a", Description: "First", TotalSize: 200_000_000},
+		{Category: "b", Description: "Second", TotalSize: 800_000_000},
+	}
+	printDryRunSummary(&buf, results)
+	out := buf.String()
+
+	if !strings.Contains(out, "Dry-Run Summary") {
+		t.Errorf("expected summary for exactly 2 categories, got: %s", out)
+	}
+	// Second should appear first (larger).
+	secondIdx := strings.Index(out, "Second")
+	firstIdx := strings.Index(out, "First")
+	if secondIdx > firstIdx {
+		t.Errorf("expected Second before First (sorted by size desc), got: %s", out)
+	}
+}
+
+func TestPrintDryRunSummary_TwoCategoriesOneEmpty_NoOutput(t *testing.T) {
+	color.NoColor = true
+	defer func() { color.NoColor = false }()
+
+	var buf bytes.Buffer
+	results := []scan.CategoryResult{
+		{Category: "a", Description: "Has Data", TotalSize: 500_000_000},
+		{Category: "b", Description: "No Data", TotalSize: 0},
+	}
+	printDryRunSummary(&buf, results)
+	if buf.Len() != 0 {
+		t.Errorf("expected no output when only 1 non-empty category, got: %s", buf.String())
+	}
+}
+
 func TestPrintCleanupSummary_NoFailures(t *testing.T) {
 	color.NoColor = true
 	defer func() { color.NoColor = false }()

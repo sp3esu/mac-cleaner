@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -483,6 +484,52 @@ func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 			fmt.Fprintf(w, "  - %s\n", err)
 		}
 	}
+	fmt.Fprintln(w)
+}
+
+// printDryRunSummary prints a compact size-sorted summary table when at least
+// two categories have data. It is intended for dry-run output so the user can
+// quickly see where disk space is reclaimable.
+func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
+	var nonEmpty []scan.CategoryResult
+	for _, cat := range results {
+		if cat.TotalSize > 0 {
+			nonEmpty = append(nonEmpty, cat)
+		}
+	}
+	if len(nonEmpty) < 2 {
+		return
+	}
+
+	sort.Slice(nonEmpty, func(i, j int) bool {
+		return nonEmpty[i].TotalSize > nonEmpty[j].TotalSize
+	})
+
+	var total int64
+	for _, cat := range nonEmpty {
+		total += cat.TotalSize
+	}
+
+	bold := color.New(color.Bold)
+	cyan := color.New(color.FgCyan)
+	greenBold := color.New(color.FgGreen, color.Bold)
+
+	fmt.Fprintln(w)
+	bold.Fprintln(w, "Dry-Run Summary")
+	fmt.Fprintln(w)
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
+	for _, cat := range nonEmpty {
+		pct := float64(cat.TotalSize) / float64(total) * 100
+		fmt.Fprintf(tw, "  %s\t  %s\t  (%4.1f%%)\t\n",
+			cat.Description,
+			cyan.Sprint(scan.FormatSize(cat.TotalSize)),
+			pct)
+	}
+	tw.Flush()
+
+	fmt.Fprintln(w)
+	greenBold.Fprintf(w, "  Total: %s reclaimable\n", scan.FormatSize(total))
 	fmt.Fprintln(w)
 }
 

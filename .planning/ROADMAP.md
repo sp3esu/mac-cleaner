@@ -31,12 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Safety layer rejects any attempt to touch SIP-protected paths (/System, /usr, /bin, /sbin)
   3. Safety layer rejects any attempt to touch swap files (/private/var/vm/)
   4. Basic CLI accepts flags and prints version
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Go project scaffolding with Cobra CLI and --version flag
+- [ ] 01-02-PLAN.md — Safety layer with TDD (IsPathBlocked for SIP/swap protection)
 
 ### Phase 2: System Cache Scanning
 **Goal**: User can scan system caches with dry-run preview showing space reclaimable
@@ -143,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Setup & Safety Foundation | 0/TBD | Not started | - |
+| 1. Project Setup & Safety Foundation | 0/2 | Planned | - |
 | 2. System Cache Scanning | 0/TBD | Not started | - |
 | 3. Browser & Developer Caches | 0/TBD | Not started | - |
 | 4. App Leftovers & Cleanup Execution | 0/TBD | Not started | - |

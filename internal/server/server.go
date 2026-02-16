@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/engine"
 )
 
 // Default timeouts for connection management.
@@ -29,13 +29,11 @@ type Server struct {
 	listener   net.Listener
 	version    string
 
+	// engine is the scan/cleanup engine instance.
+	engine *engine.Engine
+
 	// handler is the method dispatch table.
 	handler *Handler
-
-	// lastScan stores results from the most recent scan for cleanup validation.
-	lastScan struct {
-		results atomic.Pointer[[]scan.CategoryResult]
-	}
 
 	// busy tracks whether a scan or cleanup operation is in progress.
 	busy atomic.Bool
@@ -53,10 +51,12 @@ type Server struct {
 }
 
 // New creates a new server that will listen on the given socket path.
-func New(socketPath, version string) *Server {
+// The engine is used for all scan and cleanup operations.
+func New(socketPath, version string, eng *engine.Engine) *Server {
 	s := &Server{
 		socketPath: socketPath,
 		version:    version,
+		engine:     eng,
 		done:       make(chan struct{}),
 	}
 	s.handler = NewHandler(s)

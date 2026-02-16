@@ -57,6 +57,9 @@ type ScanParams struct {
 
 // CleanupParams holds parameters for the cleanup method.
 type CleanupParams struct {
+	// Token is the scan token returned by a prior scan operation.
+	// Required for cleanup (replay protection).
+	Token string `json:"token"`
 	// Categories lists the category IDs to clean up. Must match a prior scan.
 	Categories []string `json:"categories,omitempty"`
 }

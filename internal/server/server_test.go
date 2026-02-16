@@ -10,7 +10,16 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sp3esu/mac-cleaner/internal/engine"
 )
+
+// newTestEngine creates an engine with all default scanners registered.
+func newTestEngine() *engine.Engine {
+	eng := engine.New()
+	engine.RegisterDefaults(eng)
+	return eng
+}
 
 // waitForSocket blocks until the socket file exists or timeout.
 func waitForSocket(t *testing.T, path string) {
@@ -46,7 +55,7 @@ func readResponse(t *testing.T, conn net.Conn) Response {
 
 func TestServer_PingIntegration(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "test.sock")
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -109,7 +118,7 @@ func TestServer_PingIntegration(t *testing.T) {
 
 func TestServer_ShutdownViaMethod(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "test.sock")
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -157,7 +166,7 @@ func TestServer_ShutdownViaMethod(t *testing.T) {
 
 func TestServer_UnknownMethod(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "test.sock")
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer srv.Shutdown()
@@ -214,7 +223,7 @@ func TestServer_StaleSocketCleanup(t *testing.T) {
 	}
 
 	// Starting a new server should clean up the stale socket and start.
-	srv := New(socketPath, "test")
+	srv := New(socketPath, "test", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -235,7 +244,7 @@ func TestServer_StaleSocketCleanup(t *testing.T) {
 
 func TestServer_CategoriesMethod(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "test.sock")
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer srv.Shutdown()
@@ -285,7 +294,7 @@ func TestServer_MultipleRequestsSameConnection(t *testing.T) {
 	socketPath := filepath.Join(os.TempDir(), "mc-test-multi.sock")
 	os.Remove(socketPath)
 	defer os.Remove(socketPath)
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer srv.Shutdown()
@@ -316,7 +325,7 @@ func TestServer_ClientDisconnectHandledGracefully(t *testing.T) {
 	socketPath := filepath.Join(os.TempDir(), "mc-test-disc.sock")
 	os.Remove(socketPath)
 	defer os.Remove(socketPath)
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer srv.Shutdown()
@@ -350,7 +359,7 @@ func TestServer_ClientDisconnectHandledGracefully(t *testing.T) {
 
 func TestServer_ContextCancellation(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "test.sock")
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 
 	doneCh := make(chan error, 1)
@@ -381,7 +390,7 @@ func TestServer_NonSocketFileBlocks(t *testing.T) {
 		t.Fatalf("create file: %v", err)
 	}
 
-	srv := New(filePath, "test")
+	srv := New(filePath, "test", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -396,7 +405,7 @@ func TestServer_NonSocketFileBlocks(t *testing.T) {
 
 func TestServer_CleanupWithoutScan(t *testing.T) {
 	socketPath := filepath.Join(t.TempDir(), "test.sock")
-	srv := New(socketPath, "test-1.0.0")
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer srv.Shutdown()
@@ -417,6 +426,7 @@ func TestServer_CleanupWithoutScan(t *testing.T) {
 	}
 	defer conn.Close()
 
+	// Send cleanup without a token.
 	enc := json.NewEncoder(conn)
 	_ = enc.Encode(Request{ID: "cl1", Method: MethodCleanup})
 
@@ -431,6 +441,40 @@ func TestServer_CleanupWithoutScan(t *testing.T) {
 		t.Errorf("expected error type, got %q", resp.Type)
 	}
 	if resp.Error == "" {
-		t.Error("expected error about missing scan")
+		t.Error("expected error about missing token")
+	}
+	if !strings.Contains(resp.Error, "token is required") {
+		t.Errorf("expected 'token is required' error, got: %q", resp.Error)
+	}
+}
+
+func TestServer_CleanupWithInvalidToken(t *testing.T) {
+	socketPath := filepath.Join(os.TempDir(), "mc-test-badtoken.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", newTestEngine())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Send cleanup with an invalid token.
+	params, _ := json.Marshal(CleanupParams{Token: "bogus-token"})
+	sendRequest(t, conn, Request{ID: "cl1", Method: MethodCleanup, Params: params})
+
+	resp := readResponse(t, conn)
+	if resp.Type != ResponseError {
+		t.Errorf("expected error type, got %q", resp.Type)
+	}
+	if !strings.Contains(resp.Error, "invalid token") {
+		t.Errorf("expected 'invalid token' error, got: %q", resp.Error)
 	}
 }

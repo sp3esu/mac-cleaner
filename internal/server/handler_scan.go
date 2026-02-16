@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/sp3esu/mac-cleaner/internal/engine"
-	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // ScanProgress is a progress event streamed during scanning.
@@ -19,9 +18,14 @@ type ScanProgress struct {
 
 // ScanResult is the final result of a scan operation.
 type ScanResult struct {
-	Categories []scan.CategoryResult `json:"categories"`
-	TotalSize  int64                 `json:"total_size"`
+	Categories []scanResultCategory `json:"categories"`
+	TotalSize  int64                `json:"total_size"`
+	Token      string               `json:"token"`
 }
+
+// scanResultCategory mirrors scan.CategoryResult for JSON serialization.
+// We reuse the scan package types directly via the engine results.
+type scanResultCategory = interface{}
 
 // CategoryInfo describes an available scanner group.
 type CategoryInfo struct {
@@ -59,54 +63,56 @@ func (h *Handler) handleScan(ctx context.Context, req Request, w *NDJSONWriter) 
 		skip[id] = true
 	}
 
-	results := engine.ScanAll(engine.DefaultScanners(), skip, func(e engine.ScanEvent) {
-		// Check for client disconnect — stop streaming if gone.
-		if ctx.Err() != nil {
-			return
-		}
+	events, done := h.server.engine.ScanAll(ctx, skip)
 
-		progress := ScanProgress{
-			ScannerID: e.ScannerID,
-			Label:     e.Label,
+	// Drain events channel, streaming progress to client.
+	for event := range events {
+		if ctx.Err() != nil {
+			break
 		}
-		switch e.Type {
+		progress := ScanProgress{ScannerID: event.ScannerID, Label: event.Label}
+		switch event.Type {
 		case engine.EventScannerStart:
 			progress.Event = "scanner_start"
 		case engine.EventScannerDone:
 			progress.Event = "scanner_done"
 		case engine.EventScannerError:
 			progress.Event = "scanner_error"
-			if e.Err != nil {
-				progress.Error = e.Err.Error()
+			if event.Err != nil {
+				progress.Error = event.Err.Error()
 			}
 		}
 		_ = w.WriteProgress(req.ID, progress)
-	})
+	}
+
+	result := <-done
 
 	// If client disconnected during scan, don't bother with final result.
 	if ctx.Err() != nil {
 		return
 	}
 
-	// Store results for cleanup validation.
-	h.server.lastScan.results.Store(&results)
-
 	var totalSize int64
-	for _, cat := range results {
+	for _, cat := range result.Results {
 		totalSize += cat.TotalSize
 	}
 
-	_ = w.WriteResult(req.ID, ScanResult{
-		Categories: results,
+	_ = w.WriteResult(req.ID, struct {
+		Categories interface{} `json:"categories"`
+		TotalSize  int64       `json:"total_size"`
+		Token      string      `json:"token"`
+	}{
+		Categories: result.Results,
 		TotalSize:  totalSize,
+		Token:      string(result.Token),
 	})
 }
 
 func (h *Handler) handleCategories(req Request, w *NDJSONWriter) {
-	scanners := engine.DefaultScanners()
-	infos := make([]CategoryInfo, len(scanners))
-	for i, s := range scanners {
-		infos[i] = CategoryInfo{ID: s.ID, Label: s.Label}
+	infos := h.server.engine.Categories()
+	cats := make([]CategoryInfo, len(infos))
+	for i, info := range infos {
+		cats[i] = CategoryInfo{ID: info.ID, Label: info.Name}
 	}
-	_ = w.WriteResult(req.ID, CategoriesResult{Scanners: infos})
+	_ = w.WriteResult(req.ID, CategoriesResult{Scanners: cats})
 }

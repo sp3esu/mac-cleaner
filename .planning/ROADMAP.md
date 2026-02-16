@@ -46,12 +46,11 @@ Plans:
   2. User sees summary showing total space reclaimable from system caches
   3. Scan covers user app caches (~/Library/Caches), user logs (~/Library/Logs), and QuickLook thumbnails
   4. No files are deleted in dry-run mode (verified by file existence checks)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — Core scan types and size utilities (TDD)
+- [ ] 02-02-PLAN.md — System scanner, CLI wiring, and formatted output
 
 ### Phase 3: Browser & Developer Caches
 **Goal**: User can scan browser data and developer caches with same dry-run architecture
@@ -143,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Project Setup & Safety Foundation | 0/2 | Planned | - |
-| 2. System Cache Scanning | 0/TBD | Not started | - |
+| 2. System Cache Scanning | 0/2 | Not started | - |
 | 3. Browser & Developer Caches | 0/TBD | Not started | - |
 | 4. App Leftovers & Cleanup Execution | 0/TBD | Not started | - |
 | 5. Interactive Mode | 0/TBD | Not started | - |

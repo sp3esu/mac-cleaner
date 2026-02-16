@@ -11,6 +11,7 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/gregor/mac-cleaner/internal/safety"
 	"github.com/gregor/mac-cleaner/internal/scan"
 )
 
@@ -34,6 +35,8 @@ func RunWalkthrough(in io.Reader, out io.Writer, results []scan.CategoryResult) 
 
 	bold := color.New(color.Bold)
 	cyan := color.New(color.FgCyan)
+	red := color.New(color.FgRed)
+	yellow := color.New(color.FgYellow)
 
 	reader := bufio.NewReader(in)
 	itemNum := 0
@@ -51,8 +54,15 @@ func RunWalkthrough(in io.Reader, out io.Writer, results []scan.CategoryResult) 
 			itemNum++
 			sizeStr := scan.FormatSize(entry.Size)
 
-			fmt.Fprintf(out, "  [%d/%d] %s  %s\n", itemNum, totalItems,
-				entry.Description, cyan.Sprint(sizeStr))
+			riskTag := ""
+			switch entry.RiskLevel {
+			case safety.RiskRisky:
+				riskTag = red.Sprint("  [risky]")
+			case safety.RiskModerate:
+				riskTag = yellow.Sprint("  [moderate]")
+			}
+			fmt.Fprintf(out, "  [%d/%d] %s  %s%s\n", itemNum, totalItems,
+				entry.Description, cyan.Sprint(sizeStr), riskTag)
 			fmt.Fprint(out, "  keep or remove? [k/r]: ")
 
 			choice := readChoice(reader, out)

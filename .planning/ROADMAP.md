@@ -33,6 +33,11 @@ Plans:
 
 **Requirements:** PROTO-01, SRV-01, SRV-02, SRV-04
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 09-01-PLAN.md — Verify and close Phase 9 requirements (all proactively implemented in Phase 8), add supplemental test coverage, update REQUIREMENTS.md
+
 **Key deliverables:**
 - `internal/server/protocol.go` — Request/Response types, NDJSON encoding
 - `internal/server/server.go` — Socket listener, connection handler, dispatch, graceful shutdown

@@ -27,7 +27,7 @@ func TestExecuteRemovesFiles(t *testing.T) {
 		},
 	}
 
-	res := Execute(results)
+	res := Execute(results, nil)
 
 	if res.Removed != 2 {
 		t.Errorf("Removed = %d, want 2", res.Removed)
@@ -65,7 +65,7 @@ func TestExecuteRemovesDirectories(t *testing.T) {
 		},
 	}
 
-	res := Execute(results)
+	res := Execute(results, nil)
 
 	if res.Removed != 1 {
 		t.Errorf("Removed = %d, want 1", res.Removed)
@@ -106,7 +106,7 @@ func TestExecuteContinuesOnError(t *testing.T) {
 		},
 	}
 
-	res := Execute(results)
+	res := Execute(results, nil)
 
 	// The valid file should still be removed even though the locked one failed.
 	if _, err := os.Stat(validFile); !os.IsNotExist(err) {
@@ -132,7 +132,7 @@ func TestExecuteBlockedPath(t *testing.T) {
 		},
 	}
 
-	res := Execute(results)
+	res := Execute(results, nil)
 
 	if res.Removed != 0 {
 		t.Errorf("Removed = %d, want 0 (blocked path)", res.Removed)
@@ -158,7 +158,7 @@ func TestExecuteAlreadyGone(t *testing.T) {
 		},
 	}
 
-	res := Execute(results)
+	res := Execute(results, nil)
 
 	if res.Removed != 1 {
 		t.Errorf("Removed = %d, want 1 (already gone counts as removed)", res.Removed)
@@ -169,7 +169,7 @@ func TestExecuteAlreadyGone(t *testing.T) {
 }
 
 func TestExecuteEmptyResults(t *testing.T) {
-	res := Execute([]scan.CategoryResult{})
+	res := Execute([]scan.CategoryResult{}, nil)
 
 	if res.Removed != 0 {
 		t.Errorf("Removed = %d, want 0", res.Removed)
@@ -194,12 +194,97 @@ func TestExecutePseudoPath(t *testing.T) {
 		},
 	}
 
-	res := Execute(results)
+	res := Execute(results, nil)
 
 	if res.Removed != 0 {
 		t.Errorf("Removed = %d, want 0 (pseudo-path skipped)", res.Removed)
 	}
 	if res.Failed != 1 {
 		t.Errorf("Failed = %d, want 1 (pseudo-path counted as failed)", res.Failed)
+	}
+}
+
+func TestExecuteProgressCallback(t *testing.T) {
+	tmp := t.TempDir()
+	f1 := filepath.Join(tmp, "a.txt")
+	f2 := filepath.Join(tmp, "b.txt")
+	os.WriteFile(f1, []byte("aaa"), 0644)
+	os.WriteFile(f2, []byte("bbb"), 0644)
+
+	results := []scan.CategoryResult{
+		{
+			Category:    "cat-a",
+			Description: "Category A",
+			Entries: []scan.ScanEntry{
+				{Path: f1, Description: "file-a", Size: 3},
+			},
+			TotalSize: 3,
+		},
+		{
+			Category:    "cat-b",
+			Description: "Category B",
+			Entries: []scan.ScanEntry{
+				{Path: f2, Description: "file-b", Size: 3},
+			},
+			TotalSize: 3,
+		},
+	}
+
+	type call struct {
+		categoryDesc string
+		entryPath    string
+		current      int
+		total        int
+	}
+	var calls []call
+	cb := func(categoryDesc, entryPath string, current, total int) {
+		calls = append(calls, call{categoryDesc, entryPath, current, total})
+	}
+
+	Execute(results, cb)
+
+	// Expect 4 calls: category-start A, entry A, category-start B, entry B.
+	if len(calls) != 4 {
+		t.Fatalf("expected 4 callback calls, got %d", len(calls))
+	}
+
+	// Category-start for A: entryPath="", current=1, total=2.
+	if calls[0].categoryDesc != "Category A" || calls[0].entryPath != "" || calls[0].current != 1 || calls[0].total != 2 {
+		t.Errorf("call[0] = %+v, want category-start for Category A (1/2)", calls[0])
+	}
+	// Entry for A: entryPath=f1, current=1, total=2.
+	if calls[1].categoryDesc != "Category A" || calls[1].entryPath != f1 || calls[1].current != 1 || calls[1].total != 2 {
+		t.Errorf("call[1] = %+v, want entry for Category A", calls[1])
+	}
+	// Category-start for B: entryPath="", current=2, total=2.
+	if calls[2].categoryDesc != "Category B" || calls[2].entryPath != "" || calls[2].current != 2 || calls[2].total != 2 {
+		t.Errorf("call[2] = %+v, want category-start for Category B (2/2)", calls[2])
+	}
+	// Entry for B: entryPath=f2, current=2, total=2.
+	if calls[3].categoryDesc != "Category B" || calls[3].entryPath != f2 || calls[3].current != 2 || calls[3].total != 2 {
+		t.Errorf("call[3] = %+v, want entry for Category B", calls[3])
+	}
+}
+
+func TestExecuteProgressCallbackNil(t *testing.T) {
+	tmp := t.TempDir()
+	f := filepath.Join(tmp, "file.txt")
+	os.WriteFile(f, []byte("data"), 0644)
+
+	results := []scan.CategoryResult{
+		{
+			Category:    "test",
+			Description: "Test",
+			Entries: []scan.ScanEntry{
+				{Path: f, Description: "file", Size: 4},
+			},
+			TotalSize: 4,
+		},
+	}
+
+	// Should not panic with nil callback.
+	res := Execute(results, nil)
+	if res.Removed != 1 {
+		t.Errorf("Removed = %d, want 1", res.Removed)
 	}
 }

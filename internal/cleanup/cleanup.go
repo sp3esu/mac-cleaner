@@ -12,6 +12,12 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
+// ProgressFunc is called during cleanup to report progress.
+// categoryDesc is the human-readable category name (e.g. "User App Caches").
+// entryPath is "" for a category-start event, or the actual path for an entry-level event.
+// current is the 1-based item index across all categories; total is the overall item count.
+type ProgressFunc func(categoryDesc, entryPath string, current, total int)
+
 // CleanupResult summarises the outcome of a cleanup operation.
 type CleanupResult struct {
 	// Removed is the number of items successfully removed.
@@ -28,11 +34,24 @@ type CleanupResult struct {
 // re-checked against the safety blocklist before deletion. Pseudo-paths
 // (e.g. "docker:...") are skipped. Errors on individual items do not
 // abort the overall operation.
-func Execute(results []scan.CategoryResult) CleanupResult {
+func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResult {
 	var res CleanupResult
 
+	var total int
 	for _, cat := range results {
+		total += len(cat.Entries)
+	}
+
+	current := 0
+	for _, cat := range results {
+		if onProgress != nil {
+			onProgress(cat.Description, "", current+1, total)
+		}
 		for _, entry := range cat.Entries {
+			current++
+			if onProgress != nil {
+				onProgress(cat.Description, entry.Path, current, total)
+			}
 			// Skip pseudo-paths that are informational only.
 			if isPseudoPath(entry.Path) {
 				res.Failed++

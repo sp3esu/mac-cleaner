@@ -78,15 +78,15 @@ Run a full scan with streaming progress. Optional `skip` param filters category 
 ← {"id":"3","type":"progress","result":{"event":"scanner_done","scanner_id":"system","label":"System Caches"}}
 ← {"id":"3","type":"progress","result":{"event":"scanner_start","scanner_id":"browser","label":"Browser Data"}}
 ...
-← {"id":"3","type":"result","result":{"categories":[...],"total_size":12345678}}
+← {"id":"3","type":"result","result":{"categories":[...],"total_size":12345678,"token":"a1b2c3d4..."}}
 ```
 
 ### `cleanup`
 
-Clean up scan results. Must follow a `scan` call (replay protection). Optional `categories` param filters which category IDs to clean.
+Clean up scan results. Requires the `token` returned by a prior `scan` call (replay protection). Optional `categories` param filters which category IDs to clean.
 
 ```json
-→ {"id":"4","method":"cleanup","params":{"categories":["system-caches","system-logs"]}}
+→ {"id":"4","method":"cleanup","params":{"token":"a1b2c3d4...","categories":["system-caches","system-logs"]}}
 ← {"id":"4","type":"progress","result":{"event":"category_start","category":"User App Caches","current":1,"total":10}}
 ← {"id":"4","type":"progress","result":{"event":"entry_progress","category":"User App Caches","entry_path":"/Users/...","current":1,"total":10}}
 ...
@@ -120,6 +120,7 @@ struct ScanParams: Codable {
 }
 
 struct CleanupParams: Codable {
+    let token: String
     var categories: [String]?
 }
 
@@ -172,9 +173,10 @@ struct CategoryResult: Codable {
 struct ScanResult: Codable {
     let categories: [CategoryResult]
     let totalSize: Int64
+    let token: String
 
     enum CodingKeys: String, CodingKey {
-        case categories
+        case categories, token
         case totalSize = "total_size"
     }
 }
@@ -343,7 +345,7 @@ try process.run()
 ## Error Handling
 
 - **Concurrent operations:** Only one scan or cleanup can run at a time. Additional requests get an error response.
-- **Cleanup without scan:** The server requires a scan before cleanup (replay protection). After cleanup, scan results are cleared.
+- **Cleanup without scan:** The server requires a valid scan token before cleanup (replay protection). The token is returned in the scan result and must be passed in the cleanup request. After cleanup, the token is consumed (single-use).
 - **Client disconnect:** If the client disconnects during a scan or cleanup, the server stops streaming and cleans up gracefully.
 - **Idle timeout:** Connections idle for more than 5 minutes are automatically closed.
 - **Stale sockets:** On startup, the server detects and removes stale socket files from crashed instances.

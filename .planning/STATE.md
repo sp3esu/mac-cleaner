@@ -10,17 +10,17 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 8 of 11 (engine-extraction)
-Plan: 1 of 2
-Status: Plan 01 complete
-Last activity: 2026-02-16 — Completed 08-01-PLAN.md (engine package)
+Plan: 2 of 2
+Status: Phase 8 complete
+Last activity: 2026-02-16 — Completed 08-02-PLAN.md (CLI and server wiring)
 
-Progress: [██░░░░░░░░░░] 12% (v1.1) — 1/8 plans complete
+Progress: [███░░░░░░░░░] 25% (v1.1) — 2/8 plans complete
 
 ## Phase Overview
 
 | Phase | Name | Status |
 |-------|------|--------|
-| 8 | Engine Extraction | in progress (1/2 plans) |
+| 8 | Engine Extraction | complete (2/2 plans) |
 | 9 | Protocol & Server Core | pending |
 | 10 | Scan & Cleanup Handlers | pending |
 | 11 | Hardening & Documentation | pending |
@@ -33,6 +33,10 @@ Progress: [██░░░░░░░░░░] 12% (v1.1) — 1/8 plans comple
 - Single-token store (new scan invalidates previous; avoids memory leak)
 - Run() returns synchronously (channels overkill for single-scanner calls)
 - CleanupDone struct wraps Result and Err in one channel type
+- CLI cleanup stays in cmd/root.go (interactive confirmation is CLI-specific UI logic)
+- Engine initialized in PreRun (after flag expansion, before command execution)
+- Token round-trip: scan result includes token, cleanup requires token (protocol change)
+- Pre-existing gosec findings fixed with nosec/discard patterns
 
 Decisions are also logged in PROJECT.md Key Decisions table.
 
@@ -42,6 +46,8 @@ Decisions are also logged in PROJECT.md Key Decisions table.
 - Two-channel streaming: events + done channels for ScanAll/Cleanup
 - Context-aware sends: select on ctx.Done() for every channel send
 - Token lifecycle: storeResults on scan, validateToken+clear on cleanup
+- Table-driven flag-to-scanner mapping (scannerMapping struct) in CLI
+- Channel draining pattern for ScanAll events in CLI and server
 
 See phase summaries in .planning/phases/ for detailed patterns.
 
@@ -51,14 +57,14 @@ None.
 
 ### Blockers/Concerns
 
-- cmd/... and internal/server/... do not compile until Plan 08-02 wires them to new Engine struct API
+None. All packages compile and all tests pass.
 
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 08-01 (engine package). Ready for 08-02 (wire CLI/server).
-Resume file: .planning/phases/08-engine-extraction/08-02-PLAN.md
+Stopped at: Completed 08-02 (CLI/server wiring). Phase 8 complete. Ready for Phase 9.
+Resume file: .planning/ROADMAP.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-16 (08-01 complete)*
+*Last updated: 2026-02-16 (08-02 complete, phase 8 complete)*

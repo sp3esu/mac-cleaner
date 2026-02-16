@@ -20,9 +20,13 @@ var categoryRisk = map[string]string{
 	"dev-yarn":           RiskModerate,
 	"dev-homebrew":       RiskModerate,
 	"dev-docker":         RiskRisky,
-	"app-orphaned-prefs": RiskRisky,
-	"app-ios-backups":    RiskRisky,
-	"app-old-downloads":  RiskModerate,
+	"app-orphaned-prefs":       RiskRisky,
+	"app-ios-backups":          RiskRisky,
+	"app-old-downloads":        RiskModerate,
+	"dev-simulator-caches":     RiskSafe,
+	"dev-simulator-logs":       RiskSafe,
+	"dev-xcode-device-support": RiskModerate,
+	"dev-xcode-archives":       RiskRisky,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

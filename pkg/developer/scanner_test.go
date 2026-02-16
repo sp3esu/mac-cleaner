@@ -329,6 +329,122 @@ func TestParseDockerSize(t *testing.T) {
 	}
 }
 
+// --- Simulator Caches tests ---
+
+func TestScanSimulatorCachesMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanSimulatorCaches(home)
+	if result != nil {
+		t.Fatal("expected nil for missing Simulator Caches")
+	}
+}
+
+func TestScanSimulatorCachesWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "Developer", "CoreSimulator", "Caches")
+	writeFile(t, filepath.Join(dir, "com.apple.CoreSimulator.SimDevice.abc", "data.bin"), 4000)
+	writeFile(t, filepath.Join(dir, "com.apple.CoreSimulator.SimDevice.def", "data.bin"), 2000)
+
+	result := scanSimulatorCaches(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for Simulator Caches with data")
+	}
+	if result.Category != "dev-simulator-caches" {
+		t.Errorf("expected category 'dev-simulator-caches', got %q", result.Category)
+	}
+	if len(result.Entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
+	}
+	if result.TotalSize != 6000 {
+		t.Errorf("expected total size 6000, got %d", result.TotalSize)
+	}
+}
+
+// --- Simulator Logs tests ---
+
+func TestScanSimulatorLogsMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanSimulatorLogs(home)
+	if result != nil {
+		t.Fatal("expected nil for missing Simulator Logs")
+	}
+}
+
+func TestScanSimulatorLogsWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "Logs", "CoreSimulator")
+	writeFile(t, filepath.Join(dir, "device-abc", "system.log"), 1500)
+
+	result := scanSimulatorLogs(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for Simulator Logs with data")
+	}
+	if result.Category != "dev-simulator-logs" {
+		t.Errorf("expected category 'dev-simulator-logs', got %q", result.Category)
+	}
+	if result.TotalSize != 1500 {
+		t.Errorf("expected total size 1500, got %d", result.TotalSize)
+	}
+}
+
+// --- Xcode Device Support tests ---
+
+func TestScanXcodeDeviceSupportMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanXcodeDeviceSupport(home)
+	if result != nil {
+		t.Fatal("expected nil for missing Xcode Device Support")
+	}
+}
+
+func TestScanXcodeDeviceSupportWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "Developer", "Xcode", "iOS DeviceSupport")
+	writeFile(t, filepath.Join(dir, "16.0 (20A362)", "Symbols", "sym.db"), 5000)
+	writeFile(t, filepath.Join(dir, "15.0 (19A346)", "Symbols", "sym.db"), 3000)
+
+	result := scanXcodeDeviceSupport(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for Xcode Device Support with data")
+	}
+	if result.Category != "dev-xcode-device-support" {
+		t.Errorf("expected category 'dev-xcode-device-support', got %q", result.Category)
+	}
+	if len(result.Entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
+	}
+	if result.TotalSize != 8000 {
+		t.Errorf("expected total size 8000, got %d", result.TotalSize)
+	}
+}
+
+// --- Xcode Archives tests ---
+
+func TestScanXcodeArchivesMissing(t *testing.T) {
+	home := t.TempDir()
+	result := scanXcodeArchives(home)
+	if result != nil {
+		t.Fatal("expected nil for missing Xcode Archives")
+	}
+}
+
+func TestScanXcodeArchivesWithData(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "Library", "Developer", "Xcode", "Archives")
+	writeFile(t, filepath.Join(dir, "2024-01-15", "MyApp.xcarchive", "Products", "app"), 7000)
+
+	result := scanXcodeArchives(home)
+	if result == nil {
+		t.Fatal("expected non-nil result for Xcode Archives with data")
+	}
+	if result.Category != "dev-xcode-archives" {
+		t.Errorf("expected category 'dev-xcode-archives', got %q", result.Category)
+	}
+	if result.TotalSize != 7000 {
+		t.Errorf("expected total size 7000, got %d", result.TotalSize)
+	}
+}
+
 // --- Integration test ---
 
 func TestScanIntegration(t *testing.T) {

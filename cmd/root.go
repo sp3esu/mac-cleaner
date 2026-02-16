@@ -61,7 +61,11 @@ var (
 	flagSkipQuicklook     bool
 	flagSkipOrphanedPrefs bool
 	flagSkipIosBackups    bool
-	flagSkipOldDownloads  bool
+	flagSkipOldDownloads      bool
+	flagSkipSimulatorCaches   bool
+	flagSkipSimulatorLogs     bool
+	flagSkipXcodeDevSupport   bool
+	flagSkipXcodeArchives     bool
 )
 
 var rootCmd = &cobra.Command{
@@ -185,6 +189,10 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipOrphanedPrefs, "skip-orphaned-prefs", false, "skip orphaned preferences")
 	rootCmd.Flags().BoolVar(&flagSkipIosBackups, "skip-ios-backups", false, "skip iOS device backups")
 	rootCmd.Flags().BoolVar(&flagSkipOldDownloads, "skip-old-downloads", false, "skip old Downloads files")
+	rootCmd.Flags().BoolVar(&flagSkipSimulatorCaches, "skip-simulator-caches", false, "skip iOS Simulator caches")
+	rootCmd.Flags().BoolVar(&flagSkipSimulatorLogs, "skip-simulator-logs", false, "skip iOS Simulator logs")
+	rootCmd.Flags().BoolVar(&flagSkipXcodeDevSupport, "skip-xcode-device-support", false, "skip Xcode Device Support files")
+	rootCmd.Flags().BoolVar(&flagSkipXcodeArchives, "skip-xcode-archives", false, "skip Xcode Archives")
 
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		if flagAll {
@@ -292,6 +300,10 @@ func buildSkipSet() map[string]bool {
 		{&flagSkipOrphanedPrefs, "app-orphaned-prefs"},
 		{&flagSkipIosBackups, "app-ios-backups"},
 		{&flagSkipOldDownloads, "app-old-downloads"},
+		{&flagSkipSimulatorCaches, "dev-simulator-caches"},
+		{&flagSkipSimulatorLogs, "dev-simulator-logs"},
+		{&flagSkipXcodeDevSupport, "dev-xcode-device-support"},
+		{&flagSkipXcodeArchives, "dev-xcode-archives"},
 	}
 	skip := map[string]bool{}
 	for _, m := range mappings {

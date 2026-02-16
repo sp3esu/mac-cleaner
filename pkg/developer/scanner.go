@@ -58,6 +58,22 @@ func Scan() ([]scan.CategoryResult, error) {
 		cr.SetRiskLevels(safety.RiskForCategory)
 		results = append(results, *cr)
 	}
+	if cr := scanSimulatorCaches(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
+	if cr := scanSimulatorLogs(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
+	if cr := scanXcodeDeviceSupport(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
+	if cr := scanXcodeArchives(home); cr != nil {
+		cr.SetRiskLevels(safety.RiskForCategory)
+		results = append(results, *cr)
+	}
 
 	return results, nil
 }
@@ -316,4 +332,128 @@ func parseDockerSize(s string) int64 {
 	}
 
 	return 0
+}
+
+// scanSimulatorCaches scans ~/Library/Developer/CoreSimulator/Caches/.
+// Returns nil if the directory does not exist.
+func scanSimulatorCaches(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "Developer", "CoreSimulator", "Caches")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-simulator-caches",
+				Description: "Simulator Caches",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "Simulator Caches (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-simulator-caches", "Simulator Caches")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
+}
+
+// scanSimulatorLogs scans ~/Library/Logs/CoreSimulator/.
+// Returns nil if the directory does not exist.
+func scanSimulatorLogs(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "Logs", "CoreSimulator")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-simulator-logs",
+				Description: "Simulator Logs",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "Simulator Logs (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-simulator-logs", "Simulator Logs")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
+}
+
+// scanXcodeDeviceSupport scans ~/Library/Developer/Xcode/iOS DeviceSupport/.
+// Returns nil if the directory does not exist.
+func scanXcodeDeviceSupport(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "Developer", "Xcode", "iOS DeviceSupport")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-xcode-device-support",
+				Description: "Xcode Device Support",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "Xcode Device Support (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-xcode-device-support", "Xcode Device Support")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
+}
+
+// scanXcodeArchives scans ~/Library/Developer/Xcode/Archives/.
+// Returns nil if the directory does not exist.
+func scanXcodeArchives(home string) *scan.CategoryResult {
+	dir := filepath.Join(home, "Library", "Developer", "Xcode", "Archives")
+
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsPermission(err) {
+			return &scan.CategoryResult{
+				Category:    "dev-xcode-archives",
+				Description: "Xcode Archives",
+				PermissionIssues: []scan.PermissionIssue{{
+					Path:        dir,
+					Description: "Xcode Archives (permission denied)",
+				}},
+			}
+		}
+		return nil
+	}
+
+	cr, err := scan.ScanTopLevel(dir, "dev-xcode-archives", "Xcode Archives")
+	if err != nil {
+		return nil
+	}
+
+	if len(cr.Entries) == 0 && len(cr.PermissionIssues) == 0 {
+		return nil
+	}
+
+	return cr
 }

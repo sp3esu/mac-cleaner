@@ -12,8 +12,8 @@ This roadmap takes mac-cleaner from zero to a safe, production-ready macOS disk 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Project Setup & Safety Foundation** - Go project initialization, safety layer, core types
-- [ ] **Phase 2: System Cache Scanning** - First category implementation with dry-run architecture
+- [x] **Phase 1: Project Setup & Safety Foundation** - Go project initialization, safety layer, core types
+- [x] **Phase 2: System Cache Scanning** - First category implementation with dry-run architecture
 - [ ] **Phase 3: Browser & Developer Caches** - Multi-category expansion (browser data, dev caches)
 - [ ] **Phase 4: App Leftovers & Cleanup Execution** - Third category plus actual deletion capability
 - [ ] **Phase 5: Interactive Mode** - Walkthrough mode with item-by-item confirmation
@@ -34,8 +34,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Go project scaffolding with Cobra CLI and --version flag
-- [ ] 01-02-PLAN.md — Safety layer with TDD (IsPathBlocked for SIP/swap protection)
+- [x] 01-01-PLAN.md — Go project scaffolding with Cobra CLI and --version flag
+- [x] 01-02-PLAN.md — Safety layer with TDD (IsPathBlocked for SIP/swap protection)
 
 ### Phase 2: System Cache Scanning
 **Goal**: User can scan system caches with dry-run preview showing space reclaimable
@@ -49,8 +49,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Core scan types and size utilities (TDD)
-- [ ] 02-02-PLAN.md — System scanner, CLI wiring, and formatted output
+- [x] 02-01-PLAN.md — Core scan types and size utilities (TDD)
+- [x] 02-02-PLAN.md — System scanner, CLI wiring, and formatted output
 
 ### Phase 3: Browser & Developer Caches
 **Goal**: User can scan browser data and developer caches with same dry-run architecture
@@ -141,8 +141,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Project Setup & Safety Foundation | 0/2 | Planned | - |
-| 2. System Cache Scanning | 0/2 | Not started | - |
+| 1. Project Setup & Safety Foundation | 2/2 | ✓ Complete | 2026-02-16 |
+| 2. System Cache Scanning | 2/2 | ✓ Complete | 2026-02-16 |
 | 3. Browser & Developer Caches | 0/TBD | Not started | - |
 | 4. App Leftovers & Cleanup Execution | 0/TBD | Not started | - |
 | 5. Interactive Mode | 0/TBD | Not started | - |

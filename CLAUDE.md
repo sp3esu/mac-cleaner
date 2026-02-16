@@ -46,3 +46,4 @@ Go CLI (cobra) for scanning and cleaning macOS junk files. Entry point: `main.go
 - Errors wrapped with `fmt.Errorf("context: %w", err)`
 - Permission errors collected as `PermissionIssue` rather than failing the scan
 - Safety checks (SIP/swap blocking) resolve symlinks before checking path prefixes
+- Every change, fix, or new feature must include tests covering all code paths

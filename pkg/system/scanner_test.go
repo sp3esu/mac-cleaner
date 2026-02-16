@@ -184,3 +184,219 @@ func TestScanTopLevelCategoryFields(t *testing.T) {
 		t.Errorf("expected description 'My Description', got %q", result.Description)
 	}
 }
+
+// --- scanQuickLook tests ---
+
+func TestScanQuickLook_MatchingEntries(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create matching QuickLook entries.
+	qlDir1 := filepath.Join(dir, "com.apple.quicklook.thumbcache")
+	os.MkdirAll(qlDir1, 0755)
+	writeFile(t, filepath.Join(qlDir1, "data.bin"), 500)
+
+	qlDir2 := filepath.Join(dir, "com.apple.quicklook.other")
+	os.MkdirAll(qlDir2, 0755)
+	writeFile(t, filepath.Join(qlDir2, "thumb.dat"), 200)
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	if len(result.Entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
+	}
+
+	// Entries should be sorted by size descending.
+	if result.Entries[0].Size < result.Entries[1].Size {
+		t.Error("entries not sorted by size descending")
+	}
+	if result.Entries[0].Size != 500 {
+		t.Errorf("expected first entry size 500, got %d", result.Entries[0].Size)
+	}
+
+	expectedTotal := int64(500 + 200)
+	if result.TotalSize != expectedTotal {
+		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
+	}
+
+	if result.Category != "quicklook" {
+		t.Errorf("expected category 'quicklook', got %q", result.Category)
+	}
+}
+
+func TestScanQuickLook_NonMatchingIgnored(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create non-matching entries only.
+	other := filepath.Join(dir, "com.example.something")
+	os.MkdirAll(other, 0755)
+	writeFile(t, filepath.Join(other, "data.bin"), 300)
+
+	writeFile(t, filepath.Join(dir, "random.txt"), 100)
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result != nil {
+		t.Errorf("expected nil result for non-matching entries, got %+v", result)
+	}
+}
+
+func TestScanQuickLook_EmptyDir(t *testing.T) {
+	dir := t.TempDir()
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result != nil {
+		t.Errorf("expected nil result for empty dir, got %+v", result)
+	}
+}
+
+func TestScanQuickLook_SkipsZeroByte(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create an empty QuickLook directory (0 bytes).
+	emptyQL := filepath.Join(dir, "com.apple.quicklook.empty")
+	os.MkdirAll(emptyQL, 0755)
+
+	// Create a non-empty one to have a result.
+	nonEmpty := filepath.Join(dir, "com.apple.quicklook.real")
+	os.MkdirAll(nonEmpty, 0755)
+	writeFile(t, filepath.Join(nonEmpty, "thumb.dat"), 256)
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	// Only the non-empty entry should appear.
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry (zero-byte skipped), got %d", len(result.Entries))
+	}
+	if result.Entries[0].Description != "com.apple.quicklook.real" {
+		t.Errorf("expected 'com.apple.quicklook.real', got %q", result.Entries[0].Description)
+	}
+}
+
+func TestScanQuickLook_FileEntries(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a matching file (not directory).
+	writeFile(t, filepath.Join(dir, "com.apple.quicklook.data"), 128)
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
+	}
+	if result.Entries[0].Size != 128 {
+		t.Errorf("expected size 128, got %d", result.Entries[0].Size)
+	}
+}
+
+func TestScanQuickLook_SortedBySizeDescending(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create entries with varying sizes.
+	names := []struct {
+		name string
+		size int
+	}{
+		{"com.apple.quicklook.small", 100},
+		{"com.apple.quicklook.large", 900},
+		{"com.apple.quicklook.medium", 400},
+	}
+	for _, n := range names {
+		d := filepath.Join(dir, n.name)
+		os.MkdirAll(d, 0755)
+		writeFile(t, filepath.Join(d, "data.bin"), n.size)
+	}
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.Entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(result.Entries))
+	}
+
+	for i := 0; i < len(result.Entries)-1; i++ {
+		if result.Entries[i].Size < result.Entries[i+1].Size {
+			t.Errorf("entries not sorted descending at index %d: %d < %d",
+				i, result.Entries[i].Size, result.Entries[i+1].Size)
+		}
+	}
+}
+
+// --- quickLookCacheDir tests ---
+
+func TestQuickLookCacheDir_ValidTMPDIR(t *testing.T) {
+	base := t.TempDir()
+
+	// Simulate macOS TMPDIR structure: /var/folders/xx/yy/T/
+	tDir := filepath.Join(base, "var", "folders", "xx", "yy", "T")
+	cDir := filepath.Join(base, "var", "folders", "xx", "yy", "C")
+	os.MkdirAll(tDir, 0755)
+	os.MkdirAll(cDir, 0755)
+
+	t.Setenv("TMPDIR", tDir+"/")
+
+	got, err := quickLookCacheDir()
+	if err != nil {
+		t.Fatalf("quickLookCacheDir: %v", err)
+	}
+	if got != cDir {
+		t.Errorf("expected %q, got %q", cDir, got)
+	}
+}
+
+func TestQuickLookCacheDir_EmptyTMPDIR(t *testing.T) {
+	t.Setenv("TMPDIR", "")
+
+	_, err := quickLookCacheDir()
+	if err == nil {
+		t.Fatal("expected error for empty TMPDIR")
+	}
+}
+
+func TestQuickLookCacheDir_NonMacOSTMPDIR(t *testing.T) {
+	t.Setenv("TMPDIR", "/tmp")
+
+	_, err := quickLookCacheDir()
+	if err == nil {
+		t.Fatal("expected error for non-macOS TMPDIR")
+	}
+}
+
+func TestQuickLookCacheDir_MissingSiblingC(t *testing.T) {
+	base := t.TempDir()
+	tDir := filepath.Join(base, "var", "folders", "xx", "yy", "T")
+	os.MkdirAll(tDir, 0755)
+	// Intentionally do NOT create the sibling C directory.
+
+	t.Setenv("TMPDIR", tDir+"/")
+
+	_, err := quickLookCacheDir()
+	if err == nil {
+		t.Fatal("expected error when sibling C dir is missing")
+	}
+}

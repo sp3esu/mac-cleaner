@@ -493,6 +493,31 @@ func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 	fmt.Fprintln(w)
 }
 
+// flagForCategory returns the CLI scan flag (e.g. "--dev-caches") that covers
+// the given category ID. It returns "" for unrecognised IDs.
+func flagForCategory(categoryID string) string {
+	if categoryID == "quicklook" {
+		return "--system-caches"
+	}
+	prefixToFlag := []struct {
+		prefix string
+		flag   string
+	}{
+		{"system-", "--system-caches"},
+		{"browser-", "--browser-data"},
+		{"dev-", "--dev-caches"},
+		{"app-", "--app-leftovers"},
+		{"creative-", "--creative-caches"},
+		{"msg-", "--messaging-caches"},
+	}
+	for _, pf := range prefixToFlag {
+		if strings.HasPrefix(categoryID, pf.prefix) {
+			return pf.flag
+		}
+	}
+	return ""
+}
+
 // printDryRunSummary prints a compact size-sorted summary table when at least
 // two categories have data. It is intended for dry-run output so the user can
 // quickly see where disk space is reclaimable.

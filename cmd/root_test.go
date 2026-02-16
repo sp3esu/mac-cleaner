@@ -14,6 +14,64 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
+// --- flagForCategory tests ---
+
+func TestFlagForCategory(t *testing.T) {
+	tests := []struct {
+		categoryID string
+		want       string
+	}{
+		// system
+		{"system-caches", "--system-caches"},
+		{"system-logs", "--system-caches"},
+		// quicklook special case
+		{"quicklook", "--system-caches"},
+		// browser
+		{"browser-safari", "--browser-data"},
+		{"browser-chrome", "--browser-data"},
+		{"browser-firefox", "--browser-data"},
+		// developer
+		{"dev-xcode", "--dev-caches"},
+		{"dev-npm", "--dev-caches"},
+		{"dev-yarn", "--dev-caches"},
+		{"dev-homebrew", "--dev-caches"},
+		{"dev-docker", "--dev-caches"},
+		{"dev-simulator-caches", "--dev-caches"},
+		{"dev-simulator-logs", "--dev-caches"},
+		{"dev-xcode-device-support", "--dev-caches"},
+		{"dev-xcode-archives", "--dev-caches"},
+		{"dev-pnpm", "--dev-caches"},
+		{"dev-cocoapods", "--dev-caches"},
+		{"dev-gradle", "--dev-caches"},
+		{"dev-pip", "--dev-caches"},
+		// app leftovers
+		{"app-orphaned-prefs", "--app-leftovers"},
+		{"app-ios-backups", "--app-leftovers"},
+		{"app-old-downloads", "--app-leftovers"},
+		// creative
+		{"creative-adobe", "--creative-caches"},
+		{"creative-adobe-media", "--creative-caches"},
+		{"creative-sketch", "--creative-caches"},
+		{"creative-figma", "--creative-caches"},
+		// messaging
+		{"msg-slack", "--messaging-caches"},
+		{"msg-discord", "--messaging-caches"},
+		{"msg-teams", "--messaging-caches"},
+		{"msg-zoom", "--messaging-caches"},
+		// unknown / empty
+		{"unknown-thing", ""},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.categoryID, func(t *testing.T) {
+			got := flagForCategory(tt.categoryID)
+			if got != tt.want {
+				t.Errorf("flagForCategory(%q) = %q, want %q", tt.categoryID, got, tt.want)
+			}
+		})
+	}
+}
+
 // --- printDryRunSummary tests ---
 
 func TestPrintDryRunSummary_MultipleCategoriesSortedBySize(t *testing.T) {

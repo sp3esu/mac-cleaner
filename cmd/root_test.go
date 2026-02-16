@@ -12,6 +12,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/sp3esu/mac-cleaner/internal/cleanup"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/spinner"
 )
 
 // --- flagForCategory tests ---
@@ -656,5 +657,71 @@ func TestPrintPermissionIssues_WithIssues(t *testing.T) {
 	}
 	if !strings.Contains(out, "/var/private/cache") {
 		t.Errorf("expected path in output, got: %s", out)
+	}
+}
+
+// --- cleanupProgress tests ---
+
+func TestCleanupProgress_JSON(t *testing.T) {
+	oldJSON := flagJSON
+	flagJSON = true
+	defer func() { flagJSON = oldJSON }()
+
+	var buf bytes.Buffer
+	cb := cleanupProgress(nil, &buf)
+	if cb != nil {
+		t.Error("expected nil callback in JSON mode")
+	}
+}
+
+func TestCleanupProgress_Verbose(t *testing.T) {
+	oldVerbose := flagVerbose
+	oldJSON := flagJSON
+	flagVerbose = true
+	flagJSON = false
+	defer func() { flagVerbose = oldVerbose; flagJSON = oldJSON }()
+
+	var buf bytes.Buffer
+	cb := cleanupProgress(nil, &buf)
+	if cb == nil {
+		t.Fatal("expected non-nil callback in verbose mode")
+	}
+
+	// Category-start event.
+	cb("User App Caches", "", 1, 5)
+	// Entry-level event.
+	cb("User App Caches", "/tmp/test/file.txt", 1, 5)
+
+	out := buf.String()
+	if !strings.Contains(out, "Cleaning User App Caches (1/5)") {
+		t.Errorf("expected category header, got: %s", out)
+	}
+	if !strings.Contains(out, "  removing /tmp/test/file.txt") {
+		t.Errorf("expected entry path, got: %s", out)
+	}
+}
+
+func TestCleanupProgress_Normal(t *testing.T) {
+	oldVerbose := flagVerbose
+	oldJSON := flagJSON
+	flagVerbose = false
+	flagJSON = false
+	defer func() { flagVerbose = oldVerbose; flagJSON = oldJSON }()
+
+	// Use a disabled spinner (all methods are safe no-ops).
+	sp := spinner.New("", false)
+
+	var buf bytes.Buffer
+	cb := cleanupProgress(sp, &buf)
+	if cb == nil {
+		t.Fatal("expected non-nil callback in normal mode")
+	}
+
+	// In normal mode, callback updates the spinner (no text written to buf).
+	cb("User App Caches", "", 1, 5)
+	cb("User App Caches", "/tmp/test/file.txt", 1, 5)
+
+	if buf.Len() != 0 {
+		t.Errorf("expected no output in normal mode (spinner-only), got: %s", buf.String())
 	}
 }

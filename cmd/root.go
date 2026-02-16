@@ -155,7 +155,10 @@ var rootCmd = &cobra.Command{
 					return
 				}
 			}
-			result := cleanup.Execute(marked)
+			sp.UpdateMessage("Cleaning up...")
+			sp.Start()
+			result := cleanup.Execute(marked, cleanupProgress(sp, os.Stderr))
+			sp.Stop()
 			printCleanupSummary(os.Stdout, result)
 			return
 		}
@@ -186,7 +189,10 @@ var rootCmd = &cobra.Command{
 					return
 				}
 			}
-			result := cleanup.Execute(allResults)
+			sp.UpdateMessage("Cleaning up...")
+			sp.Start()
+			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr))
+			sp.Stop()
 			printCleanupSummary(os.Stdout, result)
 		}
 	},
@@ -491,6 +497,29 @@ func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 		}
 	}
 	fmt.Fprintln(w)
+}
+
+// cleanupProgress returns a ProgressFunc that drives the spinner (normal mode)
+// or prints per-entry detail (verbose mode). It returns nil for JSON mode.
+func cleanupProgress(sp *spinner.Spinner, w io.Writer) cleanup.ProgressFunc {
+	if flagJSON {
+		return nil
+	}
+	if flagVerbose {
+		return func(categoryDesc, entryPath string, current, total int) {
+			if entryPath == "" {
+				fmt.Fprintf(w, "Cleaning %s (%d/%d)\n", categoryDesc, current, total)
+			} else {
+				home, _ := os.UserHomeDir()
+				fmt.Fprintf(w, "  removing %s\n", shortenHome(entryPath, home))
+			}
+		}
+	}
+	return func(categoryDesc, entryPath string, current, total int) {
+		if entryPath == "" {
+			sp.UpdateMessage(fmt.Sprintf("Cleaning %s... (%d/%d)", categoryDesc, current, total))
+		}
+	}
 }
 
 // flagForCategory returns the CLI scan flag (e.g. "--dev-caches") that covers

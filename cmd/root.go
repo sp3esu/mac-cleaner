@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,7 +152,7 @@ var rootCmd = &cobra.Command{
 				}
 			}
 			result := cleanup.Execute(marked)
-			printCleanupSummary(result)
+			printCleanupSummary(os.Stdout, result)
 			return
 		}
 
@@ -178,7 +179,7 @@ var rootCmd = &cobra.Command{
 				}
 			}
 			result := cleanup.Execute(allResults)
-			printCleanupSummary(result)
+			printCleanupSummary(os.Stdout, result)
 		}
 	},
 }
@@ -469,16 +470,20 @@ func scanAll() []scan.CategoryResult {
 }
 
 // printCleanupSummary displays the results of a cleanup operation.
-func printCleanupSummary(result cleanup.CleanupResult) {
+func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 	greenBold := color.New(color.FgGreen, color.Bold)
-	fmt.Println()
-	greenBold.Printf("Cleanup complete: %d items removed, %s freed\n",
+	fmt.Fprintln(w)
+	greenBold.Fprintf(w, "Cleanup complete: %d items removed, %s freed\n",
 		result.Removed, scan.FormatSize(result.BytesFreed))
 	if result.Failed > 0 {
 		yellow := color.New(color.FgYellow)
-		yellow.Printf("%d items failed (see warnings above)\n", result.Failed)
+		fmt.Fprintln(w)
+		yellow.Fprintf(w, "%d items failed:\n", result.Failed)
+		for _, err := range result.Errors {
+			fmt.Fprintf(w, "  - %s\n", err)
+		}
 	}
-	fmt.Println()
+	fmt.Fprintln(w)
 }
 
 // printJSON outputs scan results as formatted JSON to stdout.

@@ -42,7 +42,6 @@ func Execute(results []scan.CategoryResult) CleanupResult {
 
 			// Re-check safety at deletion time.
 			if blocked, reason := safety.IsPathBlocked(entry.Path); blocked {
-				safety.WarnBlocked(entry.Path, reason)
 				res.Failed++
 				res.Errors = append(res.Errors, fmt.Errorf("blocked: %s (%s)", entry.Path, reason))
 				continue

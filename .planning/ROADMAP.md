@@ -60,7 +60,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md — Add integration tests for streaming scan/cleanup/concurrent-rejection/skip-params, fix Swift doc event names, update REQUIREMENTS.md
+- [x] 10-01-PLAN.md — Add integration tests for streaming scan/cleanup/concurrent-rejection/skip-params, fix Swift doc event names, update REQUIREMENTS.md
 
 **Key deliverables:**
 - `internal/server/handler_scan.go` — scan + categories methods

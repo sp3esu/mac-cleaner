@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 
 ## Current Position
 
-Phase: 9 of 11 (protocol-server-core)
+Phase: 10 of 11 (scan-cleanup-handlers)
 Plan: 1 of 1
-Status: Phase 9 complete
-Last activity: 2026-02-17 — Completed 09-01-PLAN.md (Protocol & server core verification)
+Status: Phase 10 complete
+Last activity: 2026-02-17 — Completed 10-01-PLAN.md (Scan & cleanup handler verification)
 
-Progress: [████░░░░░░░░] 37% (v1.1) — 3/8 plans complete
+Progress: [█████░░░░░░░] 50% (v1.1) — 4/8 plans complete
 
 ## Phase Overview
 
@@ -22,7 +22,7 @@ Progress: [████░░░░░░░░] 37% (v1.1) — 3/8 plans comple
 |-------|------|--------|
 | 8 | Engine Extraction | complete (2/2 plans) |
 | 9 | Protocol & Server Core | complete (1/1 plans) |
-| 10 | Scan & Cleanup Handlers | pending |
+| 10 | Scan & Cleanup Handlers | complete (1/1 plans) |
 | 11 | Hardening & Documentation | pending |
 
 ## Accumulated Context
@@ -39,6 +39,8 @@ Progress: [████░░░░░░░░] 37% (v1.1) — 3/8 plans comple
 - Pre-existing gosec findings fixed with nosec/discard patterns
 - Phase 9 requirements verified as already implemented during Phase 8 work (audit-only plan)
 - Used os.TempDir() for Unix socket test paths to avoid macOS 104-char limit
+- Used direct handler Dispatch for concurrent rejection test (server serializes socket requests sequentially)
+- Mock scanner paths intentionally non-existent to test handler plumbing without filesystem
 
 ### Patterns Established
 
@@ -50,6 +52,8 @@ Progress: [████░░░░░░░░] 37% (v1.1) — 3/8 plans comple
 - Channel draining pattern for ScanAll events in CLI and server
 
 - Active-listener probe test: use net.Listen to hold a socket, verify Server.Serve() returns error
+- Mock engine pattern: newMockTestEngine() for deterministic socket-level integration tests
+- Line-based NDJSON streaming reader: bufio.Scanner avoids json.Decoder buffering issues
 
 See phase summaries in .planning/phases/ for detailed patterns.
 
@@ -64,9 +68,9 @@ None. All packages compile and all tests pass.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 09-01 (Protocol & server core verification). Phase 9 complete. Ready for Phase 10.
+Stopped at: Completed 10-01 (Scan & cleanup handler verification). Phase 10 complete. Ready for Phase 11.
 Resume file: .planning/ROADMAP.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-17 (09-01 complete, phase 9 complete)*
+*Last updated: 2026-02-17 (10-01 complete, phase 10 complete)*

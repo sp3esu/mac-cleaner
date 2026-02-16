@@ -61,12 +61,11 @@ Plans:
   2. User can scan Xcode DerivedData, npm/yarn cache, Homebrew cache, Docker artifacts with `--dev-caches`
   3. Scan gracefully handles missing browsers (Chrome not installed) or dev tools (Docker not running)
   4. Summary shows space breakdown per tool (e.g., "Xcode: 5.2 GB, npm: 1.8 GB")
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Browser scanner (Safari/Chrome/Firefox), shared ScanTopLevel extraction, printResults generalization
+- [ ] 03-02-PLAN.md — Developer scanner (Xcode/npm/yarn/Homebrew/Docker) with CLI integration
 
 ### Phase 4: App Leftovers & Cleanup Execution
 **Goal**: User can scan app leftovers and execute actual cleanup with confirmation
@@ -143,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Project Setup & Safety Foundation | 2/2 | ✓ Complete | 2026-02-16 |
 | 2. System Cache Scanning | 2/2 | ✓ Complete | 2026-02-16 |
-| 3. Browser & Developer Caches | 0/TBD | Not started | - |
+| 3. Browser & Developer Caches | 0/2 | Not started | - |
 | 4. App Leftovers & Cleanup Execution | 0/TBD | Not started | - |
 | 5. Interactive Mode | 0/TBD | Not started | - |
 | 6. CLI Polish & Automation | 0/TBD | Not started | - |

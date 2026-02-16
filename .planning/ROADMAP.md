@@ -8,7 +8,7 @@
 **Plans:** 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Build engine package: Scanner interface, Engine struct, channel-based ScanAll/Cleanup, token store, custom errors, tests
+- [x] 08-01-PLAN.md — Build engine package: Scanner interface, Engine struct, channel-based ScanAll/Cleanup, token store, custom errors, tests
 - [ ] 08-02-PLAN.md — Wire CLI and server to use Engine struct, remove direct pkg/* imports, verify zero behavior change
 
 **Key deliverables:**

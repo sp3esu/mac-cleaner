@@ -726,3 +726,60 @@ func TestCleanupProgress_Normal(t *testing.T) {
 		t.Errorf("expected no output in normal mode (spinner-only), got: %s", buf.String())
 	}
 }
+
+// --- Engine integration tests (regression: verify engine wiring) ---
+
+// TestFlagScannerMappings verifies all 6 scanner IDs exist in the engine.
+func TestFlagScannerMappings(t *testing.T) {
+	eng := engine.New()
+	engine.RegisterDefaults(eng)
+	cats := eng.Categories()
+	ids := map[string]bool{}
+	for _, c := range cats {
+		ids[c.ID] = true
+	}
+	expected := []string{"system", "browser", "developer", "appleftovers", "creative", "messaging"}
+	for _, id := range expected {
+		if !ids[id] {
+			t.Errorf("expected scanner ID %q not found in engine", id)
+		}
+	}
+}
+
+// TestFindScannerInfo verifies scanner metadata lookup.
+func TestFindScannerInfo(t *testing.T) {
+	// Initialize the engine (normally done in PreRun).
+	eng = engine.New()
+	engine.RegisterDefaults(eng)
+	defer func() { eng = nil }()
+
+	info := findScannerInfo("system")
+	if info.ID != "system" {
+		t.Errorf("expected ID 'system', got %q", info.ID)
+	}
+	if info.Name != "System Caches" {
+		t.Errorf("expected Name 'System Caches', got %q", info.Name)
+	}
+
+	// Unknown scanner returns fallback.
+	unknown := findScannerInfo("nonexistent")
+	if unknown.ID != "nonexistent" {
+		t.Errorf("expected fallback ID 'nonexistent', got %q", unknown.ID)
+	}
+}
+
+// TestEngineCategories verifies RegisterDefaults produces exactly 6 scanners.
+func TestEngineCategories(t *testing.T) {
+	eng := engine.New()
+	engine.RegisterDefaults(eng)
+	cats := eng.Categories()
+	if len(cats) != 6 {
+		t.Fatalf("expected 6 scanner categories, got %d", len(cats))
+	}
+	// Verify all have non-empty names.
+	for _, c := range cats {
+		if c.Name == "" {
+			t.Errorf("scanner %q has empty Name", c.ID)
+		}
+	}
+}

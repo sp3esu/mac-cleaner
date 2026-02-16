@@ -84,7 +84,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	go func() {
 		select {
 		case <-ctx.Done():
-			ln.Close()
+			ln.Close() // #nosec G104 -- best-effort listener close during shutdown
 		case <-s.done:
 		}
 	}()
@@ -116,14 +116,14 @@ func (s *Server) Shutdown() {
 	}
 	close(s.done)
 	if s.listener != nil {
-		s.listener.Close()
+		s.listener.Close() // #nosec G104 -- best-effort listener close during shutdown
 	}
 	s.mu.Lock()
 	if s.connCancel != nil {
 		s.connCancel()
 	}
 	if s.active != nil {
-		s.active.Close()
+		s.active.Close() // #nosec G104 -- best-effort connection close during shutdown
 	}
 	s.mu.Unlock()
 }
@@ -141,7 +141,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	s.mu.Unlock()
 
 	defer func() {
-		conn.Close()
+		conn.Close() // #nosec G104 -- best-effort connection close on handler exit
 		s.mu.Lock()
 		s.active = nil
 		s.connCancel = nil
@@ -162,7 +162,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 
 		// Set idle timeout — if no message arrives within IdleTimeout,
 		// the connection is closed.
-		conn.SetReadDeadline(time.Now().Add(IdleTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(IdleTimeout))
 
 		req, err := reader.Read()
 		if err != nil {
@@ -170,7 +170,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		}
 
 		// Reset deadline for next read.
-		conn.SetReadDeadline(time.Time{})
+		_ = conn.SetReadDeadline(time.Time{})
 
 		if req.Method == MethodShutdown {
 			_ = writer.WriteResult(req.ID, map[string]string{"status": "shutting_down"})
@@ -201,7 +201,7 @@ func (s *Server) cleanStaleSocket() error {
 	// Try connecting to see if a server is already running.
 	conn, err := net.Dial("unix", s.socketPath)
 	if err == nil {
-		conn.Close()
+		conn.Close() // #nosec G104 -- best-effort close of probe connection
 		return fmt.Errorf("another server is already listening on %s", s.socketPath)
 	}
 
@@ -214,5 +214,5 @@ func (s *Server) cleanStaleSocket() error {
 
 // cleanup removes the socket file.
 func (s *Server) cleanup() {
-	os.Remove(s.socketPath)
+	_ = os.Remove(s.socketPath)
 }

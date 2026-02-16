@@ -32,7 +32,7 @@ func PromptConfirmation(in io.Reader, out io.Writer, results []scan.CategoryResu
 	var totalSize int64
 	for _, cat := range results {
 		fmt.Fprintln(out)
-		bold.Fprintln(out, "  "+cat.Description)
+		_, _ = bold.Fprintln(out, "  "+cat.Description)
 		for _, entry := range cat.Entries {
 			path := shortenHome(entry.Path, home)
 			riskTag := ""
@@ -50,7 +50,7 @@ func PromptConfirmation(in io.Reader, out io.Writer, results []scan.CategoryResu
 	fmt.Fprintf(out, "\nTotal: %s will be permanently deleted.\n", scan.FormatSize(totalSize))
 	if hasRiskyItems(results) {
 		redBold := color.New(color.FgRed, color.Bold)
-		redBold.Fprintln(out, "\nWARNING: Selection includes risky items that may be difficult or impossible to recover.")
+		_, _ = redBold.Fprintln(out, "\nWARNING: Selection includes risky items that may be difficult or impossible to recover.")
 	}
 	fmt.Fprint(out, "Type 'yes' to proceed: ")
 

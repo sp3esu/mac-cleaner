@@ -65,7 +65,7 @@ func quickLookCacheDir() (string, error) {
 	parent := filepath.Dir(filepath.Clean(tmpDir))
 	cacheDir := filepath.Join(parent, "C")
 
-	if _, err := os.Stat(cacheDir); err != nil {
+	if _, err := os.Stat(cacheDir); err != nil { // #nosec G703 -- cacheDir derived from TMPDIR validated to contain /var/folders/, path verified by safety.IsPathBlocked()
 		return "", fmt.Errorf("QuickLook cache dir not found: %w", err)
 	}
 

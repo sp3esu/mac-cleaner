@@ -23,7 +23,7 @@ type CmdRunner func(ctx context.Context, name string, args ...string) ([]byte, e
 
 // defaultRunner is the production CmdRunner that uses os/exec.
 func defaultRunner(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := exec.CommandContext(ctx, name, args...) // #nosec G204 -- all command names and arguments are hardcoded string literals, no user input
 	return cmd.Output()
 }
 

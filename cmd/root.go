@@ -486,12 +486,12 @@ func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
 func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 	greenBold := color.New(color.FgGreen, color.Bold)
 	fmt.Fprintln(w)
-	greenBold.Fprintf(w, "Cleanup complete: %d items removed, %s freed\n",
+	_, _ = greenBold.Fprintf(w, "Cleanup complete: %d items removed, %s freed\n",
 		result.Removed, scan.FormatSize(result.BytesFreed))
 	if result.Failed > 0 {
 		yellow := color.New(color.FgYellow)
 		fmt.Fprintln(w)
-		yellow.Fprintf(w, "%d items failed:\n", result.Failed)
+		_, _ = yellow.Fprintf(w, "%d items failed:\n", result.Failed)
 		for _, err := range result.Errors {
 			fmt.Fprintf(w, "  - %s\n", err)
 		}
@@ -576,7 +576,7 @@ func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 	greenBold := color.New(color.FgGreen, color.Bold)
 
 	fmt.Fprintln(w)
-	bold.Fprintln(w, "Dry-Run Summary")
+	_, _ = bold.Fprintln(w, "Dry-Run Summary")
 	fmt.Fprintln(w)
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
@@ -592,10 +592,10 @@ func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 			pct,
 			hint)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	fmt.Fprintln(w)
-	greenBold.Fprintf(w, "  Total: %s reclaimable\n", scan.FormatSize(total))
+	_, _ = greenBold.Fprintf(w, "  Total: %s reclaimable\n", scan.FormatSize(total))
 	fmt.Fprintln(w)
 }
 
@@ -643,7 +643,7 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 		header += " (dry run)"
 	}
 	fmt.Println()
-	bold.Println(header)
+	_, _ = bold.Println(header)
 
 	var grandTotal int64
 
@@ -660,7 +660,7 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 			baseDir := shortenHome(baseDirectory(cat.Entries[0].Path), home)
 			catHeader += "    " + baseDir
 		}
-		bold.Println(catHeader)
+		_, _ = bold.Println(catHeader)
 
 		// Entries in a tabwriter for alignment.
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
@@ -679,14 +679,14 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 				fmt.Fprintf(w, "      %s\t\t\n", path)
 			}
 		}
-		w.Flush()
+		_ = w.Flush()
 
 		grandTotal += cat.TotalSize
 	}
 
 	// Summary line.
 	fmt.Println()
-	greenBold.Printf("  Total: %s reclaimable\n", scan.FormatSize(grandTotal))
+	_, _ = greenBold.Printf("  Total: %s reclaimable\n", scan.FormatSize(grandTotal))
 	fmt.Println()
 }
 
@@ -703,7 +703,7 @@ func printPermissionIssues(results []scan.CategoryResult) {
 	home, _ := os.UserHomeDir()
 	yellow := color.New(color.FgYellow)
 	fmt.Fprintln(os.Stderr)
-	yellow.Fprintf(os.Stderr, "Note: %d path(s) could not be accessed (permission denied):\n", len(issues))
+	_, _ = yellow.Fprintf(os.Stderr, "Note: %d path(s) could not be accessed (permission denied):\n", len(issues))
 	for _, issue := range issues {
 		path := shortenHome(issue.Path, home)
 		fmt.Fprintf(os.Stderr, "  %s — %s\n", path, issue.Description)

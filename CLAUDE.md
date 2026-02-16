@@ -9,6 +9,23 @@ go test ./...                                # run all tests
 go test ./internal/safety/...                # run tests for one package
 ```
 
+## Local Security Checks
+
+Before committing, run:
+```bash
+gosec ./...      # static security analysis (must report 0 issues)
+govulncheck ./...  # dependency vulnerability check
+go vet ./...     # standard Go static analysis
+```
+
+### Pre-commit hook setup (one-time)
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This configures Git to use the `.githooks/pre-commit` hook, which automatically runs `go vet` and `gosec` on every commit. If `gosec` is not installed, the hook installs it automatically.
+
 ## Architecture
 
 Go CLI (cobra) for scanning and cleaning macOS junk files. Entry point: `main.go` -> `cmd.Execute()`.

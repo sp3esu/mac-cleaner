@@ -45,7 +45,7 @@ func RunWalkthrough(in io.Reader, out io.Writer, results []scan.CategoryResult) 
 	for _, cat := range results {
 		// Print category header.
 		fmt.Fprintln(out)
-		bold.Fprintln(out, cat.Description)
+		_, _ = bold.Fprintln(out, cat.Description)
 
 		var removedEntries []scan.ScanEntry
 		var removedSize int64

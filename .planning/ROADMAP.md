@@ -108,12 +108,11 @@ Plans:
   3. User can get detailed file listing with `--verbose` (shows individual files, not just summaries)
   4. User can skip categories with `--skip-browser-data` and specific items with `--skip-derived-data`
   5. User can bypass confirmation with `--force` for automation (combined with --dry-run for safety testing)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
-- [ ] 06-03: TBD
+- [ ] 06-01-PLAN.md — JSON struct tags, --all flag, --json output, --verbose display, PreRun hook
+- [ ] 06-02-PLAN.md — Skip flags (4 category + 12 item), --force confirmation bypass, filtering functions
 
 ### Phase 7: Safety Enforcement
 **Goal**: User sees risk categorization for all items and tool respects permission boundaries
@@ -143,7 +142,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Browser & Developer Caches | 2/2 | ✓ Complete | 2026-02-16 |
 | 4. App Leftovers & Cleanup Execution | 2/2 | ✓ Complete | 2026-02-16 |
 | 5. Interactive Mode | 1/1 | ✓ Complete | 2026-02-16 |
-| 6. CLI Polish & Automation | 0/TBD | Not started | - |
+| 6. CLI Polish & Automation | 0/2 | Not started | - |
 | 7. Safety Enforcement | 0/TBD | Not started | - |
 
 ---

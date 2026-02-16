@@ -10,6 +10,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/gregor/mac-cleaner/internal/cleanup"
+	"github.com/gregor/mac-cleaner/internal/confirm"
 	"github.com/gregor/mac-cleaner/internal/scan"
 	"github.com/gregor/mac-cleaner/pkg/appleftovers"
 	"github.com/gregor/mac-cleaner/pkg/browser"
@@ -36,24 +38,38 @@ var rootCmd = &cobra.Command{
 	Long:  "scan and remove system caches, browser data, developer caches, and app leftovers",
 	Run: func(cmd *cobra.Command, args []string) {
 		ran := false
+		var allResults []scan.CategoryResult
+
 		if flagSystemCaches {
-			runSystemCachesScan(cmd)
+			allResults = append(allResults, runSystemCachesScan(cmd)...)
 			ran = true
 		}
 		if flagBrowserData {
-			runBrowserDataScan(cmd)
+			allResults = append(allResults, runBrowserDataScan(cmd)...)
 			ran = true
 		}
 		if flagDevCaches {
-			runDevCachesScan(cmd)
+			allResults = append(allResults, runDevCachesScan(cmd)...)
 			ran = true
 		}
 		if flagAppLeftovers {
-			runAppLeftoversScan(cmd)
+			allResults = append(allResults, runAppLeftoversScan(cmd)...)
 			ran = true
 		}
+
 		if !ran {
 			cmd.Help()
+			return
+		}
+
+		// Deletion flow: only when not in dry-run mode and there are results.
+		if !flagDryRun && len(allResults) > 0 {
+			if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
+				fmt.Println("Aborted.")
+				return
+			}
+			result := cleanup.Execute(allResults)
+			printCleanupSummary(result)
 		}
 	},
 }
@@ -77,43 +93,60 @@ func Execute() {
 }
 
 // runSystemCachesScan executes the system cache scan and prints results.
-func runSystemCachesScan(cmd *cobra.Command) {
+func runSystemCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 	results, err := system.Scan()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return
+		return nil
 	}
 	printResults(results, flagDryRun, "System Caches")
+	return results
 }
 
 // runBrowserDataScan executes the browser data scan and prints results.
-func runBrowserDataScan(cmd *cobra.Command) {
+func runBrowserDataScan(cmd *cobra.Command) []scan.CategoryResult {
 	results, err := browser.Scan()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return
+		return nil
 	}
 	printResults(results, flagDryRun, "Browser Data")
+	return results
 }
 
 // runDevCachesScan executes the developer cache scan and prints results.
-func runDevCachesScan(cmd *cobra.Command) {
+func runDevCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 	results, err := developer.Scan()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return
+		return nil
 	}
 	printResults(results, flagDryRun, "Developer Caches")
+	return results
 }
 
 // runAppLeftoversScan executes the app leftovers scan and prints results.
-func runAppLeftoversScan(cmd *cobra.Command) {
+func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
 	results, err := appleftovers.Scan()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return
+		return nil
 	}
 	printResults(results, flagDryRun, "App Leftovers")
+	return results
+}
+
+// printCleanupSummary displays the results of a cleanup operation.
+func printCleanupSummary(result cleanup.CleanupResult) {
+	greenBold := color.New(color.FgGreen, color.Bold)
+	fmt.Println()
+	greenBold.Printf("Cleanup complete: %d items removed, %s freed\n",
+		result.Removed, scan.FormatSize(result.BytesFreed))
+	if result.Failed > 0 {
+		yellow := color.New(color.FgYellow)
+		yellow.Printf("%d items failed (see warnings above)\n", result.Failed)
+	}
+	fmt.Println()
 }
 
 // printResults displays scan results as a formatted table with color.

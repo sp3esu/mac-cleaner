@@ -26,14 +26,29 @@ Users can safely and confidently reclaim disk space without worrying about delet
 - ✓ Risk categorization (safe/moderate/risky) with color-coded display — v1.0
 - ✓ Permission error reporting without failing entire scan — v1.0
 
-### Active
+### Active (v1.1 — Swift Integration / Server Mode)
 
-(None yet — define in next milestone)
+- ENG-01: Scanning orchestration decoupled from cobra into reusable engine package
+- ENG-02: Engine supports per-scanner progress callbacks
+- ENG-03: Engine supports category filtering (skip set)
+- ENG-04: CLI refactored to use engine (no behavior change)
+- PROTO-01: NDJSON request/response protocol with request IDs
+- PROTO-02: Methods: scan, cleanup, categories, ping, shutdown
+- PROTO-03: Scan method streams per-scanner progress events, then final result
+- PROTO-04: Cleanup method streams per-entry progress events, then final result
+- PROTO-05: Categories method returns available scanners with metadata
+- SRV-01: Unix domain socket listener with graceful shutdown
+- SRV-02: `serve` cobra subcommand with `--socket` flag
+- SRV-03: Single-connection handling (reject concurrent operations)
+- SRV-04: Socket file cleanup on shutdown and stale socket detection on startup
+- HARD-01: Client disconnect during scan/cleanup handled gracefully
+- HARD-02: Connection timeout and keep-alive
+- HARD-03: Cleanup requests validated against prior scan results (replay protection)
 
 ### Out of Scope
 
 - Windows/Linux support — macOS only
-- GUI interface — CLI only
+- GUI interface — native Swift macOS app connects via UDS server, not built into this project
 - Real-time file monitoring / scheduled cleaning — manual invocation only
 - Trash/undo support — files are permanently deleted (confirmation mitigates risk)
 - Cloud storage cleanup — too destructive (Dropbox/iCloud deletion has remote consequences)
@@ -42,11 +57,19 @@ Users can safely and confidently reclaim disk space without worrying about delet
 - Time Machine snapshot deletion — macOS manages automatically
 - Malware detection — different problem domain
 
+## Current Milestone: v1.1 — Swift Integration (Server Mode)
+
+**Goal:** Add a Unix domain socket server mode (`mac-cleaner serve`) so a native Swift macOS app can control scanning and cleanup with real-time streaming progress, while keeping the CLI fully standalone.
+
+**Architecture:** Single binary, two modes — CLI (unchanged) and IPC server via UDS with NDJSON protocol. Engine layer decouples scan/cleanup orchestration from cobra. Proven pattern used by Tailscale in production.
+
+**Phases:** 8-11 (Engine Extraction → Protocol & Server Core → Scan & Cleanup Handlers → Hardening & Documentation)
+
 ## Context
 
 Shipped v1.0 with 4,442 LOC Go.
 Tech stack: Go, Cobra CLI, fatih/color for terminal output, tabwriter for formatting.
-Binary name: `mac-cleaner` (project directory is `mac-clarner`).
+Binary name: `mac-cleaner` (project directory is `mac-cleaner`).
 All 27 v1 requirements shipped across 7 phases and 13 plans in ~4.3 hours.
 
 **Cleaning categories:**
@@ -78,6 +101,10 @@ All 27 v1 requirements shipped across 7 phases and 13 plans in ~4.3 hours.
 | Risk constants in safety package | Avoids circular imports between scan and safety | ✓ Good |
 | Permission issues to stderr | Doesn't contaminate pipeable stdout output | ✓ Good |
 | 90-day hardcoded download age | Simple for v1, configurability deferred | ⚠️ Revisit |
+| UDS over XPC for Swift integration | Go XPC is dead ecosystem, GCD/goroutine conflicts; UDS+JSON proven by Tailscale | ✓ Good |
+| NDJSON protocol | Simple, streamable, debuggable with standard tools (socat/netcat) | ✓ Good |
+| Engine layer between CLI and scanners | Decouples orchestration for reuse by both CLI and server | ✓ Good |
+| Single-connection server | Simplifies state management; macOS app is sole client | ✓ Good |
 
 ---
-*Last updated: 2026-02-16 after v1.0 milestone*
+*Last updated: 2026-02-16 after v1.1 milestone setup*

@@ -28,12 +28,16 @@ This configures Git to use the `.githooks/pre-commit` hook, which automatically 
 
 ## Architecture
 
-Go CLI (cobra) for scanning and cleaning macOS junk files. Entry point: `main.go` -> `cmd.Execute()`.
+Go CLI (cobra) for scanning and cleaning macOS junk files. Single binary, two modes:
+- `mac-cleaner` — interactive/flag-based CLI (entry: `main.go` → `cmd.Execute()`)
+- `mac-cleaner serve --socket <path>` — Unix domain socket IPC server for Swift app integration
 
 ### Layout
 
-- `cmd/` — CLI root command, flag definitions, output formatting (cobra)
+- `cmd/` — CLI commands (cobra): `root.go` (main CLI), `serve.go` (IPC server subcommand)
 - `internal/` — private packages:
+  - `engine/` — scan/cleanup orchestration shared by CLI and server (scanner registry, progress callbacks)
+  - `server/` — Unix domain socket IPC server with NDJSON protocol
   - `cleanup/` — file deletion execution
   - `confirm/` — interactive confirmation prompts
   - `interactive/` — walkthrough mode (category-by-category selection)
@@ -46,10 +50,13 @@ Go CLI (cobra) for scanning and cleaning macOS junk files. Entry point: `main.go
   - `appleftovers/` — orphaned prefs, iOS backups, old downloads
   - `creative/` — Adobe, Sketch, Figma
   - `messaging/` — Slack, Discord, Teams, Zoom
+- `docs/` — integration documentation (`swift-integration.md`)
 
 ### Key patterns
 
 - Each `pkg/*/scanner.go` exports a `Scan() ([]scan.CategoryResult, error)` function
+- `internal/engine/` registers all scanners via `DefaultScanners()` and runs them with progress callbacks via `ScanAll()`
+- `internal/server/` exposes the engine over a UDS with NDJSON protocol (methods: ping, scan, cleanup, categories, shutdown)
 - Scanners resolve the home directory, scan filesystem paths, call `safety.IsPathBlocked` before deletion, and set risk levels via `CategoryResult.SetRiskLevels(safety.RiskForCategory)`
 - Risk levels: `safe`, `moderate`, `risky` (constants in `internal/safety/risk.go`)
 - Category IDs (e.g. `"dev-xcode"`, `"browser-safari"`) are used for skip-flag filtering and risk mapping

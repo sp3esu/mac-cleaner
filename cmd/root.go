@@ -16,6 +16,7 @@ import (
 
 	"github.com/sp3esu/mac-cleaner/internal/cleanup"
 	"github.com/sp3esu/mac-cleaner/internal/confirm"
+	"github.com/sp3esu/mac-cleaner/internal/engine"
 	"github.com/sp3esu/mac-cleaner/internal/interactive"
 	"github.com/sp3esu/mac-cleaner/internal/safety"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
@@ -437,49 +438,29 @@ func buildSkipSet() map[string]bool {
 
 // filterSkipped removes categories matching the skip set from results.
 func filterSkipped(results []scan.CategoryResult, skip map[string]bool) []scan.CategoryResult {
-	if len(skip) == 0 {
-		return results
-	}
-	var filtered []scan.CategoryResult
-	for _, cat := range results {
-		if !skip[cat.Category] {
-			filtered = append(filtered, cat)
-		}
-	}
-	return filtered
+	return engine.FilterSkipped(results, skip)
 }
 
-// runWithSpinner runs a scan function with spinner feedback. It starts the
-// spinner with the given message, executes fn, stops the spinner, and prints
-// results. Scanner errors are logged to stderr; partial results are returned.
-func runWithSpinner(sp *spinner.Spinner, msg, title string, fn func() ([]scan.CategoryResult, error)) []scan.CategoryResult {
-	sp.UpdateMessage(msg)
-	sp.Start()
-	results, err := fn()
-	sp.Stop()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-		return nil
-	}
-	if len(results) > 0 {
-		printResults(results, true, title)
-	}
-	return results
-}
-
-// scanAll runs all six scanners and returns aggregated results.
+// scanAll runs all six scanners via the engine and returns aggregated results.
 // Scanner errors are logged to stderr; partial results are still returned.
 // Results are printed with dryRun=true since interactive mode handles
 // deletion decisions separately.
 func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
-	var allResults []scan.CategoryResult
-	allResults = append(allResults, runWithSpinner(sp, "Scanning system caches...", "System Caches", system.Scan)...)
-	allResults = append(allResults, runWithSpinner(sp, "Scanning browser data...", "Browser Data", browser.Scan)...)
-	allResults = append(allResults, runWithSpinner(sp, "Scanning developer caches...", "Developer Caches", developer.Scan)...)
-	allResults = append(allResults, runWithSpinner(sp, "Scanning app leftovers...", "App Leftovers", appleftovers.Scan)...)
-	allResults = append(allResults, runWithSpinner(sp, "Scanning creative app caches...", "Creative App Caches", creative.Scan)...)
-	allResults = append(allResults, runWithSpinner(sp, "Scanning messaging app caches...", "Messaging App Caches", messaging.Scan)...)
-	return allResults
+	return engine.ScanAll(engine.DefaultScanners(), nil, func(e engine.ScanEvent) {
+		switch e.Type {
+		case engine.EventScannerStart:
+			sp.UpdateMessage("Scanning " + strings.ToLower(e.Label) + "...")
+			sp.Start()
+		case engine.EventScannerDone:
+			sp.Stop()
+			if len(e.Results) > 0 {
+				printResults(e.Results, true, e.Label)
+			}
+		case engine.EventScannerError:
+			sp.Stop()
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", e.Err)
+		}
+	})
 }
 
 // printCleanupSummary displays the results of a cleanup operation.

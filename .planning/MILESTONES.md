@@ -24,6 +24,16 @@
 
 **Git range:** `feat(01-01)` -> `feat(07-02)`
 
-**What's next:** v1.1 or v2.0 — extended cleaning categories, Homebrew distribution, or additional developer tool support.
+**What's next:** v1.1 — Swift Integration (Server Mode)
+
+---
+
+## v1.1 Swift Integration (In Progress)
+
+**Goal:** Add a Unix domain socket server mode (`mac-cleaner serve`) so a native Swift macOS app can control scanning and cleanup with real-time streaming progress.
+
+**Phases:** 8-11 (Engine Extraction, Protocol & Server Core, Scan & Cleanup Handlers, Hardening & Documentation)
+
+**Requirements:** 16 total (4 ENG, 5 PROTO, 4 SRV, 3 HARD)
 
 ---

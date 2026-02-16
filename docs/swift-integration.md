@@ -87,8 +87,8 @@ Clean up scan results. Requires the `token` returned by a prior `scan` call (rep
 
 ```json
 → {"id":"4","method":"cleanup","params":{"token":"a1b2c3d4...","categories":["system-caches","system-logs"]}}
-← {"id":"4","type":"progress","result":{"event":"category_start","category":"User App Caches","current":1,"total":10}}
-← {"id":"4","type":"progress","result":{"event":"entry_progress","category":"User App Caches","entry_path":"/Users/...","current":1,"total":10}}
+← {"id":"4","type":"progress","result":{"event":"cleanup_category_start","category":"User App Caches","current":1,"total":10}}
+← {"id":"4","type":"progress","result":{"event":"cleanup_entry","category":"User App Caches","entry_path":"/Users/...","current":1,"total":10}}
 ...
 ← {"id":"4","type":"result","result":{"removed":8,"failed":2,"bytes_freed":5000000,"errors":["..."]}}
 ```
@@ -208,7 +208,7 @@ struct ScanProgress: Codable {
 }
 
 struct CleanupProgress: Codable {
-    let event: String  // "category_start", "entry_progress"
+    let event: String  // "cleanup_category_start", "cleanup_entry"
     let category: String
     var entryPath: String?
     let current: Int

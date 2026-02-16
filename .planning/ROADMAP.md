@@ -36,7 +36,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 09-01-PLAN.md — Verify and close Phase 9 requirements (all proactively implemented in Phase 8), add supplemental test coverage, update REQUIREMENTS.md
+- [x] 09-01-PLAN.md — Verify and close Phase 9 requirements (all proactively implemented in Phase 8), add supplemental test coverage, update REQUIREMENTS.md
 
 **Key deliverables:**
 - `internal/server/protocol.go` — Request/Response types, NDJSON encoding
@@ -53,9 +53,14 @@ Plans:
 ---
 
 ## Phase 10: Scan & Cleanup Handlers
-**Goal:** Wire scan and cleanup methods with streaming progress
+**Goal:** Verify scan and cleanup handler streaming flows with integration tests, fix Swift doc naming discrepancy
 
 **Requirements:** PROTO-02, PROTO-03, PROTO-04, PROTO-05, SRV-03
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 10-01-PLAN.md — Add integration tests for streaming scan/cleanup/concurrent-rejection/skip-params, fix Swift doc event names, update REQUIREMENTS.md
 
 **Key deliverables:**
 - `internal/server/handler_scan.go` — scan + categories methods

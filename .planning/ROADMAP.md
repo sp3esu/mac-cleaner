@@ -93,11 +93,10 @@ Plans:
   3. User can respond "keep" or "remove" for each item
   4. Tool summarizes all marked items and asks final confirmation before deletion
   5. Cleanup executes only after final confirmation and shows summary
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md — Interactive walkthrough package and CLI wiring (scan all, per-item keep/remove, confirm, execute)
 
 ### Phase 6: CLI Polish & Automation
 **Goal**: User can automate cleaning with flags and get structured output for AI agents

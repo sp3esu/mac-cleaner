@@ -19,6 +19,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/interactive"
 	"github.com/sp3esu/mac-cleaner/internal/safety"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/spinner"
 	"github.com/sp3esu/mac-cleaner/pkg/appleftovers"
 	"github.com/sp3esu/mac-cleaner/pkg/browser"
 	"github.com/sp3esu/mac-cleaner/pkg/creative"
@@ -93,31 +94,32 @@ var rootCmd = &cobra.Command{
 	Short: "scan and remove macOS junk files",
 	Long:  "scan and remove system caches, browser data, developer caches, and app leftovers",
 	Run: func(cmd *cobra.Command, args []string) {
+		sp := spinner.New("Scanning...", !flagJSON)
 		ran := false
 		var allResults []scan.CategoryResult
 
 		if flagSystemCaches {
-			allResults = append(allResults, runSystemCachesScan(cmd)...)
+			allResults = append(allResults, runSystemCachesScan(cmd, sp)...)
 			ran = true
 		}
 		if flagBrowserData {
-			allResults = append(allResults, runBrowserDataScan(cmd)...)
+			allResults = append(allResults, runBrowserDataScan(cmd, sp)...)
 			ran = true
 		}
 		if flagDevCaches {
-			allResults = append(allResults, runDevCachesScan(cmd)...)
+			allResults = append(allResults, runDevCachesScan(cmd, sp)...)
 			ran = true
 		}
 		if flagAppLeftovers {
-			allResults = append(allResults, runAppLeftoversScan(cmd)...)
+			allResults = append(allResults, runAppLeftoversScan(cmd, sp)...)
 			ran = true
 		}
 		if flagCreativeCaches {
-			allResults = append(allResults, runCreativeCachesScan(cmd)...)
+			allResults = append(allResults, runCreativeCachesScan(cmd, sp)...)
 			ran = true
 		}
 		if flagMessagingCaches {
-			allResults = append(allResults, runMessagingCachesScan(cmd)...)
+			allResults = append(allResults, runMessagingCachesScan(cmd, sp)...)
 			ran = true
 		}
 
@@ -127,7 +129,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		if !ran {
-			allResults = scanAll()
+			allResults = scanAll(sp)
 			// Apply item-level skip filtering in interactive mode.
 			allResults = filterSkipped(allResults, buildSkipSet())
 			printPermissionIssues(allResults)
@@ -286,8 +288,11 @@ func Execute() {
 }
 
 // runSystemCachesScan executes the system cache scan and prints results.
-func runSystemCachesScan(cmd *cobra.Command) []scan.CategoryResult {
+func runSystemCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
+	sp.UpdateMessage("Scanning system caches...")
+	sp.Start()
 	results, err := system.Scan()
+	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
@@ -299,8 +304,11 @@ func runSystemCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 }
 
 // runBrowserDataScan executes the browser data scan and prints results.
-func runBrowserDataScan(cmd *cobra.Command) []scan.CategoryResult {
+func runBrowserDataScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
+	sp.UpdateMessage("Scanning browser data...")
+	sp.Start()
 	results, err := browser.Scan()
+	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
@@ -312,8 +320,11 @@ func runBrowserDataScan(cmd *cobra.Command) []scan.CategoryResult {
 }
 
 // runDevCachesScan executes the developer cache scan and prints results.
-func runDevCachesScan(cmd *cobra.Command) []scan.CategoryResult {
+func runDevCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
+	sp.UpdateMessage("Scanning developer caches...")
+	sp.Start()
 	results, err := developer.Scan()
+	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
@@ -325,8 +336,11 @@ func runDevCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 }
 
 // runAppLeftoversScan executes the app leftovers scan and prints results.
-func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
+func runAppLeftoversScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
+	sp.UpdateMessage("Scanning app leftovers...")
+	sp.Start()
 	results, err := appleftovers.Scan()
+	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
@@ -338,8 +352,11 @@ func runAppLeftoversScan(cmd *cobra.Command) []scan.CategoryResult {
 }
 
 // runMessagingCachesScan executes the messaging app cache scan and prints results.
-func runMessagingCachesScan(cmd *cobra.Command) []scan.CategoryResult {
+func runMessagingCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
+	sp.UpdateMessage("Scanning messaging app caches...")
+	sp.Start()
 	results, err := messaging.Scan()
+	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
@@ -351,8 +368,11 @@ func runMessagingCachesScan(cmd *cobra.Command) []scan.CategoryResult {
 }
 
 // runCreativeCachesScan executes the creative app cache scan and prints results.
-func runCreativeCachesScan(cmd *cobra.Command) []scan.CategoryResult {
+func runCreativeCachesScan(cmd *cobra.Command, sp *spinner.Spinner) []scan.CategoryResult {
+	sp.UpdateMessage("Scanning creative app caches...")
+	sp.Start()
 	results, err := creative.Scan()
+	sp.Stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
@@ -423,55 +443,36 @@ func filterSkipped(results []scan.CategoryResult, skip map[string]bool) []scan.C
 	return filtered
 }
 
-// scanAll runs all four scanners and returns aggregated results.
+// runWithSpinner runs a scan function with spinner feedback. It starts the
+// spinner with the given message, executes fn, stops the spinner, and prints
+// results. Scanner errors are logged to stderr; partial results are returned.
+func runWithSpinner(sp *spinner.Spinner, msg, title string, fn func() ([]scan.CategoryResult, error)) []scan.CategoryResult {
+	sp.UpdateMessage(msg)
+	sp.Start()
+	results, err := fn()
+	sp.Stop()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		return nil
+	}
+	if len(results) > 0 {
+		printResults(results, true, title)
+	}
+	return results
+}
+
+// scanAll runs all six scanners and returns aggregated results.
 // Scanner errors are logged to stderr; partial results are still returned.
 // Results are printed with dryRun=true since interactive mode handles
 // deletion decisions separately.
-func scanAll() []scan.CategoryResult {
+func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
 	var allResults []scan.CategoryResult
-
-	if results, err := system.Scan(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	} else if len(results) > 0 {
-		printResults(results, true, "System Caches")
-		allResults = append(allResults, results...)
-	}
-
-	if results, err := browser.Scan(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	} else if len(results) > 0 {
-		printResults(results, true, "Browser Data")
-		allResults = append(allResults, results...)
-	}
-
-	if results, err := developer.Scan(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	} else if len(results) > 0 {
-		printResults(results, true, "Developer Caches")
-		allResults = append(allResults, results...)
-	}
-
-	if results, err := appleftovers.Scan(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	} else if len(results) > 0 {
-		printResults(results, true, "App Leftovers")
-		allResults = append(allResults, results...)
-	}
-
-	if results, err := creative.Scan(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	} else if len(results) > 0 {
-		printResults(results, true, "Creative App Caches")
-		allResults = append(allResults, results...)
-	}
-
-	if results, err := messaging.Scan(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
-	} else if len(results) > 0 {
-		printResults(results, true, "Messaging App Caches")
-		allResults = append(allResults, results...)
-	}
-
+	allResults = append(allResults, runWithSpinner(sp, "Scanning system caches...", "System Caches", system.Scan)...)
+	allResults = append(allResults, runWithSpinner(sp, "Scanning browser data...", "Browser Data", browser.Scan)...)
+	allResults = append(allResults, runWithSpinner(sp, "Scanning developer caches...", "Developer Caches", developer.Scan)...)
+	allResults = append(allResults, runWithSpinner(sp, "Scanning app leftovers...", "App Leftovers", appleftovers.Scan)...)
+	allResults = append(allResults, runWithSpinner(sp, "Scanning creative app caches...", "Creative App Caches", creative.Scan)...)
+	allResults = append(allResults, runWithSpinner(sp, "Scanning messaging app caches...", "Messaging App Caches", messaging.Scan)...)
 	return allResults
 }
 

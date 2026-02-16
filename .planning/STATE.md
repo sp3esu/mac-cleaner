@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 2 in progress -- building scan types and size utilities
+**Current focus:** Phase 2 complete -- system cache scanner operational, ready for Phase 3
 
 ## Current Position
 
 Phase: 2 of 7 (System Cache Scanning)
-Plan: 1 of 2 completed in current phase
-Status: In progress
-Last activity: 2026-02-16 - Completed 02-01-PLAN.md (Core scan types and size utilities)
+Plan: 2 of 2 completed in current phase
+Status: Phase complete
+Last activity: 2026-02-16 - Completed 02-02-PLAN.md (System cache scanner and CLI wiring)
 
-Progress: [███░░░░░░░] ~21%
+Progress: [████░░░░░░] ~29%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 1.7 min
-- Total execution time: 0.08 hours
+- Total plans completed: 4
+- Average duration: 1.8 min
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-project-setup-safety-foundation | 2/2 | 3 min | 1.5 min |
-| 02-system-cache-scanning | 1/2 | 2 min | 2.0 min |
+| 02-system-cache-scanning | 2/2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (1 min), 01-02 (2 min), 02-01 (2 min)
+- Last 5 plans: 01-01 (1 min), 01-02 (2 min), 02-01 (2 min), 02-02 (3 min)
 - Trend: Consistent
 
 *Updated after each plan completion*
@@ -53,6 +53,10 @@ Recent decisions affecting current work:
 - SI units (base 1000) for FormatSize to match macOS Finder convention
 - os.Lstat pre-check before WalkDir to distinguish nonexistent root from permission-denied
 - Category field is plain string (not enum) for extensibility
+- QuickLook scanner searches all com.apple.quicklook.* entries, not just ThumbnailsAgent
+- Zero-byte entries excluded from results to reduce noise
+- Entries sorted by size descending within each category
+- tabwriter with AlignRight for size column alignment
 
 ### Patterns Established
 
@@ -65,6 +69,10 @@ Recent decisions affecting current work:
 - Stderr-only warnings via WarnBlocked
 - Scan types: ScanEntry/CategoryResult/ScanSummary as shared result types for all scanners
 - DirSize pattern: WalkDir with error-skipping for resilient directory traversal
+- Scanner pattern: scanTopLevel(dir, category, description) for directory-based categories
+- CLI flag wiring: package-level bool vars, init() registration, Run func dispatch
+- Output pattern: fatih/color bold headers, cyan sizes, green+bold total line
+- Home path shortening: replace home prefix with ~ for display
 
 ### Pending Todos
 
@@ -77,8 +85,8 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 02-01 (scan types and size utilities), ready for 02-02
-Resume file: .planning/phases/02-system-cache-scanning/02-02-PLAN.md
+Stopped at: Completed Phase 2 (02-02), ready for Phase 3
+Resume file: Next phase planning
 
 ---
 *State initialized: 2026-02-16*

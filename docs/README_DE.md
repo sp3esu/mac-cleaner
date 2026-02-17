@@ -48,6 +48,23 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 - **Microsoft Teams-Cache** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (sicher)
 - **Zoom-Cache** — `~/Library/Application Support/zoom.us/data/` (sicher)
 
+### Fotos- und Medien-Caches
+- **Fotos-App-Caches** — `~/Library/Containers/com.apple.Photos/`-Caches (sicher)
+- **Fotos-Analyse-Caches** — `~/Library/Containers/com.apple.photoanalysisd/` ML-Modelldaten (sicher)
+- **iCloud-Fotos-Sync-Cache** — `~/Library/Caches/com.apple.cloudd/` (moderat)
+- **Geteilte Fotos aus Nachrichten** — `~/Library/Messages/Attachments/` synchronisierte Medien (riskant)
+
+### Systemdaten
+- **CoreSpotlight-Metadaten** — `~/Library/Caches/com.apple.Spotlight/` (sicher)
+- **Mail-Datenbank** — `~/Library/Mail/` Envelope-Index und Daten (riskant)
+- **Mail-Anhang-Cache** — `~/Library/Mail Downloads/` (moderat)
+- **Nachrichten-Anhänge** — `~/Library/Messages/` Medien und Anhänge (riskant)
+- **iOS-Softwareaktualisierungen** — `~/Library/iTunes/iPhone Software Updates/` (sicher)
+- **Lokale Time-Machine-Snapshots** — lokale TM-Snapshot-Metadaten (riskant)
+- **Parallels-VMs** — `~/Parallels/` Disk-Images virtueller Maschinen (riskant)
+- **UTM-VMs** — `~/Library/Containers/com.utmapp.UTM/` virtuelle Maschinen (riskant)
+- **VMware Fusion-VMs** — `~/Virtual Machines.localized/` Disk-Images (riskant)
+
 ### Unbenutzte Anwendungen
 - **Unbenutzte Apps** — Anwendungen in `/Applications` und `~/Applications`, die seit über 180 Tagen nicht geöffnet wurden, mit gesamtem Speicherverbrauch einschließlich `~/Library/`-Daten (riskant)
 
@@ -69,18 +86,50 @@ Eine detaillierte Sicherheitsanalyse finden Sie in der [Sicherheitsarchitektur](
 
 ## Installation
 
-### Voraussetzungen
+### Homebrew
 
-- **Go 1.25+**
-- **macOS**
+```bash
+brew install sp3esu/tap/mac-cleaner
+```
 
 ### Aus dem Quellcode bauen
+
+**Voraussetzungen:** Go 1.25+, macOS
 
 ```bash
 git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help
+```
+
+## Shell-Vervollständigung
+
+Generieren Sie Shell-Vervollständigungsskripte für die Tab-Vervollständigung von Flags und Unterbefehlen.
+
+**Bash:**
+```bash
+# In der aktuellen Sitzung laden:
+source <(mac-cleaner completion bash)
+
+# Dauerhaft installieren:
+mac-cleaner completion bash > /usr/local/etc/bash_completion.d/mac-cleaner
+```
+
+**Zsh:**
+```bash
+mac-cleaner completion zsh > "${fpath[1]}/_mac-cleaner"
+# Dann Shell neu starten oder ausführen: compinit
+```
+
+**Fish:**
+```bash
+mac-cleaner completion fish > ~/.config/fish/completions/mac-cleaner.fish
+```
+
+**PowerShell:**
+```powershell
+mac-cleaner completion powershell | Out-String | Invoke-Expression
 ```
 
 ## Verwendung
@@ -110,6 +159,26 @@ go build -o mac-cleaner .
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Gezielter Scan — nur bestimmte Elemente (über den `scan`-Unterbefehl):**
+```bash
+./mac-cleaner scan --npm --safari --dry-run
+```
+
+**Gezielter Scan — komplette Gruppe plus einzelne Elemente:**
+```bash
+./mac-cleaner scan --dev-caches --safari
+```
+
+**Gezielter Scan — Gruppe ohne bestimmte Elemente:**
+```bash
+./mac-cleaner scan --dev-caches --skip-docker
+```
+
+**Strukturierte Hilfe für KI-Agenten:**
+```bash
+./mac-cleaner --help-json
+```
+
 ## CLI-Flags
 
 ### Scan-Kategorien
@@ -124,6 +193,8 @@ go build -o mac-cleaner .
 | `--creative-caches` | Adobe-, Sketch- und Figma-Caches scannen |
 | `--messaging-caches` | Slack-, Discord-, Teams- und Zoom-Caches scannen |
 | `--unused-apps` | Anwendungen scannen, die seit über 180 Tagen nicht geöffnet wurden |
+| `--photos` | Fotos-App-Caches und Medienanalysedaten scannen |
+| `--system-data` | Spotlight, Mail, Nachrichten, iOS-Updates, Time Machine und VMs scannen |
 
 ### Ausgabe & Verhalten
 
@@ -133,6 +204,7 @@ go build -o mac-cleaner .
 | `--json` | Ergebnisse als JSON ausgeben |
 | `--verbose` | Detaillierte Dateiliste anzeigen |
 | `--force` | Bestätigungsabfrage überspringen |
+| `--help-json` | Strukturierte Hilfe als JSON für KI-Agenten ausgeben |
 
 ### Kategorie-Skip-Flags
 
@@ -145,6 +217,8 @@ go build -o mac-cleaner .
 | `--skip-creative-caches` | Kreativ-App-Cache-Scan überspringen |
 | `--skip-messaging-caches` | Messaging-App-Cache-Scan überspringen |
 | `--skip-unused-apps` | Scan unbenutzter Anwendungen überspringen |
+| `--skip-photos` | Fotos-Cache-Scan überspringen |
+| `--skip-system-data` | Systemdaten-Scan überspringen |
 
 ### Element-Skip-Flags
 
@@ -178,10 +252,43 @@ go build -o mac-cleaner .
 | `--skip-discord` | Discord-Cache überspringen |
 | `--skip-teams` | Microsoft Teams-Cache überspringen |
 | `--skip-zoom` | Zoom-Cache überspringen |
+| `--skip-photos-caches` | Fotos-App-Caches überspringen |
+| `--skip-photos-analysis` | Fotos-Analyse-Caches überspringen |
+| `--skip-photos-icloud-cache` | iCloud-Fotos-Sync-Cache überspringen |
+| `--skip-photos-syndication` | Geteilte Fotos aus Nachrichten überspringen |
+| `--skip-spotlight` | CoreSpotlight-Metadaten überspringen |
+| `--skip-mail` | Mail-Datenbank überspringen |
+| `--skip-mail-downloads` | Mail-Anhang-Cache überspringen |
+| `--skip-messages` | Nachrichten-Anhänge überspringen |
+| `--skip-ios-updates` | iOS-Softwareaktualisierungen überspringen |
+| `--skip-timemachine` | Lokale Time-Machine-Snapshots überspringen |
+| `--skip-vm-parallels` | Parallels-VMs überspringen |
+| `--skip-vm-utm` | UTM-VMs überspringen |
+| `--skip-vm-vmware` | VMware Fusion-VMs überspringen |
+
+### Scan-Unterbefehl
+
+Der `scan`-Unterbefehl ermöglicht gezieltes Scannen auf Elementebene. Im Gegensatz zum Hauptbefehl (der standardmäßig den interaktiven Modus startet) erfordert `scan` explizite Flags und unterstützt das gezielte Ansprechen einzelner Elemente.
+
+```bash
+# Nur npm- und Yarn-Caches scannen
+mac-cleaner scan --npm --yarn --dry-run
+
+# Alle Entwickler-Caches plus Safari scannen
+mac-cleaner scan --dev-caches --safari
+
+# Alles außer Docker scannen
+mac-cleaner scan --all --skip-docker
+
+# Ausgabe als JSON für Automatisierung
+mac-cleaner scan --npm --json
+```
+
+Führen Sie `mac-cleaner scan --help` aus, um die vollständige Liste der gezielten Flags nach Kategorien gruppiert anzuzeigen.
 
 ## Lizenz
 
-Dieses Projekt enthält derzeit keine Lizenzdatei.
+MIT
 
 ## Erstellt mit
 

@@ -48,6 +48,23 @@
 - **Кеш Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (безпечно)
 - **Кеш Zoom** — `~/Library/Application Support/zoom.us/data/` (безпечно)
 
+### Кеші Фото та медіа
+- **Кеш додатку Фото** — `~/Library/Containers/com.apple.Photos/` кеші (безпечно)
+- **Кеш аналізу Фото** — `~/Library/Containers/com.apple.photoanalysisd/` дані ML-моделей (безпечно)
+- **Кеш синхронізації iCloud Фото** — `~/Library/Caches/com.apple.cloudd/` (помірний ризик)
+- **Спільні фото з Повідомлень** — `~/Library/Messages/Attachments/` синхронізовані медіа (ризиковано)
+
+### Системні дані
+- **Метадані CoreSpotlight** — `~/Library/Caches/com.apple.Spotlight/` (безпечно)
+- **База даних Mail** — `~/Library/Mail/` індекс та дані (ризиковано)
+- **Кеш вкладень Mail** — `~/Library/Mail Downloads/` (помірний ризик)
+- **Вкладення Повідомлень** — `~/Library/Messages/` медіа та вкладення (ризиковано)
+- **Оновлення ПЗ iOS** — `~/Library/iTunes/iPhone Software Updates/` (безпечно)
+- **Локальні знімки Time Machine** — метадані локальних знімків TM (ризиковано)
+- **Віртуальні машини Parallels** — `~/Parallels/` образи дисків ВМ (ризиковано)
+- **Віртуальні машини UTM** — `~/Library/Containers/com.utmapp.UTM/` віртуальні машини (ризиковано)
+- **Віртуальні машини VMware Fusion** — `~/Virtual Machines.localized/` образи дисків (ризиковано)
+
 ### Невикористовувані додатки
 - **Невикористовувані додатки** — додатки в `/Applications` та `~/Applications`, які не відкривались понад 180 днів, із загальним обсягом включно з даними `~/Library/` (ризиковано)
 
@@ -69,18 +86,50 @@ mac-cleaner створений для захисту вашої системи:
 
 ## Встановлення
 
-### Передумови
+### Homebrew
 
-- **Go 1.25+**
-- **macOS**
+```bash
+brew install sp3esu/tap/mac-cleaner
+```
 
 ### Збірка з вихідного коду
+
+**Передумови:** Go 1.25+, macOS
 
 ```bash
 git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help
+```
+
+## Автодоповнення оболонки
+
+Генерація скриптів автодоповнення для табуляції прапорців та підкоманд.
+
+**Bash:**
+```bash
+# Завантажити в поточну сесію:
+source <(mac-cleaner completion bash)
+
+# Встановити назавжди:
+mac-cleaner completion bash > /usr/local/etc/bash_completion.d/mac-cleaner
+```
+
+**Zsh:**
+```bash
+mac-cleaner completion zsh > "${fpath[1]}/_mac-cleaner"
+# Потім перезапустіть оболонку або виконайте: compinit
+```
+
+**Fish:**
+```bash
+mac-cleaner completion fish > ~/.config/fish/completions/mac-cleaner.fish
+```
+
+**PowerShell:**
+```powershell
+mac-cleaner completion powershell | Out-String | Invoke-Expression
 ```
 
 ## Використання
@@ -110,6 +159,26 @@ go build -o mac-cleaner .
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Прицільне сканування — лише конкретні елементи (через підкоманду `scan`):**
+```bash
+./mac-cleaner scan --npm --safari --dry-run
+```
+
+**Прицільне сканування — повна група та окремі елементи:**
+```bash
+./mac-cleaner scan --dev-caches --safari
+```
+
+**Прицільне сканування — група за винятком конкретних елементів:**
+```bash
+./mac-cleaner scan --dev-caches --skip-docker
+```
+
+**Структурована довідка для AI-агентів:**
+```bash
+./mac-cleaner --help-json
+```
+
 ## Прапорці CLI
 
 ### Категорії сканування
@@ -124,6 +193,8 @@ go build -o mac-cleaner .
 | `--creative-caches` | Сканувати кеші Adobe, Sketch та Figma |
 | `--messaging-caches` | Сканувати кеші Slack, Discord, Teams та Zoom |
 | `--unused-apps` | Сканувати додатки, які не відкривались понад 180 днів |
+| `--photos` | Сканувати кеші додатку Фото та дані аналізу медіа |
+| `--system-data` | Сканувати Spotlight, Mail, Повідомлення, оновлення iOS, Time Machine та ВМ |
 
 ### Вивід та поведінка
 
@@ -133,6 +204,7 @@ go build -o mac-cleaner .
 | `--json` | Вивід результатів у форматі JSON |
 | `--verbose` | Детальний список файлів |
 | `--force` | Пропустити запит на підтвердження |
+| `--help-json` | Вивід структурованої довідки у форматі JSON для AI-агентів |
 
 ### Прапорці пропуску категорій
 
@@ -145,6 +217,8 @@ go build -o mac-cleaner .
 | `--skip-creative-caches` | Пропустити сканування кешів креативних додатків |
 | `--skip-messaging-caches` | Пропустити сканування кешів месенджерів |
 | `--skip-unused-apps` | Пропустити сканування невикористовуваних додатків |
+| `--skip-photos` | Пропустити сканування кешів Фото |
+| `--skip-system-data` | Пропустити сканування системних даних |
 
 ### Прапорці пропуску елементів
 
@@ -178,10 +252,43 @@ go build -o mac-cleaner .
 | `--skip-discord` | Пропустити кеш Discord |
 | `--skip-teams` | Пропустити кеш Microsoft Teams |
 | `--skip-zoom` | Пропустити кеш Zoom |
+| `--skip-photos-caches` | Пропустити кеш додатку Фото |
+| `--skip-photos-analysis` | Пропустити кеш аналізу Фото |
+| `--skip-photos-icloud-cache` | Пропустити кеш синхронізації iCloud Фото |
+| `--skip-photos-syndication` | Пропустити спільні фото з Повідомлень |
+| `--skip-spotlight` | Пропустити метадані CoreSpotlight |
+| `--skip-mail` | Пропустити базу даних Mail |
+| `--skip-mail-downloads` | Пропустити кеш вкладень Mail |
+| `--skip-messages` | Пропустити вкладення Повідомлень |
+| `--skip-ios-updates` | Пропустити оновлення ПЗ iOS |
+| `--skip-timemachine` | Пропустити локальні знімки Time Machine |
+| `--skip-vm-parallels` | Пропустити віртуальні машини Parallels |
+| `--skip-vm-utm` | Пропустити віртуальні машини UTM |
+| `--skip-vm-vmware` | Пропустити віртуальні машини VMware Fusion |
+
+### Підкоманда scan
+
+Підкоманда `scan` забезпечує прицільне сканування на рівні окремих елементів. На відміну від кореневої команди (яка за замовчуванням запускає інтерактивний режим), `scan` вимагає явного зазначення прапорців та підтримує вибір окремих елементів.
+
+```bash
+# Сканувати лише кеші npm та yarn
+mac-cleaner scan --npm --yarn --dry-run
+
+# Сканувати всі кеші розробника плюс Safari
+mac-cleaner scan --dev-caches --safari
+
+# Сканувати все, крім Docker
+mac-cleaner scan --all --skip-docker
+
+# Вивід у JSON для автоматизації
+mac-cleaner scan --npm --json
+```
+
+Виконайте `mac-cleaner scan --help`, щоб переглянути повний перелік прапорців, згрупованих за категоріями.
 
 ## Ліцензія
 
-Проєкт наразі не містить файлу ліцензії.
+MIT
 
 ## Створено за допомогою
 

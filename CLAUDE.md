@@ -34,7 +34,7 @@ Go CLI (cobra) for scanning and cleaning macOS junk files. Single binary, two mo
 
 ### Layout
 
-- `cmd/` — CLI commands (cobra): `root.go` (main CLI), `serve.go` (IPC server subcommand)
+- `cmd/` — CLI commands (cobra): `root.go` (main CLI), `scan.go` (targeted scan subcommand), `serve.go` (IPC server subcommand), `categories.go` (shared category/flag registry), `helpjson.go` (`--help-json` output)
 - `internal/` — private packages:
   - `engine/` — scan/cleanup orchestration shared by CLI and server (scanner registry, progress callbacks)
   - `server/` — Unix domain socket IPC server with NDJSON protocol
@@ -71,6 +71,7 @@ Go CLI (cobra) for scanning and cleaning macOS junk files. Single binary, two mo
 - Permission errors collected as `PermissionIssue` rather than failing the scan
 - Safety checks (SIP/swap blocking) resolve symlinks before checking path prefixes
 - Every change, fix, or new feature must include tests covering all code paths
+- Every feature addition or modification must update `README.md` and all translated READMEs (`docs/README_{DE,PL,UA,RU,FR}.md`)
 
 ## Releasing
 

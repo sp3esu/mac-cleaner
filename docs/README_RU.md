@@ -48,6 +48,23 @@
 - **Кэш Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (безопасно)
 - **Кэш Zoom** — `~/Library/Application Support/zoom.us/data/` (безопасно)
 
+### Кэши Фото и медиа
+- **Кэш приложения Фото** — `~/Library/Containers/com.apple.Photos/` (безопасно)
+- **Кэш анализа Фото** — `~/Library/Containers/com.apple.photoanalysisd/` данные ML-моделей (безопасно)
+- **Кэш синхронизации iCloud Фото** — `~/Library/Caches/com.apple.cloudd/` (умеренный риск)
+- **Общие фото из Сообщений** — `~/Library/Messages/Attachments/` синхронизированные медиа (рискованно)
+
+### Системные данные
+- **Метаданные CoreSpotlight** — `~/Library/Caches/com.apple.Spotlight/` (безопасно)
+- **База данных Mail** — `~/Library/Mail/` индекс и данные (рискованно)
+- **Кэш вложений Mail** — `~/Library/Mail Downloads/` (умеренный риск)
+- **Вложения Сообщений** — `~/Library/Messages/` медиа и вложения (рискованно)
+- **Обновления ПО iOS** — `~/Library/iTunes/iPhone Software Updates/` (безопасно)
+- **Локальные снимки Time Machine** — метаданные локальных снимков TM (рискованно)
+- **Виртуальные машины Parallels** — `~/Parallels/` образы дисков виртуальных машин (рискованно)
+- **Виртуальные машины UTM** — `~/Library/Containers/com.utmapp.UTM/` виртуальные машины (рискованно)
+- **Виртуальные машины VMware Fusion** — `~/Virtual Machines.localized/` образы дисков (рискованно)
+
 ### Неиспользуемые приложения
 - **Неиспользуемые приложения** — приложения в `/Applications` и `~/Applications`, не открывавшиеся более 180 дней, с общим объёмом занимаемого пространства включая данные `~/Library/` (рискованно)
 
@@ -69,18 +86,50 @@ mac-cleaner разработан для защиты вашей системы:
 
 ## Установка
 
-### Требования
+### Homebrew
 
-- **Go 1.25+**
-- **macOS**
+```bash
+brew install sp3esu/tap/mac-cleaner
+```
 
 ### Сборка из исходного кода
+
+**Требования:** Go 1.25+, macOS
 
 ```bash
 git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help
+```
+
+## Автодополнение в оболочке
+
+Генерация скриптов автодополнения для подстановки флагов и подкоманд по Tab.
+
+**Bash:**
+```bash
+# Загрузить в текущей сессии:
+source <(mac-cleaner completion bash)
+
+# Установить на постоянной основе:
+mac-cleaner completion bash > /usr/local/etc/bash_completion.d/mac-cleaner
+```
+
+**Zsh:**
+```bash
+mac-cleaner completion zsh > "${fpath[1]}/_mac-cleaner"
+# Затем перезапустите оболочку или выполните: compinit
+```
+
+**Fish:**
+```bash
+mac-cleaner completion fish > ~/.config/fish/completions/mac-cleaner.fish
+```
+
+**PowerShell:**
+```powershell
+mac-cleaner completion powershell | Out-String | Invoke-Expression
 ```
 
 ## Использование
@@ -110,6 +159,26 @@ go build -o mac-cleaner .
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Точечное сканирование — только определённые элементы (через подкоманду `scan`):**
+```bash
+./mac-cleaner scan --npm --safari --dry-run
+```
+
+**Точечное сканирование — целая группа плюс отдельные элементы:**
+```bash
+./mac-cleaner scan --dev-caches --safari
+```
+
+**Точечное сканирование — группа за вычетом определённых элементов:**
+```bash
+./mac-cleaner scan --dev-caches --skip-docker
+```
+
+**Структурированная справка для AI-агентов:**
+```bash
+./mac-cleaner --help-json
+```
+
 ## Флаги CLI
 
 ### Категории сканирования
@@ -124,6 +193,8 @@ go build -o mac-cleaner .
 | `--creative-caches` | Сканировать кэши Adobe, Sketch и Figma |
 | `--messaging-caches` | Сканировать кэши Slack, Discord, Teams и Zoom |
 | `--unused-apps` | Сканировать приложения, не открывавшиеся более 180 дней |
+| `--photos` | Сканировать кэши приложения Фото и данные анализа медиа |
+| `--system-data` | Сканировать Spotlight, Mail, Сообщения, обновления iOS, Time Machine и виртуальные машины |
 
 ### Вывод и поведение
 
@@ -133,6 +204,7 @@ go build -o mac-cleaner .
 | `--json` | Вывод результатов в формате JSON |
 | `--verbose` | Подробный список файлов |
 | `--force` | Пропустить запрос подтверждения |
+| `--help-json` | Вывод структурированной справки в формате JSON для AI-агентов |
 
 ### Флаги пропуска категорий
 
@@ -145,6 +217,8 @@ go build -o mac-cleaner .
 | `--skip-creative-caches` | Пропустить сканирование кэшей креативных приложений |
 | `--skip-messaging-caches` | Пропустить сканирование кэшей мессенджеров |
 | `--skip-unused-apps` | Пропустить сканирование неиспользуемых приложений |
+| `--skip-photos` | Пропустить сканирование кэшей Фото |
+| `--skip-system-data` | Пропустить сканирование системных данных |
 
 ### Флаги пропуска элементов
 
@@ -178,10 +252,43 @@ go build -o mac-cleaner .
 | `--skip-discord` | Пропустить кэш Discord |
 | `--skip-teams` | Пропустить кэш Microsoft Teams |
 | `--skip-zoom` | Пропустить кэш Zoom |
+| `--skip-photos-caches` | Пропустить кэш приложения Фото |
+| `--skip-photos-analysis` | Пропустить кэш анализа Фото |
+| `--skip-photos-icloud-cache` | Пропустить кэш синхронизации iCloud Фото |
+| `--skip-photos-syndication` | Пропустить общие фото из Сообщений |
+| `--skip-spotlight` | Пропустить метаданные CoreSpotlight |
+| `--skip-mail` | Пропустить базу данных Mail |
+| `--skip-mail-downloads` | Пропустить кэш вложений Mail |
+| `--skip-messages` | Пропустить вложения Сообщений |
+| `--skip-ios-updates` | Пропустить обновления ПО iOS |
+| `--skip-timemachine` | Пропустить локальные снимки Time Machine |
+| `--skip-vm-parallels` | Пропустить виртуальные машины Parallels |
+| `--skip-vm-utm` | Пропустить виртуальные машины UTM |
+| `--skip-vm-vmware` | Пропустить виртуальные машины VMware Fusion |
+
+### Подкоманда scan
+
+Подкоманда `scan` обеспечивает точечное сканирование на уровне отдельных элементов. В отличие от основной команды (которая по умолчанию запускает интерактивный режим), `scan` требует явного указания флагов и поддерживает выбор конкретных элементов.
+
+```bash
+# Сканировать только кэши npm и yarn
+mac-cleaner scan --npm --yarn --dry-run
+
+# Сканировать все кэши разработчика плюс Safari
+mac-cleaner scan --dev-caches --safari
+
+# Сканировать всё, кроме Docker
+mac-cleaner scan --all --skip-docker
+
+# Вывод в JSON для автоматизации
+mac-cleaner scan --npm --json
+```
+
+Выполните `mac-cleaner scan --help` для полного списка флагов точечного сканирования, сгруппированных по категориям.
 
 ## Лицензия
 
-Проект в настоящее время не содержит файла лицензии.
+MIT
 
 ## Создано с помощью
 

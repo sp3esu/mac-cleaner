@@ -48,6 +48,23 @@ Un outil CLI rapide et sûr pour récupérer de l'espace disque sous macOS.
 - **Cache Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (sûr)
 - **Cache Zoom** — `~/Library/Application Support/zoom.us/data/` (sûr)
 
+### Caches Photos et médias
+- **Caches de l'application Photos** — caches dans `~/Library/Containers/com.apple.Photos/` (sûr)
+- **Caches d'analyse Photos** — données de modèles ML dans `~/Library/Containers/com.apple.photoanalysisd/` (sûr)
+- **Cache de synchronisation iCloud Photos** — `~/Library/Caches/com.apple.cloudd/` (modéré)
+- **Photos partagées depuis Messages** — médias synchronisés dans `~/Library/Messages/Attachments/` (risqué)
+
+### Données système
+- **Métadonnées CoreSpotlight** — `~/Library/Caches/com.apple.Spotlight/` (sûr)
+- **Base de données Mail** — index des enveloppes et données dans `~/Library/Mail/` (risqué)
+- **Cache des pièces jointes Mail** — `~/Library/Mail Downloads/` (modéré)
+- **Pièces jointes Messages** — médias et pièces jointes dans `~/Library/Messages/` (risqué)
+- **Mises à jour logicielles iOS** — `~/Library/iTunes/iPhone Software Updates/` (sûr)
+- **Instantanés locaux Time Machine** — métadonnées des instantanés TM locaux (risqué)
+- **VMs Parallels** — images disque des machines virtuelles dans `~/Parallels/` (risqué)
+- **VMs UTM** — machines virtuelles dans `~/Library/Containers/com.utmapp.UTM/` (risqué)
+- **VMs VMware Fusion** — images disque dans `~/Virtual Machines.localized/` (risqué)
+
 ### Applications inutilisées
 - **Applications inutilisées** — applications dans `/Applications` et `~/Applications` non ouvertes depuis plus de 180 jours, avec l'empreinte disque totale incluant les données `~/Library/` (risqué)
 
@@ -69,18 +86,50 @@ Pour une analyse de sécurité détaillée, voir [Architecture de sécurité](SE
 
 ## Installation
 
-### Prérequis
+### Homebrew
 
-- **Go 1.25+**
-- **macOS**
+```bash
+brew install sp3esu/tap/mac-cleaner
+```
 
 ### Compilation depuis les sources
+
+**Prérequis :** Go 1.25+, macOS
 
 ```bash
 git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help
+```
+
+## Complétion shell
+
+Générez des scripts de complétion shell pour l'auto-complétion des drapeaux et sous-commandes.
+
+**Bash :**
+```bash
+# Charger dans la session actuelle :
+source <(mac-cleaner completion bash)
+
+# Installer de façon permanente :
+mac-cleaner completion bash > /usr/local/etc/bash_completion.d/mac-cleaner
+```
+
+**Zsh :**
+```bash
+mac-cleaner completion zsh > "${fpath[1]}/_mac-cleaner"
+# Puis redémarrez votre shell ou exécutez : compinit
+```
+
+**Fish :**
+```bash
+mac-cleaner completion fish > ~/.config/fish/completions/mac-cleaner.fish
+```
+
+**PowerShell :**
+```powershell
+mac-cleaner completion powershell | Out-String | Invoke-Expression
 ```
 
 ## Utilisation
@@ -110,6 +159,26 @@ go build -o mac-cleaner .
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Analyse ciblée — éléments spécifiques uniquement (via la sous-commande `scan`) :**
+```bash
+./mac-cleaner scan --npm --safari --dry-run
+```
+
+**Analyse ciblée — groupe complet avec éléments individuels :**
+```bash
+./mac-cleaner scan --dev-caches --safari
+```
+
+**Analyse ciblée — groupe sans certains éléments :**
+```bash
+./mac-cleaner scan --dev-caches --skip-docker
+```
+
+**Aide structurée pour les agents IA :**
+```bash
+./mac-cleaner --help-json
+```
+
 ## Drapeaux CLI
 
 ### Catégories d'analyse
@@ -124,6 +193,8 @@ go build -o mac-cleaner .
 | `--creative-caches` | Analyser les caches Adobe, Sketch et Figma |
 | `--messaging-caches` | Analyser les caches Slack, Discord, Teams et Zoom |
 | `--unused-apps` | Analyser les applications non ouvertes depuis plus de 180 jours |
+| `--photos` | Analyser les caches de l'application Photos et les données d'analyse des médias |
+| `--system-data` | Analyser Spotlight, Mail, Messages, les mises à jour iOS, Time Machine et les VMs |
 
 ### Sortie et comportement
 
@@ -133,6 +204,7 @@ go build -o mac-cleaner .
 | `--json` | Sortie des résultats en JSON |
 | `--verbose` | Liste détaillée des fichiers |
 | `--force` | Ignorer la demande de confirmation |
+| `--help-json` | Sortie de l'aide structurée en JSON pour les agents IA |
 
 ### Drapeaux d'exclusion de catégories
 
@@ -145,6 +217,8 @@ go build -o mac-cleaner .
 | `--skip-creative-caches` | Ignorer l'analyse des caches des applications créatives |
 | `--skip-messaging-caches` | Ignorer l'analyse des caches des applications de messagerie |
 | `--skip-unused-apps` | Ignorer l'analyse des applications inutilisées |
+| `--skip-photos` | Ignorer l'analyse des caches Photos |
+| `--skip-system-data` | Ignorer l'analyse des données système |
 
 ### Drapeaux d'exclusion d'éléments
 
@@ -178,10 +252,43 @@ go build -o mac-cleaner .
 | `--skip-discord` | Ignorer le cache Discord |
 | `--skip-teams` | Ignorer le cache Microsoft Teams |
 | `--skip-zoom` | Ignorer le cache Zoom |
+| `--skip-photos-caches` | Ignorer les caches de l'application Photos |
+| `--skip-photos-analysis` | Ignorer les caches d'analyse Photos |
+| `--skip-photos-icloud-cache` | Ignorer le cache de synchronisation iCloud Photos |
+| `--skip-photos-syndication` | Ignorer les photos partagées depuis Messages |
+| `--skip-spotlight` | Ignorer les métadonnées CoreSpotlight |
+| `--skip-mail` | Ignorer la base de données Mail |
+| `--skip-mail-downloads` | Ignorer le cache des pièces jointes Mail |
+| `--skip-messages` | Ignorer les pièces jointes Messages |
+| `--skip-ios-updates` | Ignorer les mises à jour logicielles iOS |
+| `--skip-timemachine` | Ignorer les instantanés locaux Time Machine |
+| `--skip-vm-parallels` | Ignorer les VMs Parallels |
+| `--skip-vm-utm` | Ignorer les VMs UTM |
+| `--skip-vm-vmware` | Ignorer les VMs VMware Fusion |
+
+### Sous-commande scan
+
+La sous-commande `scan` permet une analyse ciblée au niveau des éléments. Contrairement à la commande principale (qui entre en mode interactif par défaut), `scan` nécessite des drapeaux explicites et permet de cibler des éléments individuels.
+
+```bash
+# Analyser uniquement les caches npm et yarn
+mac-cleaner scan --npm --yarn --dry-run
+
+# Analyser tous les caches développeur plus Safari
+mac-cleaner scan --dev-caches --safari
+
+# Tout analyser sauf Docker
+mac-cleaner scan --all --skip-docker
+
+# Sortie en JSON pour l'automatisation
+mac-cleaner scan --npm --json
+```
+
+Exécutez `mac-cleaner scan --help` pour la liste complète des drapeaux ciblés regroupés par catégorie.
 
 ## Licence
 
-Ce projet ne contient actuellement pas de fichier de licence.
+MIT
 
 ## Créé avec
 

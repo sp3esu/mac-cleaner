@@ -48,6 +48,23 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 - **Microsoft Teams Cache** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (safe)
 - **Zoom Cache** — `~/Library/Application Support/zoom.us/data/` (safe)
 
+### Photos & Media Caches
+- **Photos App Caches** — `~/Library/Containers/com.apple.Photos/` caches (safe)
+- **Photos Analysis Caches** — `~/Library/Containers/com.apple.photoanalysisd/` ML model data (safe)
+- **iCloud Photos Sync Cache** — `~/Library/Caches/com.apple.cloudd/` (moderate)
+- **Messages Shared Photos** — `~/Library/Messages/Attachments/` synced media (risky)
+
+### System Data
+- **CoreSpotlight Metadata** — `~/Library/Caches/com.apple.Spotlight/` (safe)
+- **Mail Database** — `~/Library/Mail/` envelope index and data (risky)
+- **Mail Attachment Cache** — `~/Library/Mail Downloads/` (moderate)
+- **Messages Attachments** — `~/Library/Messages/` media and attachments (risky)
+- **iOS Software Updates** — `~/Library/iTunes/iPhone Software Updates/` (safe)
+- **Time Machine Local Snapshots** — local TM snapshot metadata (risky)
+- **Parallels VMs** — `~/Parallels/` virtual machine disk images (risky)
+- **UTM VMs** — `~/Library/Containers/com.utmapp.UTM/` virtual machines (risky)
+- **VMware Fusion VMs** — `~/Virtual Machines.localized/` disk images (risky)
+
 ### Unused Applications
 - **Unused Apps** — applications in `/Applications` and `~/Applications` not opened in 180+ days, with total disk footprint including `~/Library/` data (risky)
 
@@ -142,6 +159,26 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Targeted scan — specific items only (via `scan` subcommand):**
+```bash
+./mac-cleaner scan --npm --safari --dry-run
+```
+
+**Targeted scan — full group plus individual items:**
+```bash
+./mac-cleaner scan --dev-caches --safari
+```
+
+**Targeted scan — group minus specific items:**
+```bash
+./mac-cleaner scan --dev-caches --skip-docker
+```
+
+**Structured help for AI agents:**
+```bash
+./mac-cleaner --help-json
+```
+
 ## CLI Flags
 
 ### Scan Categories
@@ -156,6 +193,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--creative-caches` | Scan Adobe, Sketch, and Figma caches |
 | `--messaging-caches` | Scan Slack, Discord, Teams, and Zoom caches |
 | `--unused-apps` | Scan applications not opened in 180+ days |
+| `--photos` | Scan Photos app caches and media analysis data |
+| `--system-data` | Scan Spotlight, Mail, Messages, iOS updates, Time Machine, and VMs |
 
 ### Output & Behavior
 
@@ -165,6 +204,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--json` | Output results as JSON |
 | `--verbose` | Show detailed file listing |
 | `--force` | Bypass confirmation prompt |
+| `--help-json` | Output structured help as JSON for AI agents |
 
 ### Category Skip Flags
 
@@ -177,6 +217,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-creative-caches` | Skip creative app cache scanning |
 | `--skip-messaging-caches` | Skip messaging app cache scanning |
 | `--skip-unused-apps` | Skip unused applications scanning |
+| `--skip-photos` | Skip Photos cache scanning |
+| `--skip-system-data` | Skip system data scanning |
 
 ### Item Skip Flags
 
@@ -210,6 +252,39 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-discord` | Skip Discord cache |
 | `--skip-teams` | Skip Microsoft Teams cache |
 | `--skip-zoom` | Skip Zoom cache |
+| `--skip-photos-caches` | Skip Photos app caches |
+| `--skip-photos-analysis` | Skip Photos analysis caches |
+| `--skip-photos-icloud-cache` | Skip iCloud Photos sync cache |
+| `--skip-photos-syndication` | Skip Messages shared photos |
+| `--skip-spotlight` | Skip CoreSpotlight metadata |
+| `--skip-mail` | Skip Mail database |
+| `--skip-mail-downloads` | Skip Mail attachment cache |
+| `--skip-messages` | Skip Messages attachments |
+| `--skip-ios-updates` | Skip iOS software updates |
+| `--skip-timemachine` | Skip Time Machine local snapshots |
+| `--skip-vm-parallels` | Skip Parallels VMs |
+| `--skip-vm-utm` | Skip UTM VMs |
+| `--skip-vm-vmware` | Skip VMware Fusion VMs |
+
+### Scan Subcommand
+
+The `scan` subcommand provides targeted item-level scanning. Unlike the root command (which enters interactive mode by default), `scan` requires explicit flags and supports targeting individual items.
+
+```bash
+# Scan only npm and yarn caches
+mac-cleaner scan --npm --yarn --dry-run
+
+# Scan all developer caches plus Safari
+mac-cleaner scan --dev-caches --safari
+
+# Scan everything except Docker
+mac-cleaner scan --all --skip-docker
+
+# Output as JSON for automation
+mac-cleaner scan --npm --json
+```
+
+Run `mac-cleaner scan --help` for the full list of targeted flags grouped by category.
 
 ## License
 

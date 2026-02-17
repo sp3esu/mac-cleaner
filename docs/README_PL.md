@@ -48,6 +48,23 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 - **Pamięć podręczna Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (bezpieczne)
 - **Pamięć podręczna Zoom** — `~/Library/Application Support/zoom.us/data/` (bezpieczne)
 
+### Pamięci podręczne Zdjęć i multimediów
+- **Pamięć podręczna aplikacji Zdjęcia** — `~/Library/Containers/com.apple.Photos/` pamięci podręczne (bezpieczne)
+- **Pamięć podręczna analizy Zdjęć** — `~/Library/Containers/com.apple.photoanalysisd/` dane modeli ML (bezpieczne)
+- **Pamięć podręczna synchronizacji iCloud Zdjęcia** — `~/Library/Caches/com.apple.cloudd/` (umiarkowane)
+- **Udostępnione zdjęcia z Wiadomości** — `~/Library/Messages/Attachments/` zsynchronizowane multimedia (ryzykowne)
+
+### Dane systemowe
+- **Metadane CoreSpotlight** — `~/Library/Caches/com.apple.Spotlight/` (bezpieczne)
+- **Baza danych Mail** — `~/Library/Mail/` indeks kopert i dane (ryzykowne)
+- **Pamięć podręczna załączników Mail** — `~/Library/Mail Downloads/` (umiarkowane)
+- **Załączniki Wiadomości** — `~/Library/Messages/` multimedia i załączniki (ryzykowne)
+- **Aktualizacje oprogramowania iOS** — `~/Library/iTunes/iPhone Software Updates/` (bezpieczne)
+- **Lokalne snapshoty Time Machine** — lokalne metadane snapshotów TM (ryzykowne)
+- **Maszyny wirtualne Parallels** — `~/Parallels/` obrazy dysków maszyn wirtualnych (ryzykowne)
+- **Maszyny wirtualne UTM** — `~/Library/Containers/com.utmapp.UTM/` maszyny wirtualne (ryzykowne)
+- **Maszyny wirtualne VMware Fusion** — `~/Virtual Machines.localized/` obrazy dysków (ryzykowne)
+
 ### Nieużywane aplikacje
 - **Nieużywane aplikacje** — aplikacje w `/Applications` i `~/Applications` nieotwierane od ponad 180 dni, z całkowitym zajmowanym miejscem włącznie z danymi `~/Library/` (ryzykowne)
 
@@ -69,18 +86,50 @@ Szczegółową analizę bezpieczeństwa znajdziesz w dokumencie [Architektura be
 
 ## Instalacja
 
-### Wymagania
+### Homebrew
 
-- **Go 1.25+**
-- **macOS**
+```bash
+brew install sp3esu/tap/mac-cleaner
+```
 
 ### Budowanie ze źródła
+
+**Wymagania:** Go 1.25+, macOS
 
 ```bash
 git clone https://github.com/sp3esu/mac-cleaner.git
 cd mac-cleaner
 go build -o mac-cleaner .
 ./mac-cleaner --help
+```
+
+## Autouzupełnianie powłoki
+
+Generowanie skryptów autouzupełniania dla uzupełniania flag i podkomend klawiszem Tab.
+
+**Bash:**
+```bash
+# Załaduj w bieżącej sesji:
+source <(mac-cleaner completion bash)
+
+# Zainstaluj na stałe:
+mac-cleaner completion bash > /usr/local/etc/bash_completion.d/mac-cleaner
+```
+
+**Zsh:**
+```bash
+mac-cleaner completion zsh > "${fpath[1]}/_mac-cleaner"
+# Następnie zrestartuj powłokę lub uruchom: compinit
+```
+
+**Fish:**
+```bash
+mac-cleaner completion fish > ~/.config/fish/completions/mac-cleaner.fish
+```
+
+**PowerShell:**
+```powershell
+mac-cleaner completion powershell | Out-String | Invoke-Expression
 ```
 
 ## Użycie
@@ -110,6 +159,26 @@ go build -o mac-cleaner .
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Ukierunkowane skanowanie — tylko wybrane elementy (przez podkomendę `scan`):**
+```bash
+./mac-cleaner scan --npm --safari --dry-run
+```
+
+**Ukierunkowane skanowanie — pełna grupa plus pojedyncze elementy:**
+```bash
+./mac-cleaner scan --dev-caches --safari
+```
+
+**Ukierunkowane skanowanie — grupa bez wybranych elementów:**
+```bash
+./mac-cleaner scan --dev-caches --skip-docker
+```
+
+**Strukturalna pomoc dla agentów AI:**
+```bash
+./mac-cleaner --help-json
+```
+
 ## Flagi CLI
 
 ### Kategorie skanowania
@@ -124,6 +193,8 @@ go build -o mac-cleaner .
 | `--creative-caches` | Skanuj pamięci podręczne Adobe, Sketch i Figma |
 | `--messaging-caches` | Skanuj pamięci podręczne Slack, Discord, Teams i Zoom |
 | `--unused-apps` | Skanuj aplikacje nieotwierane od ponad 180 dni |
+| `--photos` | Skanuj pamięci podręczne aplikacji Zdjęcia i dane analizy multimediów |
+| `--system-data` | Skanuj Spotlight, Mail, Wiadomości, aktualizacje iOS, Time Machine i maszyny wirtualne |
 
 ### Wyjście i zachowanie
 
@@ -133,6 +204,7 @@ go build -o mac-cleaner .
 | `--json` | Wynik w formacie JSON |
 | `--verbose` | Szczegółowa lista plików |
 | `--force` | Pomiń monit o potwierdzenie |
+| `--help-json` | Wynik strukturalnej pomocy w formacie JSON dla agentów AI |
 
 ### Flagi pomijania kategorii
 
@@ -145,6 +217,8 @@ go build -o mac-cleaner .
 | `--skip-creative-caches` | Pomiń skanowanie pamięci podręcznych aplikacji kreatywnych |
 | `--skip-messaging-caches` | Pomiń skanowanie pamięci podręcznych komunikatorów |
 | `--skip-unused-apps` | Pomiń skanowanie nieużywanych aplikacji |
+| `--skip-photos` | Pomiń skanowanie pamięci podręcznych Zdjęć |
+| `--skip-system-data` | Pomiń skanowanie danych systemowych |
 
 ### Flagi pomijania elementów
 
@@ -178,10 +252,43 @@ go build -o mac-cleaner .
 | `--skip-discord` | Pomiń pamięć podręczną Discord |
 | `--skip-teams` | Pomiń pamięć podręczną Microsoft Teams |
 | `--skip-zoom` | Pomiń pamięć podręczną Zoom |
+| `--skip-photos-caches` | Pomiń pamięć podręczną aplikacji Zdjęcia |
+| `--skip-photos-analysis` | Pomiń pamięć podręczną analizy Zdjęć |
+| `--skip-photos-icloud-cache` | Pomiń pamięć podręczną synchronizacji iCloud Zdjęcia |
+| `--skip-photos-syndication` | Pomiń udostępnione zdjęcia z Wiadomości |
+| `--skip-spotlight` | Pomiń metadane CoreSpotlight |
+| `--skip-mail` | Pomiń bazę danych Mail |
+| `--skip-mail-downloads` | Pomiń pamięć podręczną załączników Mail |
+| `--skip-messages` | Pomiń załączniki Wiadomości |
+| `--skip-ios-updates` | Pomiń aktualizacje oprogramowania iOS |
+| `--skip-timemachine` | Pomiń lokalne snapshoty Time Machine |
+| `--skip-vm-parallels` | Pomiń maszyny wirtualne Parallels |
+| `--skip-vm-utm` | Pomiń maszyny wirtualne UTM |
+| `--skip-vm-vmware` | Pomiń maszyny wirtualne VMware Fusion |
+
+### Podkomenda scan
+
+Podkomenda `scan` umożliwia ukierunkowane skanowanie na poziomie elementów. W przeciwieństwie do komendy głównej (która domyślnie uruchamia tryb interaktywny), `scan` wymaga jawnych flag i obsługuje celowanie w poszczególne elementy.
+
+```bash
+# Skanuj tylko pamięci podręczne npm i yarn
+mac-cleaner scan --npm --yarn --dry-run
+
+# Skanuj wszystkie pamięci podręczne deweloperskie plus Safari
+mac-cleaner scan --dev-caches --safari
+
+# Skanuj wszystko z wyjątkiem Docker
+mac-cleaner scan --all --skip-docker
+
+# Wynik w formacie JSON do automatyzacji
+mac-cleaner scan --npm --json
+```
+
+Uruchom `mac-cleaner scan --help`, aby zobaczyć pełną listę flag ukierunkowanych pogrupowanych według kategorii.
 
 ## Licencja
 
-Projekt nie zawiera obecnie pliku licencji.
+MIT
 
 ## Zbudowano z pomocą
 

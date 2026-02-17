@@ -12,22 +12,19 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/engine"
 )
 
-// Default timeouts for connection management.
-const (
-	// IdleTimeout is the maximum time a connection can be idle before
-	// being closed. Reset on each received message.
-	IdleTimeout = 5 * time.Minute
-
-	// ReadTimeout is the maximum time to wait for a single message
-	// after the connection becomes active.
-	ReadTimeout = 30 * time.Second
-)
+// DefaultIdleTimeout is the maximum time a connection can be idle before
+// being closed. Reset on each received message.
+const DefaultIdleTimeout = 5 * time.Minute
 
 // Server is a Unix domain socket IPC server for mac-cleaner.
 type Server struct {
 	socketPath string
 	listener   net.Listener
 	version    string
+
+	// IdleTimeout is the maximum time a connection can be idle before
+	// being closed. Defaults to DefaultIdleTimeout if zero.
+	IdleTimeout time.Duration
 
 	// engine is the scan/cleanup engine instance.
 	engine *engine.Engine
@@ -54,10 +51,11 @@ type Server struct {
 // The engine is used for all scan and cleanup operations.
 func New(socketPath, version string, eng *engine.Engine) *Server {
 	s := &Server{
-		socketPath: socketPath,
-		version:    version,
-		engine:     eng,
-		done:       make(chan struct{}),
+		socketPath:  socketPath,
+		version:     version,
+		engine:      eng,
+		IdleTimeout: DefaultIdleTimeout,
+		done:        make(chan struct{}),
 	}
 	s.handler = NewHandler(s)
 	return s
@@ -162,7 +160,7 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 
 		// Set idle timeout — if no message arrives within IdleTimeout,
 		// the connection is closed.
-		_ = conn.SetReadDeadline(time.Now().Add(IdleTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(s.IdleTimeout))
 
 		req, err := reader.Read()
 		if err != nil {

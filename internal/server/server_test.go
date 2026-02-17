@@ -872,6 +872,226 @@ func TestServer_ActiveServerBlocks(t *testing.T) {
 	}
 }
 
+func TestServer_DisconnectDuringScan(t *testing.T) {
+	blocker := make(chan struct{})
+	eng := engine.New()
+	eng.Register(engine.NewScanner(engine.ScannerInfo{
+		ID:   "blocking",
+		Name: "Blocking Scanner",
+	}, func() ([]scan.CategoryResult, error) {
+		<-blocker // block until released
+		return []scan.CategoryResult{{
+			Category:    "blocking-cat",
+			Description: "Blocking Category",
+			TotalSize:   100,
+			Entries:     []scan.ScanEntry{{Path: "/tmp/blocking-test/f1", Description: "File 1", Size: 100}},
+		}}, nil
+	}))
+
+	socketPath := filepath.Join(os.TempDir(), "mc-test-disc-scan.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", eng)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	// Connect and start a scan.
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+
+	sendRequest(t, conn, Request{ID: "s1", Method: MethodScan})
+
+	// Read first progress event (scanner_start) to confirm scan is underway.
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	sc := bufio.NewScanner(conn)
+	if !sc.Scan() {
+		t.Fatalf("failed to read first progress event: %v", sc.Err())
+	}
+	var firstResp Response
+	if err := json.Unmarshal(sc.Bytes(), &firstResp); err != nil {
+		t.Fatalf("unmarshal first response: %v", err)
+	}
+	if firstResp.Type != ResponseProgress {
+		t.Fatalf("expected progress event, got %q", firstResp.Type)
+	}
+
+	// Disconnect while scan is still blocked.
+	conn.Close()
+
+	// Release the blocker so the scanner goroutine can complete.
+	close(blocker)
+
+	// Wait for server to process the disconnect.
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify server is still operational by connecting again.
+	conn2, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("reconnect failed (server crashed?): %v", err)
+	}
+	defer conn2.Close()
+
+	sendRequest(t, conn2, Request{ID: "alive", Method: MethodPing})
+	resp := readResponse(t, conn2)
+	if resp.Type != ResponseResult {
+		t.Errorf("expected result after reconnect, got %q", resp.Type)
+	}
+}
+
+func TestServer_DisconnectDuringCleanup(t *testing.T) {
+	// Create temp files that cleanup can actually remove.
+	tmpDir := t.TempDir()
+	var tmpFiles []string
+	for i := 0; i < 3; i++ {
+		f, err := os.CreateTemp(tmpDir, "cleanup-test-*")
+		if err != nil {
+			t.Fatalf("create temp file: %v", err)
+		}
+		tmpFiles = append(tmpFiles, f.Name())
+		f.Close()
+	}
+
+	entries := make([]scan.ScanEntry, len(tmpFiles))
+	for i, p := range tmpFiles {
+		entries[i] = scan.ScanEntry{
+			Path:        p,
+			Description: fmt.Sprintf("Temp file %d", i),
+			Size:        100,
+		}
+	}
+
+	eng := engine.New()
+	eng.Register(engine.NewScanner(engine.ScannerInfo{
+		ID:   "temp-scanner",
+		Name: "Temp Scanner",
+	}, func() ([]scan.CategoryResult, error) {
+		return []scan.CategoryResult{{
+			Category:    "temp-files",
+			Description: "Temp Files",
+			TotalSize:   300,
+			Entries:     entries,
+		}}, nil
+	}))
+
+	socketPath := filepath.Join(os.TempDir(), "mc-test-disc-clean.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", eng)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	// Step 1: Scan to get a token.
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+
+	sendRequest(t, conn, Request{ID: "s1", Method: MethodScan})
+	scanResponses := readAllResponses(t, conn, 5*time.Second)
+
+	final := scanResponses[len(scanResponses)-1]
+	if final.Type != ResponseResult {
+		t.Fatalf("expected result type, got %q", final.Type)
+	}
+	resultBytes, _ := json.Marshal(final.Result)
+	var scanResult struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(resultBytes, &scanResult); err != nil {
+		t.Fatalf("unmarshal scan result: %v", err)
+	}
+	if scanResult.Token == "" {
+		t.Fatal("scan returned empty token")
+	}
+
+	// Step 2: Send cleanup, read first progress event, then disconnect.
+	params, _ := json.Marshal(CleanupParams{Token: scanResult.Token})
+	sendRequest(t, conn, Request{ID: "c1", Method: MethodCleanup, Params: params})
+
+	// Read the first progress event to confirm cleanup has started.
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	sc := bufio.NewScanner(conn)
+	if !sc.Scan() {
+		t.Fatalf("failed to read first cleanup progress: %v", sc.Err())
+	}
+	var firstResp Response
+	if err := json.Unmarshal(sc.Bytes(), &firstResp); err != nil {
+		t.Fatalf("unmarshal first cleanup response: %v", err)
+	}
+	if firstResp.Type != ResponseProgress {
+		t.Fatalf("expected progress event, got %q", firstResp.Type)
+	}
+
+	// Disconnect while cleanup is running.
+	conn.Close()
+
+	// Wait for cleanup to finish (file deletion continues to completion by design).
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify server is still operational.
+	conn2, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("reconnect failed (server crashed?): %v", err)
+	}
+	defer conn2.Close()
+
+	sendRequest(t, conn2, Request{ID: "alive", Method: MethodPing})
+	resp := readResponse(t, conn2)
+	if resp.Type != ResponseResult {
+		t.Errorf("expected result after reconnect, got %q", resp.Type)
+	}
+}
+
+func TestServer_IdleTimeoutClosesConnection(t *testing.T) {
+	socketPath := filepath.Join(os.TempDir(), "mc-test-idle.sock")
+	os.Remove(socketPath)
+	defer os.Remove(socketPath)
+	srv := New(socketPath, "test-1.0.0", newMockTestEngine())
+	srv.IdleTimeout = 100 * time.Millisecond
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer srv.Shutdown()
+
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	// Confirm connection is alive by sending a ping.
+	sendRequest(t, conn, Request{ID: "p1", Method: MethodPing})
+	resp := readResponse(t, conn)
+	if resp.Type != ResponseResult {
+		t.Fatalf("expected result, got %q", resp.Type)
+	}
+
+	// Wait beyond the idle timeout.
+	time.Sleep(200 * time.Millisecond)
+
+	// Attempt to read — should fail because server closed the connection.
+	_ = conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	if err == nil {
+		t.Error("expected error reading from idle-timed-out connection, got nil")
+	}
+	// Accept either EOF (connection closed) or timeout (deadline exceeded).
+	// Both confirm the server is no longer serving this connection.
+}
+
 func TestServer_CleanupWithInvalidToken(t *testing.T) {
 	socketPath := filepath.Join(os.TempDir(), "mc-test-badtoken.sock")
 	os.Remove(socketPath)

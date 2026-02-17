@@ -279,7 +279,7 @@ func pathSize(path string) int64 {
 // formatDescription formats the app name with its last-used date.
 func formatDescription(appName string, lastUsed *time.Time) string {
 	if lastUsed == nil {
-		return appName + " (never opened)"
+		return appName + " (no usage history)"
 	}
 	return appName + " (last used " + lastUsed.Format("Jan 2006") + ")"
 }

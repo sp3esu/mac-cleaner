@@ -146,8 +146,8 @@ func TestScanUnusedApps_NeverOpened(t *testing.T) {
 	}
 
 	entry := result.Entries[0]
-	if entry.Description != "NeverUsed (never opened)" {
-		t.Errorf("expected description containing 'never opened', got %q", entry.Description)
+	if entry.Description != "NeverUsed (no usage history)" {
+		t.Errorf("expected description containing 'no usage history', got %q", entry.Description)
 	}
 }
 
@@ -399,9 +399,9 @@ func TestScanUnusedApps_NonAppEntriesSkipped(t *testing.T) {
 }
 
 func TestFormatDescription(t *testing.T) {
-	t.Run("never opened", func(t *testing.T) {
+	t.Run("no usage history", func(t *testing.T) {
 		desc := formatDescription("SomeApp", nil)
-		if desc != "SomeApp (never opened)" {
+		if desc != "SomeApp (no usage history)" {
 			t.Errorf("unexpected description: %q", desc)
 		}
 	})

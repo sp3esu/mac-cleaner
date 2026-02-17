@@ -55,10 +55,13 @@ func TestScanUnusedApps_UnusedDetected(t *testing.T) {
 	writeFile(t, filepath.Join(appDir, "OldApp.app", "Contents", "Info.plist"), 100)
 	writeFile(t, filepath.Join(appDir, "OldApp.app", "Contents", "MacOS", "OldApp"), 5000)
 
-	// Create associated Library data.
-	writeFile(t, filepath.Join(home, "Library", "Caches", "com.example.oldapp", "cache.db"), 2000)
+	// Create associated Library data (backdated so the Library mod check doesn't skip).
+	cacheDir := filepath.Join(home, "Library", "Caches", "com.example.oldapp")
+	writeFile(t, filepath.Join(cacheDir, "cache.db"), 2000)
+	oldTime := time.Now().Add(-365 * 24 * time.Hour)
+	os.Chtimes(cacheDir, oldTime, oldTime)
 
-	oldDate := time.Now().Add(-365 * 24 * time.Hour).Format(mdlsDateLayout)
+	oldDate := oldTime.Format(mdlsDateLayout)
 
 	responses := map[string]mockResponse{}
 	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "OldApp.app")
@@ -158,12 +161,21 @@ func TestScanUnusedApps_LibraryFootprintIncluded(t *testing.T) {
 	// Minimal app bundle.
 	writeFile(t, filepath.Join(appDir, "BigData.app", "Contents", "MacOS", "BigData"), 1000)
 
-	// Multiple Library directories.
-	writeFile(t, filepath.Join(home, "Library", "Caches", "com.example.bigdata", "data.db"), 5000)
-	writeFile(t, filepath.Join(home, "Library", "Application Support", "com.example.bigdata", "store.db"), 3000)
-	writeFile(t, filepath.Join(home, "Library", "Containers", "com.example.bigdata", "Data", "db.sqlite"), 2000)
+	// Multiple Library directories (backdated so the Library mod check doesn't skip).
+	libDirs := []string{
+		filepath.Join(home, "Library", "Caches", "com.example.bigdata"),
+		filepath.Join(home, "Library", "Application Support", "com.example.bigdata"),
+		filepath.Join(home, "Library", "Containers", "com.example.bigdata"),
+	}
+	writeFile(t, filepath.Join(libDirs[0], "data.db"), 5000)
+	writeFile(t, filepath.Join(libDirs[1], "store.db"), 3000)
+	writeFile(t, filepath.Join(libDirs[2], "Data", "db.sqlite"), 2000)
+	oldTime := time.Now().Add(-200 * 24 * time.Hour)
+	for _, d := range libDirs {
+		os.Chtimes(d, oldTime, oldTime)
+	}
 
-	oldDate := time.Now().Add(-200 * 24 * time.Hour).Format(mdlsDateLayout)
+	oldDate := oldTime.Format(mdlsDateLayout)
 
 	responses := map[string]mockResponse{}
 	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "BigData.app")
@@ -497,5 +509,131 @@ func TestLibraryFootprint_NoPaths(t *testing.T) {
 
 	if size != 0 {
 		t.Errorf("expected 0 for nonexistent paths, got %d", size)
+	}
+}
+
+func TestLibraryLastModified(t *testing.T) {
+	t.Run("returns latest mod time across Library dirs", func(t *testing.T) {
+		home := t.TempDir()
+
+		// Create two Library dirs; one older, one newer.
+		oldDir := filepath.Join(home, "Library", "Caches", "com.test.app")
+		newDir := filepath.Join(home, "Library", "Application Support", "com.test.app")
+
+		writeFile(t, filepath.Join(oldDir, "data"), 100)
+		writeFile(t, filepath.Join(newDir, "db"), 100)
+
+		oldTime := time.Now().Add(-365 * 24 * time.Hour)
+		os.Chtimes(oldDir, oldTime, oldTime)
+
+		result := libraryLastModified(home, "com.test.app", "TestApp")
+		if result.IsZero() {
+			t.Fatal("expected non-zero time")
+		}
+
+		// The newer directory was just created, so its mod time should be very recent.
+		if time.Since(result) > time.Minute {
+			t.Errorf("expected recent mod time, got %v ago", time.Since(result))
+		}
+	})
+
+	t.Run("returns zero for nonexistent paths", func(t *testing.T) {
+		home := t.TempDir()
+
+		result := libraryLastModified(home, "com.nonexistent.app", "NonExistent")
+		if !result.IsZero() {
+			t.Errorf("expected zero time, got %v", result)
+		}
+	})
+
+	t.Run("checks appName paths when bundleID differs", func(t *testing.T) {
+		home := t.TempDir()
+
+		writeFile(t, filepath.Join(home, "Library", "Application Support", "MyApp", "data"), 100)
+
+		result := libraryLastModified(home, "com.other.id", "MyApp")
+		if result.IsZero() {
+			t.Fatal("expected non-zero time from appName path")
+		}
+	})
+
+	t.Run("skips appName paths when equal to bundleID", func(t *testing.T) {
+		home := t.TempDir()
+
+		// Only create an appName-based path (same as bundleID).
+		writeFile(t, filepath.Join(home, "Library", "Application Support", "SameName", "data"), 100)
+
+		// bundleID == appName → appName paths skipped, but bundleID path matches.
+		result := libraryLastModified(home, "SameName", "SameName")
+		if result.IsZero() {
+			t.Fatal("expected non-zero time from bundleID path")
+		}
+	})
+}
+
+func TestScanUnusedApps_RecentLibraryDataSkipsApp(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+
+	// Create an app bundle.
+	writeFile(t, filepath.Join(appDir, "FalsePositive.app", "Contents", "MacOS", "FalsePositive"), 5000)
+
+	// mdls says it was never used (null).
+	responses := map[string]mockResponse{}
+	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "FalsePositive.app")
+	responses[mdlsKey] = mockResponse{output: []byte("(null)")}
+
+	plistKey := "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+		filepath.Join(appDir, "FalsePositive.app", "Contents", "Info.plist")
+	responses[plistKey] = mockResponse{output: []byte("com.example.falsepositive\n")}
+
+	// But the app's Library data was recently modified (created just now).
+	writeFile(t, filepath.Join(home, "Library", "Caches", "com.example.falsepositive", "recent.db"), 1000)
+
+	runner := newMockRunner(responses)
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	if result != nil {
+		t.Fatal("expected nil result: app with recent Library data should be skipped")
+	}
+}
+
+func TestScanUnusedApps_OldLibraryDataStillDetected(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+
+	// Create an app bundle.
+	writeFile(t, filepath.Join(appDir, "TrulyOld.app", "Contents", "MacOS", "TrulyOld"), 3000)
+
+	// mdls says it was used a long time ago.
+	oldDate := time.Now().Add(-365 * 24 * time.Hour).Format(mdlsDateLayout)
+
+	responses := map[string]mockResponse{}
+	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "TrulyOld.app")
+	responses[mdlsKey] = mockResponse{output: []byte(oldDate)}
+
+	plistKey := "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+		filepath.Join(appDir, "TrulyOld.app", "Contents", "Info.plist")
+	responses[plistKey] = mockResponse{output: []byte("com.example.trulyold\n")}
+
+	// Library data exists but is old.
+	cacheDir := filepath.Join(home, "Library", "Caches", "com.example.trulyold")
+	writeFile(t, filepath.Join(cacheDir, "old.db"), 2000)
+	oldTime := time.Now().Add(-365 * 24 * time.Hour)
+	os.Chtimes(cacheDir, oldTime, oldTime)
+
+	runner := newMockRunner(responses)
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	if result == nil {
+		t.Fatal("expected non-nil result for app with old Library data")
+	}
+
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
+	}
+
+	if result.Entries[0].Path != filepath.Join(appDir, "TrulyOld.app") {
+		t.Errorf("expected TrulyOld.app, got %q", result.Entries[0].Path)
 	}
 }

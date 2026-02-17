@@ -107,6 +107,11 @@ func scanUnusedApps(home string, threshold time.Duration, runner CmdRunner) *sca
 
 			appName := strings.TrimSuffix(entry.Name(), ".app")
 
+			// Secondary check: skip if Library data was recently modified.
+			if latestMod := libraryLastModified(home, bundleID, appName); !latestMod.IsZero() && latestMod.After(cutoff) {
+				continue
+			}
+
 			// Calculate total footprint.
 			bundleSize, err := scan.DirSize(appPath)
 			if err != nil {
@@ -255,6 +260,44 @@ func libraryFootprint(home, bundleID, appName string) int64 {
 	}
 
 	return total
+}
+
+// libraryLastModified returns the most recent modification time across an
+// app's ~/Library/ data directories. Only top-level directory mtimes are
+// checked (no recursive walk). Returns zero time if no paths exist.
+func libraryLastModified(home, bundleID, appName string) time.Time {
+	var paths []string
+
+	if bundleID != "" {
+		paths = append(paths,
+			filepath.Join(home, "Library", "Application Support", bundleID),
+			filepath.Join(home, "Library", "Caches", bundleID),
+			filepath.Join(home, "Library", "Containers", bundleID),
+			filepath.Join(home, "Library", "Saved Application State", bundleID+".savedState"),
+			filepath.Join(home, "Library", "HTTPStorages", bundleID),
+			filepath.Join(home, "Library", "WebKit", bundleID),
+			filepath.Join(home, "Library", "Logs", bundleID),
+		)
+	}
+
+	if appName != "" && appName != bundleID {
+		paths = append(paths,
+			filepath.Join(home, "Library", "Application Support", appName),
+			filepath.Join(home, "Library", "Logs", appName),
+		)
+	}
+
+	var latest time.Time
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if mod := info.ModTime(); mod.After(latest) {
+			latest = mod
+		}
+	}
+	return latest
 }
 
 // pathSize returns the size of a file or directory. Returns 0 if the path

@@ -6,6 +6,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/creative"
 	"github.com/sp3esu/mac-cleaner/pkg/developer"
 	"github.com/sp3esu/mac-cleaner/pkg/messaging"
+	"github.com/sp3esu/mac-cleaner/pkg/photos"
 	"github.com/sp3esu/mac-cleaner/pkg/system"
 	"github.com/sp3esu/mac-cleaner/pkg/unused"
 )
@@ -73,6 +74,13 @@ func RegisterDefaults(e *Engine) {
 		Description: "Slack, Discord, Teams, and Zoom caches",
 		CategoryIDs: []string{"msg-slack", "msg-discord", "msg-teams", "msg-zoom"},
 	}, messaging.Scan))
+
+	e.Register(NewScanner(ScannerInfo{
+		ID:          "photos",
+		Name:        "Photos & Media Analysis Caches",
+		Description: "Photos app caches, ML analysis data, iCloud sync cache, and Messages shared photos",
+		CategoryIDs: []string{"photos-caches", "photos-analysis", "photos-icloud-cache", "photos-syndication"},
+	}, photos.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
 		ID:          "unused",

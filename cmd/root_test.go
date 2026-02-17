@@ -773,8 +773,8 @@ func TestEngineCategories(t *testing.T) {
 	eng := engine.New()
 	engine.RegisterDefaults(eng)
 	cats := eng.Categories()
-	if len(cats) != 7 {
-		t.Fatalf("expected 7 scanner categories, got %d", len(cats))
+	if len(cats) != 8 {
+		t.Fatalf("expected 8 scanner categories, got %d", len(cats))
 	}
 	// Verify all have non-empty names.
 	for _, c := range cats {

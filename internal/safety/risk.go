@@ -40,6 +40,10 @@ var categoryRisk = map[string]string{
 	"msg-teams":                RiskSafe,
 	"msg-zoom":                 RiskSafe,
 	"unused-apps":              RiskRisky,
+	"photos-caches":            RiskSafe,
+	"photos-analysis":          RiskSafe,
+	"photos-icloud-cache":      RiskModerate,
+	"photos-syndication":       RiskRisky,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

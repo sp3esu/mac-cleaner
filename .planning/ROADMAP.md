@@ -83,7 +83,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md — Add hardening tests (disconnect-during-scan, disconnect-during-cleanup, idle timeout), make IdleTimeout configurable, remove dead ReadTimeout, enhance Swift docs, mark all HARD requirements complete
+- [x] 11-01-PLAN.md — Add hardening tests (disconnect-during-scan, disconnect-during-cleanup, idle timeout), make IdleTimeout configurable, remove dead ReadTimeout, enhance Swift docs, mark all HARD requirements complete
 
 **Key deliverables:**
 - `internal/server/server.go` — configurable IdleTimeout, dead code removed

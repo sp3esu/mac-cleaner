@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 
 ## Current Position
 
-Phase: 10 of 11 (scan-cleanup-handlers)
+Phase: 11 of 11 (hardening-documentation)
 Plan: 1 of 1
-Status: Phase 10 complete
-Last activity: 2026-02-17 — Completed 10-01-PLAN.md (Scan & cleanup handler verification)
+Status: Phase 11 complete. v1.1 milestone complete.
+Last activity: 2026-02-17 — Completed 11-01-PLAN.md (Server hardening, tests, and documentation)
 
-Progress: [█████░░░░░░░] 50% (v1.1) — 4/8 plans complete
+Progress: [████████████] 100% (v1.1) — 5/5 plans complete
 
 ## Phase Overview
 
@@ -23,7 +23,7 @@ Progress: [█████░░░░░░░] 50% (v1.1) — 4/8 plans comple
 | 8 | Engine Extraction | complete (2/2 plans) |
 | 9 | Protocol & Server Core | complete (1/1 plans) |
 | 10 | Scan & Cleanup Handlers | complete (1/1 plans) |
-| 11 | Hardening & Documentation | pending |
+| 11 | Hardening & Documentation | complete (1/1 plans) |
 
 ## Accumulated Context
 
@@ -41,6 +41,8 @@ Progress: [█████░░░░░░░] 50% (v1.1) — 4/8 plans comple
 - Used os.TempDir() for Unix socket test paths to avoid macOS 104-char limit
 - Used direct handler Dispatch for concurrent rejection test (server serializes socket requests sequentially)
 - Mock scanner paths intentionally non-existent to test handler plumbing without filesystem
+- IdleTimeout exposed as public struct field (not constructor param) for test override flexibility
+- Cleanup continues to completion on disconnect (partially-deleted state is worse)
 
 ### Patterns Established
 
@@ -54,6 +56,8 @@ Progress: [█████░░░░░░░] 50% (v1.1) — 4/8 plans comple
 - Active-listener probe test: use net.Listen to hold a socket, verify Server.Serve() returns error
 - Mock engine pattern: newMockTestEngine() for deterministic socket-level integration tests
 - Line-based NDJSON streaming reader: bufio.Scanner avoids json.Decoder buffering issues
+- Channel-based blocking scanner mock for disconnect-during-operation tests
+- Configurable timeout via exported struct field with default constant
 
 See phase summaries in .planning/phases/ for detailed patterns.
 
@@ -63,14 +67,14 @@ None.
 
 ### Blockers/Concerns
 
-None. All packages compile and all tests pass.
+None. All packages compile and all tests pass. All v1.1 requirements complete.
 
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 10-01 (Scan & cleanup handler verification). Phase 10 complete. Ready for Phase 11.
+Stopped at: Completed 11-01 (Server hardening). Phase 11 complete. v1.1 milestone complete.
 Resume file: .planning/ROADMAP.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-02-17 (10-01 complete, phase 10 complete)*
+*Last updated: 2026-02-17 (11-01 complete, phase 11 complete, v1.1 milestone complete)*

@@ -76,13 +76,19 @@ Plans:
 ---
 
 ## Phase 11: Hardening & Documentation
-**Goal:** Production readiness, error handling, Swift integration reference
+**Goal:** Production hardening with disconnect/timeout tests, dead code removal, and Swift doc enhancements
 
 **Requirements:** HARD-01, HARD-02, HARD-03
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 11-01-PLAN.md — Add hardening tests (disconnect-during-scan, disconnect-during-cleanup, idle timeout), make IdleTimeout configurable, remove dead ReadTimeout, enhance Swift docs, mark all HARD requirements complete
+
 **Key deliverables:**
-- `internal/server/server.go` — timeouts, disconnect handling
-- `docs/swift-integration.md` — Swift Codable types, NWConnection patterns
+- `internal/server/server.go` — configurable IdleTimeout, dead code removed
+- `internal/server/server_test.go` — 3 new integration tests
+- `docs/swift-integration.md` — Connection Behavior section
 - Tests for edge cases
 
 **Success criteria:**

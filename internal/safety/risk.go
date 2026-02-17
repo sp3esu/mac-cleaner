@@ -44,6 +44,15 @@ var categoryRisk = map[string]string{
 	"photos-analysis":          RiskSafe,
 	"photos-icloud-cache":      RiskModerate,
 	"photos-syndication":       RiskRisky,
+	"sysdata-spotlight":        RiskSafe,
+	"sysdata-mail":             RiskRisky,
+	"sysdata-mail-downloads":   RiskModerate,
+	"sysdata-messages":         RiskRisky,
+	"sysdata-ios-updates":      RiskSafe,
+	"sysdata-timemachine":      RiskRisky,
+	"sysdata-vm-parallels":     RiskRisky,
+	"sysdata-vm-utm":           RiskRisky,
+	"sysdata-vm-vmware":        RiskRisky,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

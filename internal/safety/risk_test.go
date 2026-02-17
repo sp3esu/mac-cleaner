@@ -28,6 +28,17 @@ func TestRiskForCategory(t *testing.T) {
 		{"app-ios-backups", RiskRisky},
 		{"unused-apps", RiskRisky},
 
+		// System data categories.
+		{"sysdata-spotlight", RiskSafe},
+		{"sysdata-mail", RiskRisky},
+		{"sysdata-mail-downloads", RiskModerate},
+		{"sysdata-messages", RiskRisky},
+		{"sysdata-ios-updates", RiskSafe},
+		{"sysdata-timemachine", RiskRisky},
+		{"sysdata-vm-parallels", RiskRisky},
+		{"sysdata-vm-utm", RiskRisky},
+		{"sysdata-vm-vmware", RiskRisky},
+
 		// Unknown and empty default to moderate.
 		{"unknown-category", RiskModerate},
 		{"", RiskModerate},

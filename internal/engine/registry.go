@@ -8,6 +8,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/messaging"
 	"github.com/sp3esu/mac-cleaner/pkg/photos"
 	"github.com/sp3esu/mac-cleaner/pkg/system"
+	"github.com/sp3esu/mac-cleaner/pkg/systemdata"
 	"github.com/sp3esu/mac-cleaner/pkg/unused"
 )
 
@@ -88,4 +89,15 @@ func RegisterDefaults(e *Engine) {
 		Description: "Applications not opened in 180+ days",
 		CategoryIDs: []string{"unused-apps"},
 	}, unused.Scan))
+
+	e.Register(NewScanner(ScannerInfo{
+		ID:          "systemdata",
+		Name:        "System Data",
+		Description: "Spotlight metadata, Mail, Messages, iOS updates, Time Machine snapshots, VM disk images",
+		CategoryIDs: []string{
+			"sysdata-spotlight", "sysdata-mail", "sysdata-mail-downloads",
+			"sysdata-messages", "sysdata-ios-updates", "sysdata-timemachine",
+			"sysdata-vm-parallels", "sysdata-vm-utm", "sysdata-vm-vmware",
+		},
+	}, systemdata.Scan))
 }

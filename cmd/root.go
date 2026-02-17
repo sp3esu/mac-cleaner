@@ -42,6 +42,7 @@ var (
 	flagMessagingCaches bool
 	flagUnusedApps      bool
 	flagPhotos          bool
+	flagSystemData      bool
 	flagAll             bool
 	flagJSON           bool
 	flagVerbose      bool
@@ -58,6 +59,7 @@ var (
 	flagSkipMessagingCaches bool
 	flagSkipUnusedApps      bool
 	flagSkipPhotos          bool
+	flagSkipSystemData      bool
 )
 
 // Item-level skip flags filter specific categories from scan results.
@@ -94,6 +96,15 @@ var (
 	flagSkipPhotosAnalysis    bool
 	flagSkipPhotosIcloudCache bool
 	flagSkipPhotosSyndication bool
+	flagSkipSpotlight        bool
+	flagSkipMail             bool
+	flagSkipMailDownloads    bool
+	flagSkipMessages         bool
+	flagSkipIOSUpdates       bool
+	flagSkipTimemachine      bool
+	flagSkipVMParallels      bool
+	flagSkipVMUTM            bool
+	flagSkipVMVMware         bool
 )
 
 // scannerMapping maps a CLI flag to a scanner ID in the engine.
@@ -105,7 +116,7 @@ type scannerMapping struct {
 var rootCmd = &cobra.Command{
 	Use:   "mac-cleaner",
 	Short: "scan and remove macOS junk files",
-	Long:  "scan and remove system caches, browser data, developer caches, app leftovers, photos caches, and unused applications",
+	Long:  "scan and remove system caches, browser data, developer caches, app leftovers, photos caches, system data, and unused applications",
 	Run: func(cmd *cobra.Command, args []string) {
 		sp := spinner.New("Scanning...", !flagJSON)
 		ran := false
@@ -120,6 +131,7 @@ var rootCmd = &cobra.Command{
 			{&flagMessagingCaches, "messaging"},
 			{&flagUnusedApps, "unused"},
 			{&flagPhotos, "photos"},
+			{&flagSystemData, "systemdata"},
 		}
 		for _, m := range flagScanners {
 			if *m.flag {
@@ -129,7 +141,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		if flagJSON && !ran {
-			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos)")
+			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
 			os.Exit(1)
 		}
 
@@ -215,6 +227,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagMessagingCaches, "messaging-caches", false, "scan Slack, Discord, Teams, and Zoom caches")
 	rootCmd.Flags().BoolVar(&flagUnusedApps, "unused-apps", false, "scan applications not opened in 180+ days")
 	rootCmd.Flags().BoolVar(&flagPhotos, "photos", false, "scan Photos app caches and media analysis data")
+	rootCmd.Flags().BoolVar(&flagSystemData, "system-data", false, "scan Spotlight, Mail, Messages, iOS updates, Time Machine, and VMs")
 	rootCmd.Flags().BoolVar(&flagAll, "all", false, "scan all categories")
 	rootCmd.Flags().BoolVar(&flagJSON, "json", false, "output results as JSON")
 	rootCmd.Flags().BoolVar(&flagVerbose, "verbose", false, "show detailed file listing")
@@ -229,6 +242,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipMessagingCaches, "skip-messaging-caches", false, "skip messaging app cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipUnusedApps, "skip-unused-apps", false, "skip unused applications scanning")
 	rootCmd.Flags().BoolVar(&flagSkipPhotos, "skip-photos", false, "skip Photos cache scanning")
+	rootCmd.Flags().BoolVar(&flagSkipSystemData, "skip-system-data", false, "skip system data scanning")
 
 	// Item-level skip flags.
 	rootCmd.Flags().BoolVar(&flagSkipDerivedData, "skip-derived-data", false, "skip Xcode DerivedData")
@@ -263,6 +277,15 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipPhotosAnalysis, "skip-photos-analysis", false, "skip Photos analysis caches")
 	rootCmd.Flags().BoolVar(&flagSkipPhotosIcloudCache, "skip-photos-icloud-cache", false, "skip iCloud Photos sync cache")
 	rootCmd.Flags().BoolVar(&flagSkipPhotosSyndication, "skip-photos-syndication", false, "skip Messages shared photos")
+	rootCmd.Flags().BoolVar(&flagSkipSpotlight, "skip-spotlight", false, "skip CoreSpotlight metadata")
+	rootCmd.Flags().BoolVar(&flagSkipMail, "skip-mail", false, "skip Mail database")
+	rootCmd.Flags().BoolVar(&flagSkipMailDownloads, "skip-mail-downloads", false, "skip Mail attachment cache")
+	rootCmd.Flags().BoolVar(&flagSkipMessages, "skip-messages", false, "skip Messages attachments")
+	rootCmd.Flags().BoolVar(&flagSkipIOSUpdates, "skip-ios-updates", false, "skip iOS software updates")
+	rootCmd.Flags().BoolVar(&flagSkipTimemachine, "skip-timemachine", false, "skip Time Machine local snapshots")
+	rootCmd.Flags().BoolVar(&flagSkipVMParallels, "skip-vm-parallels", false, "skip Parallels VMs")
+	rootCmd.Flags().BoolVar(&flagSkipVMUTM, "skip-vm-utm", false, "skip UTM VMs")
+	rootCmd.Flags().BoolVar(&flagSkipVMVMware, "skip-vm-vmware", false, "skip VMware Fusion VMs")
 
 	rootCmd.PreRun = func(cmd *cobra.Command, args []string) {
 		// Initialize the engine.
@@ -278,6 +301,7 @@ func init() {
 			flagMessagingCaches = true
 			flagUnusedApps = true
 			flagPhotos = true
+			flagSystemData = true
 		}
 		// Apply category-level skip overrides (after --all expansion).
 		if flagSkipSystemCaches {
@@ -303,6 +327,9 @@ func init() {
 		}
 		if flagSkipPhotos {
 			flagPhotos = false
+		}
+		if flagSkipSystemData {
+			flagSystemData = false
 		}
 		if flagJSON {
 			color.NoColor = true
@@ -386,6 +413,15 @@ func buildSkipSet() map[string]bool {
 		{&flagSkipPhotosAnalysis, "photos-analysis"},
 		{&flagSkipPhotosIcloudCache, "photos-icloud-cache"},
 		{&flagSkipPhotosSyndication, "photos-syndication"},
+		{&flagSkipSpotlight, "sysdata-spotlight"},
+		{&flagSkipMail, "sysdata-mail"},
+		{&flagSkipMailDownloads, "sysdata-mail-downloads"},
+		{&flagSkipMessages, "sysdata-messages"},
+		{&flagSkipIOSUpdates, "sysdata-ios-updates"},
+		{&flagSkipTimemachine, "sysdata-timemachine"},
+		{&flagSkipVMParallels, "sysdata-vm-parallels"},
+		{&flagSkipVMUTM, "sysdata-vm-utm"},
+		{&flagSkipVMVMware, "sysdata-vm-vmware"},
 	}
 	skip := map[string]bool{}
 	for _, m := range mappings {
@@ -479,6 +515,7 @@ func flagForCategory(categoryID string) string {
 		{"msg-", "--messaging-caches"},
 		{"unused-", "--unused-apps"},
 		{"photos-", "--photos"},
+		{"sysdata-", "--system-data"},
 	}
 	for _, pf := range prefixToFlag {
 		if strings.HasPrefix(categoryID, pf.prefix) {

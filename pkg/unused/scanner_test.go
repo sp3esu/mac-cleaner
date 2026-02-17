@@ -571,6 +571,129 @@ func TestLibraryLastModified(t *testing.T) {
 	})
 }
 
+func TestIsAppleApp(t *testing.T) {
+	tests := []struct {
+		bundleID string
+		want     bool
+	}{
+		{"com.apple.Safari", true},
+		{"com.apple.garageband", true},
+		{"com.apple.", true},
+		{"com.example.app", false},
+		{"", false},
+		{"com.appleish.app", false},
+		{"COM.APPLE.Safari", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.bundleID, func(t *testing.T) {
+			if got := isAppleApp(tt.bundleID); got != tt.want {
+				t.Errorf("isAppleApp(%q) = %v, want %v", tt.bundleID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScanUnusedApps_AppleAppSkipped(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+
+	// Create an unused Apple app.
+	writeFile(t, filepath.Join(appDir, "GarageBand.app", "Contents", "MacOS", "GarageBand"), 5000)
+
+	oldDate := time.Now().Add(-365 * 24 * time.Hour).Format(mdlsDateLayout)
+
+	responses := map[string]mockResponse{}
+	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "GarageBand.app")
+	responses[mdlsKey] = mockResponse{output: []byte(oldDate)}
+
+	plistKey := "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+		filepath.Join(appDir, "GarageBand.app", "Contents", "Info.plist")
+	responses[plistKey] = mockResponse{output: []byte("com.apple.garageband\n")}
+
+	runner := newMockRunner(responses)
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	if result != nil {
+		t.Fatal("expected nil result: Apple apps should be skipped")
+	}
+}
+
+func TestScanUnusedApps_AppleAppSkippedMixed(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+
+	// Create an unused Apple app and a third-party app.
+	writeFile(t, filepath.Join(appDir, "GarageBand.app", "Contents", "MacOS", "GarageBand"), 5000)
+	writeFile(t, filepath.Join(appDir, "OldApp.app", "Contents", "MacOS", "OldApp"), 3000)
+
+	oldDate := time.Now().Add(-365 * 24 * time.Hour).Format(mdlsDateLayout)
+
+	responses := map[string]mockResponse{}
+
+	// GarageBand — Apple app.
+	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "GarageBand.app")
+	responses[mdlsKey] = mockResponse{output: []byte(oldDate)}
+	plistKey := "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+		filepath.Join(appDir, "GarageBand.app", "Contents", "Info.plist")
+	responses[plistKey] = mockResponse{output: []byte("com.apple.garageband\n")}
+
+	// OldApp — third-party app.
+	mdlsKey = "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "OldApp.app")
+	responses[mdlsKey] = mockResponse{output: []byte(oldDate)}
+	plistKey = "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+		filepath.Join(appDir, "OldApp.app", "Contents", "Info.plist")
+	responses[plistKey] = mockResponse{output: []byte("com.example.oldapp\n")}
+
+	runner := newMockRunner(responses)
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	if result == nil {
+		t.Fatal("expected non-nil result: third-party app should be detected")
+	}
+
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
+	}
+
+	if result.Entries[0].Path != filepath.Join(appDir, "OldApp.app") {
+		t.Errorf("expected OldApp.app, got %q", result.Entries[0].Path)
+	}
+}
+
+func TestScanUnusedApps_UnknownBundleIDNotSkipped(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+
+	// App where PlistBuddy fails — empty bundleID should not be skipped.
+	writeFile(t, filepath.Join(appDir, "Mystery.app", "Contents", "MacOS", "Mystery"), 2000)
+
+	oldDate := time.Now().Add(-200 * 24 * time.Hour).Format(mdlsDateLayout)
+
+	responses := map[string]mockResponse{}
+	mdlsKey := "mdls -name kMDItemLastUsedDate -raw " + filepath.Join(appDir, "Mystery.app")
+	responses[mdlsKey] = mockResponse{output: []byte(oldDate)}
+
+	plistKey := "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+		filepath.Join(appDir, "Mystery.app", "Contents", "Info.plist")
+	responses[plistKey] = mockResponse{err: fmt.Errorf("plist not found")}
+
+	runner := newMockRunner(responses)
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	if result == nil {
+		t.Fatal("expected non-nil result: app with unknown bundleID should not be skipped")
+	}
+
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
+	}
+
+	if result.Entries[0].Path != filepath.Join(appDir, "Mystery.app") {
+		t.Errorf("expected Mystery.app, got %q", result.Entries[0].Path)
+	}
+}
+
 func TestScanUnusedApps_RecentLibraryDataSkipsApp(t *testing.T) {
 	home := t.TempDir()
 	appDir := filepath.Join(home, "Applications")

@@ -32,6 +32,11 @@ func defaultRunner(ctx context.Context, name string, args ...string) ([]byte, er
 // considered unused.
 const defaultThreshold = 180 * 24 * time.Hour
 
+// appleBundleIDPrefix identifies Apple-provided applications by their
+// bundle identifier. These are skipped because they live in /Applications
+// (blocked by the safety system) and require system-level procedures to remove.
+const appleBundleIDPrefix = "com.apple."
+
 // mdlsDateLayout is the time layout returned by mdls -raw for kMDItemLastUsedDate.
 const mdlsDateLayout = "2006-01-02 15:04:05 +0000"
 
@@ -104,6 +109,12 @@ func scanUnusedApps(home string, threshold time.Duration, runner CmdRunner) *sca
 
 			// Extract bundle ID for Library footprint calculation.
 			bundleID := extractBundleID(appPath, plistBuddyPath, runner)
+
+			// Skip Apple-provided apps — they are blocked from deletion by
+			// the safety system and require system-level removal procedures.
+			if isAppleApp(bundleID) {
+				continue
+			}
 
 			appName := strings.TrimSuffix(entry.Name(), ".app")
 
@@ -317,6 +328,13 @@ func pathSize(path string) int64 {
 		return 0
 	}
 	return size
+}
+
+// isAppleApp reports whether the given bundle identifier belongs to an
+// Apple-provided application. An empty bundle ID returns false so that
+// apps with unreadable plists are not silently skipped.
+func isAppleApp(bundleID string) bool {
+	return bundleID != "" && strings.HasPrefix(bundleID, appleBundleIDPrefix)
 }
 
 // formatDescription formats the app name with its last-used date.

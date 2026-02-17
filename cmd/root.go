@@ -47,6 +47,7 @@ var (
 	flagJSON           bool
 	flagVerbose      bool
 	flagForce        bool
+	flagHelpJSON     bool
 )
 
 // Category-level skip flags prevent entire scanner groups from running.
@@ -116,8 +117,25 @@ type scannerMapping struct {
 var rootCmd = &cobra.Command{
 	Use:   "mac-cleaner",
 	Short: "scan and remove macOS junk files",
-	Long:  "scan and remove system caches, browser data, developer caches, app leftovers, photos caches, system data, and unused applications",
+	Long: `Scan and remove system caches, browser data, developer caches, app leftovers,
+photos caches, system data, and unused applications.
+
+Without flags, enters interactive walkthrough mode. Use scan flags (--system-caches,
+--dev-caches, etc.) with --all for a full non-interactive scan. Use the "scan"
+subcommand for targeted item-level scanning (e.g. mac-cleaner scan --npm --safari).
+
+Examples:
+  mac-cleaner                                  interactive walkthrough
+  mac-cleaner --all --dry-run                  preview everything
+  mac-cleaner --dev-caches --browser-data      scan specific groups
+  mac-cleaner scan --npm --safari --dry-run    scan specific items
+  mac-cleaner --help-json                      structured help for AI agents`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if flagHelpJSON {
+			printHelpJSON(os.Stdout)
+			return
+		}
+
 		sp := spinner.New("Scanning...", !flagJSON)
 		ran := false
 		var allResults []scan.CategoryResult
@@ -232,6 +250,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagJSON, "json", false, "output results as JSON")
 	rootCmd.Flags().BoolVar(&flagVerbose, "verbose", false, "show detailed file listing")
 	rootCmd.Flags().BoolVar(&flagForce, "force", false, "bypass confirmation prompt (for automation)")
+	rootCmd.Flags().BoolVar(&flagHelpJSON, "help-json", false, "output structured help as JSON for AI agents")
 
 	// Category-level skip flags.
 	rootCmd.Flags().BoolVar(&flagSkipSystemCaches, "skip-system-caches", false, "skip system cache scanning")
@@ -373,60 +392,14 @@ func runScannerByID(scannerID string, sp *spinner.Spinner) []scan.CategoryResult
 }
 
 // buildSkipSet collects category IDs that should be excluded from results
-// based on item-level skip flags.
+// based on item-level skip flags. Uses scanGroups as the source of truth.
 func buildSkipSet() map[string]bool {
-	type skipMapping struct {
-		flag       *bool
-		categoryID string
-	}
-	mappings := []skipMapping{
-		{&flagSkipDerivedData, "dev-xcode"},
-		{&flagSkipNpm, "dev-npm"},
-		{&flagSkipYarn, "dev-yarn"},
-		{&flagSkipHomebrew, "dev-homebrew"},
-		{&flagSkipDocker, "dev-docker"},
-		{&flagSkipSafari, "browser-safari"},
-		{&flagSkipChrome, "browser-chrome"},
-		{&flagSkipFirefox, "browser-firefox"},
-		{&flagSkipQuicklook, "quicklook"},
-		{&flagSkipOrphanedPrefs, "app-orphaned-prefs"},
-		{&flagSkipIosBackups, "app-ios-backups"},
-		{&flagSkipOldDownloads, "app-old-downloads"},
-		{&flagSkipSimulatorCaches, "dev-simulator-caches"},
-		{&flagSkipSimulatorLogs, "dev-simulator-logs"},
-		{&flagSkipXcodeDevSupport, "dev-xcode-device-support"},
-		{&flagSkipXcodeArchives, "dev-xcode-archives"},
-		{&flagSkipPnpm, "dev-pnpm"},
-		{&flagSkipCocoapods, "dev-cocoapods"},
-		{&flagSkipGradle, "dev-gradle"},
-		{&flagSkipPip, "dev-pip"},
-		{&flagSkipAdobe, "creative-adobe"},
-		{&flagSkipAdobeMedia, "creative-adobe-media"},
-		{&flagSkipSketch, "creative-sketch"},
-		{&flagSkipFigma, "creative-figma"},
-		{&flagSkipSlack, "msg-slack"},
-		{&flagSkipDiscord, "msg-discord"},
-		{&flagSkipTeams, "msg-teams"},
-		{&flagSkipZoom, "msg-zoom"},
-		{&flagSkipUnusedApps, "unused-apps"},
-		{&flagSkipPhotosCaches, "photos-caches"},
-		{&flagSkipPhotosAnalysis, "photos-analysis"},
-		{&flagSkipPhotosIcloudCache, "photos-icloud-cache"},
-		{&flagSkipPhotosSyndication, "photos-syndication"},
-		{&flagSkipSpotlight, "sysdata-spotlight"},
-		{&flagSkipMail, "sysdata-mail"},
-		{&flagSkipMailDownloads, "sysdata-mail-downloads"},
-		{&flagSkipMessages, "sysdata-messages"},
-		{&flagSkipIOSUpdates, "sysdata-ios-updates"},
-		{&flagSkipTimemachine, "sysdata-timemachine"},
-		{&flagSkipVMParallels, "sysdata-vm-parallels"},
-		{&flagSkipVMUTM, "sysdata-vm-utm"},
-		{&flagSkipVMVMware, "sysdata-vm-vmware"},
-	}
 	skip := map[string]bool{}
-	for _, m := range mappings {
-		if *m.flag {
-			skip[m.categoryID] = true
+	for _, g := range scanGroups {
+		for _, item := range g.Items {
+			if item.SkipFlag != nil && *item.SkipFlag {
+				skip[item.CategoryID] = true
+			}
 		}
 	}
 	return skip
@@ -499,28 +472,10 @@ func cleanupProgress(sp *spinner.Spinner, w io.Writer) cleanup.ProgressFunc {
 
 // flagForCategory returns the CLI scan flag (e.g. "--dev-caches") that covers
 // the given category ID. It returns "" for unrecognised IDs.
+// Uses scanGroups as the source of truth.
 func flagForCategory(categoryID string) string {
-	if categoryID == "quicklook" {
-		return "--system-caches"
-	}
-	prefixToFlag := []struct {
-		prefix string
-		flag   string
-	}{
-		{"system-", "--system-caches"},
-		{"browser-", "--browser-data"},
-		{"dev-", "--dev-caches"},
-		{"app-", "--app-leftovers"},
-		{"creative-", "--creative-caches"},
-		{"msg-", "--messaging-caches"},
-		{"unused-", "--unused-apps"},
-		{"photos-", "--photos"},
-		{"sysdata-", "--system-data"},
-	}
-	for _, pf := range prefixToFlag {
-		if strings.HasPrefix(categoryID, pf.prefix) {
-			return pf.flag
-		}
+	if g := groupForCategory(categoryID); g != nil {
+		return "--" + g.FlagName
 	}
 	return ""
 }

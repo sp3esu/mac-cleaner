@@ -48,6 +48,11 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 - **Pamięć podręczna Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (bezpieczne)
 - **Pamięć podręczna Zoom** — `~/Library/Application Support/zoom.us/data/` (bezpieczne)
 
+### Nieużywane aplikacje
+- **Nieużywane aplikacje** — aplikacje w `/Applications` i `~/Applications` nieotwierane od ponad 180 dni, z całkowitym zajmowanym miejscem włącznie z danymi `~/Library/` (ryzykowne)
+
+Szczegóły w dokumentacji [Wykrywanie nieużywanych aplikacji](unused-apps_PL.md).
+
 ## Bezpieczeństwo
 
 mac-cleaner został zaprojektowany z myślą o ochronie systemu:
@@ -118,6 +123,7 @@ go build -o mac-cleaner .
 | `--app-leftovers` | Skanuj osierocone preferencje, kopie zapasowe iOS i stare pobrania |
 | `--creative-caches` | Skanuj pamięci podręczne Adobe, Sketch i Figma |
 | `--messaging-caches` | Skanuj pamięci podręczne Slack, Discord, Teams i Zoom |
+| `--unused-apps` | Skanuj aplikacje nieotwierane od ponad 180 dni |
 
 ### Wyjście i zachowanie
 
@@ -138,6 +144,7 @@ go build -o mac-cleaner .
 | `--skip-app-leftovers` | Pomiń skanowanie pozostałości aplikacji |
 | `--skip-creative-caches` | Pomiń skanowanie pamięci podręcznych aplikacji kreatywnych |
 | `--skip-messaging-caches` | Pomiń skanowanie pamięci podręcznych komunikatorów |
+| `--skip-unused-apps` | Pomiń skanowanie nieużywanych aplikacji |
 
 ### Flagi pomijania elementów
 

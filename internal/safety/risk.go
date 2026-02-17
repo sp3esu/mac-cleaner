@@ -39,6 +39,7 @@ var categoryRisk = map[string]string{
 	"msg-discord":              RiskSafe,
 	"msg-teams":                RiskSafe,
 	"msg-zoom":                 RiskSafe,
+	"unused-apps":              RiskRisky,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

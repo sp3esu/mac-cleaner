@@ -48,6 +48,11 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 - **Microsoft Teams-Cache** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (sicher)
 - **Zoom-Cache** — `~/Library/Application Support/zoom.us/data/` (sicher)
 
+### Unbenutzte Anwendungen
+- **Unbenutzte Apps** — Anwendungen in `/Applications` und `~/Applications`, die seit über 180 Tagen nicht geöffnet wurden, mit gesamtem Speicherverbrauch einschließlich `~/Library/`-Daten (riskant)
+
+Details finden Sie in der Dokumentation [Erkennung unbenutzter Anwendungen](unused-apps_DE.md).
+
 ## Sicherheit
 
 mac-cleaner wurde zum Schutz Ihres Systems entwickelt:
@@ -118,6 +123,7 @@ go build -o mac-cleaner .
 | `--app-leftovers` | Verwaiste Einstellungen, iOS-Backups und alte Downloads scannen |
 | `--creative-caches` | Adobe-, Sketch- und Figma-Caches scannen |
 | `--messaging-caches` | Slack-, Discord-, Teams- und Zoom-Caches scannen |
+| `--unused-apps` | Anwendungen scannen, die seit über 180 Tagen nicht geöffnet wurden |
 
 ### Ausgabe & Verhalten
 
@@ -138,6 +144,7 @@ go build -o mac-cleaner .
 | `--skip-app-leftovers` | App-Überbleibsel-Scan überspringen |
 | `--skip-creative-caches` | Kreativ-App-Cache-Scan überspringen |
 | `--skip-messaging-caches` | Messaging-App-Cache-Scan überspringen |
+| `--skip-unused-apps` | Scan unbenutzter Anwendungen überspringen |
 
 ### Element-Skip-Flags
 

@@ -26,6 +26,7 @@ func TestRiskForCategory(t *testing.T) {
 		{"dev-docker", RiskRisky},
 		{"app-orphaned-prefs", RiskRisky},
 		{"app-ios-backups", RiskRisky},
+		{"unused-apps", RiskRisky},
 
 		// Unknown and empty default to moderate.
 		{"unknown-category", RiskModerate},

@@ -48,6 +48,11 @@ Un outil CLI rapide et sûr pour récupérer de l'espace disque sous macOS.
 - **Cache Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (sûr)
 - **Cache Zoom** — `~/Library/Application Support/zoom.us/data/` (sûr)
 
+### Applications inutilisées
+- **Applications inutilisées** — applications dans `/Applications` et `~/Applications` non ouvertes depuis plus de 180 jours, avec l'empreinte disque totale incluant les données `~/Library/` (risqué)
+
+Pour plus de détails, voir [Détection des applications inutilisées](unused-apps_FR.md).
+
 ## Sécurité
 
 mac-cleaner est conçu pour protéger votre système :
@@ -118,6 +123,7 @@ go build -o mac-cleaner .
 | `--app-leftovers` | Analyser les préférences orphelines, les sauvegardes iOS et les anciens téléchargements |
 | `--creative-caches` | Analyser les caches Adobe, Sketch et Figma |
 | `--messaging-caches` | Analyser les caches Slack, Discord, Teams et Zoom |
+| `--unused-apps` | Analyser les applications non ouvertes depuis plus de 180 jours |
 
 ### Sortie et comportement
 
@@ -138,6 +144,7 @@ go build -o mac-cleaner .
 | `--skip-app-leftovers` | Ignorer l'analyse des restes d'applications |
 | `--skip-creative-caches` | Ignorer l'analyse des caches des applications créatives |
 | `--skip-messaging-caches` | Ignorer l'analyse des caches des applications de messagerie |
+| `--skip-unused-apps` | Ignorer l'analyse des applications inutilisées |
 
 ### Drapeaux d'exclusion d'éléments
 

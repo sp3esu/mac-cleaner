@@ -768,13 +768,13 @@ func TestFindScannerInfo(t *testing.T) {
 	}
 }
 
-// TestEngineCategories verifies RegisterDefaults produces exactly 6 scanners.
+// TestEngineCategories verifies RegisterDefaults produces exactly 7 scanners.
 func TestEngineCategories(t *testing.T) {
 	eng := engine.New()
 	engine.RegisterDefaults(eng)
 	cats := eng.Categories()
-	if len(cats) != 6 {
-		t.Fatalf("expected 6 scanner categories, got %d", len(cats))
+	if len(cats) != 7 {
+		t.Fatalf("expected 7 scanner categories, got %d", len(cats))
 	}
 	// Verify all have non-empty names.
 	for _, c := range cats {

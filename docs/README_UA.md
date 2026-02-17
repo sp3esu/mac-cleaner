@@ -48,6 +48,11 @@
 - **Кеш Microsoft Teams** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (безпечно)
 - **Кеш Zoom** — `~/Library/Application Support/zoom.us/data/` (безпечно)
 
+### Невикористовувані додатки
+- **Невикористовувані додатки** — додатки в `/Applications` та `~/Applications`, які не відкривались понад 180 днів, із загальним обсягом включно з даними `~/Library/` (ризиковано)
+
+Деталі див. у документації [Виявлення невикористовуваних додатків](unused-apps_UA.md).
+
 ## Безпека
 
 mac-cleaner створений для захисту вашої системи:
@@ -118,6 +123,7 @@ go build -o mac-cleaner .
 | `--app-leftovers` | Сканувати осиротілі налаштування, резервні копії iOS та старі завантаження |
 | `--creative-caches` | Сканувати кеші Adobe, Sketch та Figma |
 | `--messaging-caches` | Сканувати кеші Slack, Discord, Teams та Zoom |
+| `--unused-apps` | Сканувати додатки, які не відкривались понад 180 днів |
 
 ### Вивід та поведінка
 
@@ -138,6 +144,7 @@ go build -o mac-cleaner .
 | `--skip-app-leftovers` | Пропустити сканування залишків додатків |
 | `--skip-creative-caches` | Пропустити сканування кешів креативних додатків |
 | `--skip-messaging-caches` | Пропустити сканування кешів месенджерів |
+| `--skip-unused-apps` | Пропустити сканування невикористовуваних додатків |
 
 ### Прапорці пропуску елементів
 

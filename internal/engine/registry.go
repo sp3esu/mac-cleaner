@@ -7,6 +7,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/developer"
 	"github.com/sp3esu/mac-cleaner/pkg/messaging"
 	"github.com/sp3esu/mac-cleaner/pkg/system"
+	"github.com/sp3esu/mac-cleaner/pkg/unused"
 )
 
 // Register adds a scanner to the engine's registry.
@@ -72,4 +73,11 @@ func RegisterDefaults(e *Engine) {
 		Description: "Slack, Discord, Teams, and Zoom caches",
 		CategoryIDs: []string{"msg-slack", "msg-discord", "msg-teams", "msg-zoom"},
 	}, messaging.Scan))
+
+	e.Register(NewScanner(ScannerInfo{
+		ID:          "unused",
+		Name:        "Unused Applications",
+		Description: "Applications not opened in 180+ days",
+		CategoryIDs: []string{"unused-apps"},
+	}, unused.Scan))
 }

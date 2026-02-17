@@ -48,6 +48,11 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 - **Microsoft Teams Cache** — `~/Library/Application Support/Microsoft/Teams/Cache/` + `~/Library/Caches/com.microsoft.teams2/` (safe)
 - **Zoom Cache** — `~/Library/Application Support/zoom.us/data/` (safe)
 
+### Unused Applications
+- **Unused Apps** — applications in `/Applications` and `~/Applications` not opened in 180+ days, with total disk footprint including `~/Library/` data (risky)
+
+For details, see [Unused Applications Detection](docs/unused-apps.md).
+
 ## Safety
 
 mac-cleaner is designed to protect your system:
@@ -150,6 +155,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--app-leftovers` | Scan orphaned preferences, iOS backups, and old Downloads |
 | `--creative-caches` | Scan Adobe, Sketch, and Figma caches |
 | `--messaging-caches` | Scan Slack, Discord, Teams, and Zoom caches |
+| `--unused-apps` | Scan applications not opened in 180+ days |
 
 ### Output & Behavior
 
@@ -170,6 +176,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-app-leftovers` | Skip app leftover scanning |
 | `--skip-creative-caches` | Skip creative app cache scanning |
 | `--skip-messaging-caches` | Skip messaging app cache scanning |
+| `--skip-unused-apps` | Skip unused applications scanning |
 
 ### Item Skip Flags
 

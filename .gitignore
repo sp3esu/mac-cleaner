@@ -1,2 +1,5 @@
 dist/
 mac-cleaner
+
+# Planning agent artifacts
+.planning/agent-history.json

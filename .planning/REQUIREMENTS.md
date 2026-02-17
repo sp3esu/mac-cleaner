@@ -32,9 +32,9 @@
 
 | ID | Requirement | Phase | Status |
 |----|-------------|-------|--------|
-| HARD-01 | Client disconnect during scan/cleanup handled gracefully | 11 | pending |
-| HARD-02 | Connection timeout and keep-alive | 11 | pending |
-| HARD-03 | Cleanup requests validated against prior scan results (replay protection) | 11 | pending |
+| HARD-01 | Client disconnect during scan/cleanup handled gracefully | 11 | complete |
+| HARD-02 | Connection timeout and keep-alive | 11 | complete |
+| HARD-03 | Cleanup requests validated against prior scan results (replay protection) | 11 | complete |
 
 ---
 *Created: 2026-02-16*

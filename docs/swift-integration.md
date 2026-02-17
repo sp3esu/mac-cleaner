@@ -283,6 +283,10 @@ class MacCleanerClient {
         )
     }
 
+    // Note: This simple approach splits on newlines but does not handle partial
+    // messages that may arrive across multiple `receive` calls. For production
+    // use, accumulate received data in a buffer and only process complete lines
+    // (terminated by `\n`).
     private func startReceiving() {
         connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) {
             [weak self] content, _, isComplete, error in
@@ -346,9 +350,16 @@ try process.run()
 
 - **Concurrent operations:** Only one scan or cleanup can run at a time. Additional requests get an error response.
 - **Cleanup without scan:** The server requires a valid scan token before cleanup (replay protection). The token is returned in the scan result and must be passed in the cleanup request. After cleanup, the token is consumed (single-use).
-- **Client disconnect:** If the client disconnects during a scan or cleanup, the server stops streaming and cleans up gracefully.
-- **Idle timeout:** Connections idle for more than 5 minutes are automatically closed.
+- **Client disconnect:** If the client disconnects during a scan or cleanup, the server stops streaming and cleans up gracefully. See "Connection Behavior" below for details.
+- **Idle timeout:** Connections idle for more than 5 minutes are automatically closed. See "Connection Behavior" below for details.
 - **Stale sockets:** On startup, the server detects and removes stale socket files from crashed instances.
+
+### Connection Behavior
+
+- **Idle timeout:** The server closes connections that are idle for more than 5 minutes (no messages sent or received). Swift clients should handle `NWConnection.State.failed` or `.waiting` by reconnecting. If your app has long idle periods, send periodic `ping` requests as a keepalive mechanism.
+- **Client disconnect during scan:** If the client disconnects while a scan is running, the server cancels the scan via context cancellation and cleans up all goroutines. No goroutine leaks occur. The server immediately accepts new connections.
+- **Client disconnect during cleanup:** If the client disconnects while cleanup is running, file deletion continues to completion (by design -- partially-deleted state is worse than completing the operation). Progress events are silently dropped since the connection is gone. The server accepts new connections after cleanup finishes.
+- **Reconnection:** After any disconnect (intentional, timeout, or crash), the client can simply open a new connection to the same socket path. A new `scan` must be performed before `cleanup` (tokens are per-connection and invalidated on disconnect).
 
 ## Testing with socat
 

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS CLI tool that scans the system for junk data — caches, temporary files, app leftovers, developer artifacts, and browser data — and helps users reclaim disk space. Offers interactive walkthrough mode and scriptable flag-based mode with dry-run support, granular skip controls, JSON output for AI agents, and risk-aware safety enforcement.
+A macOS CLI tool that scans the system for junk data — caches, temporary files, app leftovers, developer artifacts, and browser data — and helps users reclaim disk space. Offers interactive walkthrough mode and scriptable flag-based mode with dry-run support, granular skip controls, JSON output for AI agents, and risk-aware safety enforcement. Includes a Unix domain socket IPC server mode for native Swift macOS app integration with real-time streaming progress.
 
 ## Core Value
 
@@ -25,25 +25,26 @@ Users can safely and confidently reclaim disk space without worrying about delet
 - ✓ SIP/swap path protection with path traversal and symlink attack prevention — v1.0
 - ✓ Risk categorization (safe/moderate/risky) with color-coded display — v1.0
 - ✓ Permission error reporting without failing entire scan — v1.0
+- ✓ Scanning orchestration decoupled from cobra into reusable engine package — v1.1
+- ✓ Engine supports per-scanner progress callbacks — v1.1
+- ✓ Engine supports category filtering (skip set) — v1.1
+- ✓ CLI refactored to use engine (no behavior change) — v1.1
+- ✓ NDJSON request/response protocol with request IDs — v1.1
+- ✓ Methods: scan, cleanup, categories, ping, shutdown — v1.1
+- ✓ Scan method streams per-scanner progress events, then final result — v1.1
+- ✓ Cleanup method streams per-entry progress events, then final result — v1.1
+- ✓ Categories method returns available scanners with metadata — v1.1
+- ✓ Unix domain socket listener with graceful shutdown — v1.1
+- ✓ `serve` cobra subcommand with `--socket` flag — v1.1
+- ✓ Single-connection handling (reject concurrent operations) — v1.1
+- ✓ Socket file cleanup on shutdown and stale socket detection on startup — v1.1
+- ✓ Client disconnect during scan/cleanup handled gracefully — v1.1
+- ✓ Connection timeout and keep-alive — v1.1
+- ✓ Cleanup requests validated against prior scan results (replay protection) — v1.1
 
-### Active (v1.1 — Swift Integration / Server Mode)
+### Active
 
-- ENG-01: Scanning orchestration decoupled from cobra into reusable engine package
-- ENG-02: Engine supports per-scanner progress callbacks
-- ENG-03: Engine supports category filtering (skip set)
-- ENG-04: CLI refactored to use engine (no behavior change)
-- PROTO-01: NDJSON request/response protocol with request IDs
-- PROTO-02: Methods: scan, cleanup, categories, ping, shutdown
-- PROTO-03: Scan method streams per-scanner progress events, then final result
-- PROTO-04: Cleanup method streams per-entry progress events, then final result
-- PROTO-05: Categories method returns available scanners with metadata
-- SRV-01: Unix domain socket listener with graceful shutdown
-- SRV-02: `serve` cobra subcommand with `--socket` flag
-- SRV-03: Single-connection handling (reject concurrent operations)
-- SRV-04: Socket file cleanup on shutdown and stale socket detection on startup
-- HARD-01: Client disconnect during scan/cleanup handled gracefully
-- HARD-02: Connection timeout and keep-alive
-- HARD-03: Cleanup requests validated against prior scan results (replay protection)
+(None — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -57,26 +58,26 @@ Users can safely and confidently reclaim disk space without worrying about delet
 - Time Machine snapshot deletion — macOS manages automatically
 - Malware detection — different problem domain
 
-## Current Milestone: v1.1 — Swift Integration (Server Mode)
-
-**Goal:** Add a Unix domain socket server mode (`mac-cleaner serve`) so a native Swift macOS app can control scanning and cleanup with real-time streaming progress, while keeping the CLI fully standalone.
-
-**Architecture:** Single binary, two modes — CLI (unchanged) and IPC server via UDS with NDJSON protocol. Engine layer decouples scan/cleanup orchestration from cobra. Proven pattern used by Tailscale in production.
-
-**Phases:** 8-11 (Engine Extraction → Protocol & Server Core → Scan & Cleanup Handlers → Hardening & Documentation)
-
 ## Context
 
-Shipped v1.0 with 4,442 LOC Go.
+Shipped v1.1 with 10,572 LOC Go (up from 4,442 at v1.0).
 Tech stack: Go, Cobra CLI, fatih/color for terminal output, tabwriter for formatting.
 Binary name: `mac-cleaner` (project directory is `mac-cleaner`).
-All 27 v1 requirements shipped across 7 phases and 13 plans in ~4.3 hours.
+
+v1.0: 13 requirements shipped across 7 phases and 13 plans (~4.3 hours).
+v1.1: 16 requirements shipped across 4 phases and 5 plans (2 days).
+
+**Architecture:** Single binary, two modes — CLI (interactive/flag-based) and IPC server via Unix domain socket with NDJSON protocol. Engine layer decouples scan/cleanup orchestration for reuse by both CLI and server.
 
 **Cleaning categories:**
 - System caches: ~/Library/Caches, ~/Library/Logs, QuickLook thumbnails
 - Browser data: Safari, Chrome (multi-profile), Firefox
 - Developer caches: Xcode DerivedData, npm, yarn, Homebrew, Docker
 - App leftovers: Orphaned preferences, iOS backups, old Downloads (90-day threshold)
+
+**Known tech debt:**
+- Minor doc inaccuracy: swift-integration.md token lifecycle description (low severity)
+- 90-day hardcoded download age threshold (revisit when configurability needed)
 
 ## Constraints
 
@@ -105,6 +106,10 @@ All 27 v1 requirements shipped across 7 phases and 13 plans in ~4.3 hours.
 | NDJSON protocol | Simple, streamable, debuggable with standard tools (socat/netcat) | ✓ Good |
 | Engine layer between CLI and scanners | Decouples orchestration for reuse by both CLI and server | ✓ Good |
 | Single-connection server | Simplifies state management; macOS app is sole client | ✓ Good |
+| Sequential scanner execution | Matches CLI behavior; concurrent can be added without API change | ✓ Good |
+| Single-token store | New scan invalidates previous; avoids memory leak | ✓ Good |
+| IdleTimeout as public struct field | Test override flexibility vs constructor param | ✓ Good |
+| Cleanup continues on disconnect | Partially-deleted state worse than completing the operation | ✓ Good |
 
 ---
-*Last updated: 2026-02-16 after v1.1 milestone setup*
+*Last updated: 2026-02-17 after v1.1 milestone*

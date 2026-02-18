@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"github.com/sp3esu/mac-cleaner/internal/safety"
 	"github.com/sp3esu/mac-cleaner/pkg/appleftovers"
 	"github.com/sp3esu/mac-cleaner/pkg/browser"
 	"github.com/sp3esu/mac-cleaner/pkg/creative"
@@ -34,6 +35,12 @@ func RegisterDefaults(e *Engine) {
 		Name:        "System Caches",
 		Description: "User caches, logs, and QuickLook thumbnails",
 		CategoryIDs: []string{"system-caches", "system-logs", "quicklook"},
+		SkipFlag:    "system-caches",
+		SubCategories: []SubCategoryInfo{
+			{ID: "system-caches", Label: "User App Caches", SkipFlag: "", RiskLevel: safety.RiskForCategory("system-caches")},
+			{ID: "system-logs", Label: "User Logs", SkipFlag: "", RiskLevel: safety.RiskForCategory("system-logs")},
+			{ID: "quicklook", Label: "QuickLook Thumbnails", SkipFlag: "quicklook", RiskLevel: safety.RiskForCategory("quicklook")},
+		},
 	}, system.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -41,6 +48,12 @@ func RegisterDefaults(e *Engine) {
 		Name:        "Browser Data",
 		Description: "Safari, Chrome, and Firefox caches",
 		CategoryIDs: []string{"browser-safari", "browser-chrome", "browser-firefox"},
+		SkipFlag:    "browser-data",
+		SubCategories: []SubCategoryInfo{
+			{ID: "browser-safari", Label: "Safari Cache", SkipFlag: "safari", RiskLevel: safety.RiskForCategory("browser-safari")},
+			{ID: "browser-chrome", Label: "Chrome Cache", SkipFlag: "chrome", RiskLevel: safety.RiskForCategory("browser-chrome")},
+			{ID: "browser-firefox", Label: "Firefox Cache", SkipFlag: "firefox", RiskLevel: safety.RiskForCategory("browser-firefox")},
+		},
 	}, browser.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -53,6 +66,22 @@ func RegisterDefaults(e *Engine) {
 			"dev-simulator-caches", "dev-simulator-logs",
 			"dev-xcode-device-support", "dev-xcode-archives",
 		},
+		SkipFlag: "dev-caches",
+		SubCategories: []SubCategoryInfo{
+			{ID: "dev-xcode", Label: "Xcode DerivedData", SkipFlag: "derived-data", RiskLevel: safety.RiskForCategory("dev-xcode")},
+			{ID: "dev-npm", Label: "npm Cache", SkipFlag: "npm", RiskLevel: safety.RiskForCategory("dev-npm")},
+			{ID: "dev-yarn", Label: "Yarn Cache", SkipFlag: "yarn", RiskLevel: safety.RiskForCategory("dev-yarn")},
+			{ID: "dev-homebrew", Label: "Homebrew Cache", SkipFlag: "homebrew", RiskLevel: safety.RiskForCategory("dev-homebrew")},
+			{ID: "dev-docker", Label: "Docker Reclaimable Space", SkipFlag: "docker", RiskLevel: safety.RiskForCategory("dev-docker")},
+			{ID: "dev-pnpm", Label: "pnpm Store", SkipFlag: "pnpm", RiskLevel: safety.RiskForCategory("dev-pnpm")},
+			{ID: "dev-cocoapods", Label: "CocoaPods Cache", SkipFlag: "cocoapods", RiskLevel: safety.RiskForCategory("dev-cocoapods")},
+			{ID: "dev-gradle", Label: "Gradle Cache", SkipFlag: "gradle", RiskLevel: safety.RiskForCategory("dev-gradle")},
+			{ID: "dev-pip", Label: "pip Cache", SkipFlag: "pip", RiskLevel: safety.RiskForCategory("dev-pip")},
+			{ID: "dev-simulator-caches", Label: "iOS Simulator Caches", SkipFlag: "simulator-caches", RiskLevel: safety.RiskForCategory("dev-simulator-caches")},
+			{ID: "dev-simulator-logs", Label: "iOS Simulator Logs", SkipFlag: "simulator-logs", RiskLevel: safety.RiskForCategory("dev-simulator-logs")},
+			{ID: "dev-xcode-device-support", Label: "Xcode Device Support Files", SkipFlag: "xcode-device-support", RiskLevel: safety.RiskForCategory("dev-xcode-device-support")},
+			{ID: "dev-xcode-archives", Label: "Xcode Archives", SkipFlag: "xcode-archives", RiskLevel: safety.RiskForCategory("dev-xcode-archives")},
+		},
 	}, developer.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -60,6 +89,12 @@ func RegisterDefaults(e *Engine) {
 		Name:        "App Leftovers",
 		Description: "Orphaned preferences, iOS backups, and old Downloads",
 		CategoryIDs: []string{"app-orphaned-prefs", "app-ios-backups", "app-old-downloads"},
+		SkipFlag:    "app-leftovers",
+		SubCategories: []SubCategoryInfo{
+			{ID: "app-orphaned-prefs", Label: "Orphaned Preferences", SkipFlag: "orphaned-prefs", RiskLevel: safety.RiskForCategory("app-orphaned-prefs")},
+			{ID: "app-ios-backups", Label: "iOS Device Backups", SkipFlag: "ios-backups", RiskLevel: safety.RiskForCategory("app-ios-backups")},
+			{ID: "app-old-downloads", Label: "Old Downloads Files", SkipFlag: "old-downloads", RiskLevel: safety.RiskForCategory("app-old-downloads")},
+		},
 	}, appleftovers.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -67,6 +102,13 @@ func RegisterDefaults(e *Engine) {
 		Name:        "Creative App Caches",
 		Description: "Adobe, Sketch, and Figma caches",
 		CategoryIDs: []string{"creative-adobe", "creative-adobe-media", "creative-sketch", "creative-figma"},
+		SkipFlag:    "creative-caches",
+		SubCategories: []SubCategoryInfo{
+			{ID: "creative-adobe", Label: "Adobe Caches", SkipFlag: "adobe", RiskLevel: safety.RiskForCategory("creative-adobe")},
+			{ID: "creative-adobe-media", Label: "Adobe Media Caches", SkipFlag: "adobe-media", RiskLevel: safety.RiskForCategory("creative-adobe-media")},
+			{ID: "creative-sketch", Label: "Sketch Cache", SkipFlag: "sketch", RiskLevel: safety.RiskForCategory("creative-sketch")},
+			{ID: "creative-figma", Label: "Figma Cache", SkipFlag: "figma", RiskLevel: safety.RiskForCategory("creative-figma")},
+		},
 	}, creative.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -74,6 +116,13 @@ func RegisterDefaults(e *Engine) {
 		Name:        "Messaging App Caches",
 		Description: "Slack, Discord, Teams, and Zoom caches",
 		CategoryIDs: []string{"msg-slack", "msg-discord", "msg-teams", "msg-zoom"},
+		SkipFlag:    "messaging-caches",
+		SubCategories: []SubCategoryInfo{
+			{ID: "msg-slack", Label: "Slack Cache", SkipFlag: "slack", RiskLevel: safety.RiskForCategory("msg-slack")},
+			{ID: "msg-discord", Label: "Discord Cache", SkipFlag: "discord", RiskLevel: safety.RiskForCategory("msg-discord")},
+			{ID: "msg-teams", Label: "Microsoft Teams Cache", SkipFlag: "teams", RiskLevel: safety.RiskForCategory("msg-teams")},
+			{ID: "msg-zoom", Label: "Zoom Cache", SkipFlag: "zoom", RiskLevel: safety.RiskForCategory("msg-zoom")},
+		},
 	}, messaging.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -81,6 +130,13 @@ func RegisterDefaults(e *Engine) {
 		Name:        "Photos & Media Analysis Caches",
 		Description: "Photos app caches, ML analysis data, iCloud sync cache, and Messages shared photos",
 		CategoryIDs: []string{"photos-caches", "photos-analysis", "photos-icloud-cache", "photos-syndication"},
+		SkipFlag:    "photos",
+		SubCategories: []SubCategoryInfo{
+			{ID: "photos-caches", Label: "Photos App Caches", SkipFlag: "photos-caches", RiskLevel: safety.RiskForCategory("photos-caches")},
+			{ID: "photos-analysis", Label: "Photos Analysis Caches", SkipFlag: "photos-analysis", RiskLevel: safety.RiskForCategory("photos-analysis")},
+			{ID: "photos-icloud-cache", Label: "iCloud Photos Sync Cache", SkipFlag: "photos-icloud-cache", RiskLevel: safety.RiskForCategory("photos-icloud-cache")},
+			{ID: "photos-syndication", Label: "Messages Shared Photos", SkipFlag: "photos-syndication", RiskLevel: safety.RiskForCategory("photos-syndication")},
+		},
 	}, photos.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -88,6 +144,10 @@ func RegisterDefaults(e *Engine) {
 		Name:        "Unused Applications",
 		Description: "Applications not opened in 180+ days",
 		CategoryIDs: []string{"unused-apps"},
+		SkipFlag:    "unused-apps",
+		SubCategories: []SubCategoryInfo{
+			{ID: "unused-apps", Label: "Applications Not Opened in 180+ Days", SkipFlag: "", RiskLevel: safety.RiskForCategory("unused-apps")},
+		},
 	}, unused.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
@@ -98,6 +158,18 @@ func RegisterDefaults(e *Engine) {
 			"sysdata-spotlight", "sysdata-mail", "sysdata-mail-downloads",
 			"sysdata-messages", "sysdata-ios-updates", "sysdata-timemachine",
 			"sysdata-vm-parallels", "sysdata-vm-utm", "sysdata-vm-vmware",
+		},
+		SkipFlag: "system-data",
+		SubCategories: []SubCategoryInfo{
+			{ID: "sysdata-spotlight", Label: "CoreSpotlight Metadata", SkipFlag: "spotlight", RiskLevel: safety.RiskForCategory("sysdata-spotlight")},
+			{ID: "sysdata-mail", Label: "Mail Database", SkipFlag: "mail", RiskLevel: safety.RiskForCategory("sysdata-mail")},
+			{ID: "sysdata-mail-downloads", Label: "Mail Attachment Cache", SkipFlag: "mail-downloads", RiskLevel: safety.RiskForCategory("sysdata-mail-downloads")},
+			{ID: "sysdata-messages", Label: "Messages Attachments", SkipFlag: "messages", RiskLevel: safety.RiskForCategory("sysdata-messages")},
+			{ID: "sysdata-ios-updates", Label: "iOS Software Updates", SkipFlag: "ios-updates", RiskLevel: safety.RiskForCategory("sysdata-ios-updates")},
+			{ID: "sysdata-timemachine", Label: "Time Machine Local Snapshots", SkipFlag: "timemachine", RiskLevel: safety.RiskForCategory("sysdata-timemachine")},
+			{ID: "sysdata-vm-parallels", Label: "Parallels VMs", SkipFlag: "vm-parallels", RiskLevel: safety.RiskForCategory("sysdata-vm-parallels")},
+			{ID: "sysdata-vm-utm", Label: "UTM VMs", SkipFlag: "vm-utm", RiskLevel: safety.RiskForCategory("sysdata-vm-utm")},
+			{ID: "sysdata-vm-vmware", Label: "VMware Fusion VMs", SkipFlag: "vm-vmware", RiskLevel: safety.RiskForCategory("sysdata-vm-vmware")},
 		},
 	}, systemdata.Scan))
 }

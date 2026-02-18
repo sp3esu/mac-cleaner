@@ -27,10 +27,21 @@ type ScanResult struct {
 // We reuse the scan package types directly via the engine results.
 type scanResultCategory = interface{}
 
-// CategoryInfo describes an available scanner group.
+// CategoryInfo describes an available scanner group with enriched sub-category data.
 type CategoryInfo struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
+	ID          string        `json:"id"`
+	Label       string        `json:"label"`
+	Description string        `json:"description"`
+	SkipFlag    string        `json:"skip_flag"`
+	Categories  []SubCategory `json:"categories"`
+}
+
+// SubCategory describes a sub-category within a scanner group.
+type SubCategory struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	SkipFlag  string `json:"skip_flag"`
+	RiskLevel string `json:"risk_level"`
 }
 
 // CategoriesResult is the result of a categories request.
@@ -112,7 +123,22 @@ func (h *Handler) handleCategories(req Request, w *NDJSONWriter) {
 	infos := h.server.engine.Categories()
 	cats := make([]CategoryInfo, len(infos))
 	for i, info := range infos {
-		cats[i] = CategoryInfo{ID: info.ID, Label: info.Name}
+		subs := make([]SubCategory, len(info.SubCategories))
+		for j, sub := range info.SubCategories {
+			subs[j] = SubCategory{
+				ID:        sub.ID,
+				Label:     sub.Label,
+				SkipFlag:  sub.SkipFlag,
+				RiskLevel: sub.RiskLevel,
+			}
+		}
+		cats[i] = CategoryInfo{
+			ID:          info.ID,
+			Label:       info.Name,
+			Description: info.Description,
+			SkipFlag:    info.SkipFlag,
+			Categories:  subs,
+		}
 	}
 	_ = w.WriteResult(req.ID, CategoriesResult{Scanners: cats})
 }

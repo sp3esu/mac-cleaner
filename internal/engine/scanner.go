@@ -4,6 +4,21 @@ package engine
 
 import "github.com/sp3esu/mac-cleaner/internal/scan"
 
+// SubCategoryInfo holds metadata about a single sub-category within a
+// scanner group. It is used by the server's "categories" response to
+// provide rich per-category data to clients.
+type SubCategoryInfo struct {
+	// ID is the category identifier (e.g. "system-caches", "browser-chrome").
+	ID string
+	// Label is a human-readable display name (e.g. "User App Caches").
+	Label string
+	// SkipFlag is the individual skip flag name (e.g. "chrome").
+	// Empty string if no individual skip flag exists.
+	SkipFlag string
+	// RiskLevel is the deletion risk ("safe", "moderate", "risky").
+	RiskLevel string
+}
+
 // ScannerInfo holds metadata about a scanner group. It provides the
 // information needed by the server's "categories" method without extra
 // mapping.
@@ -16,6 +31,10 @@ type ScannerInfo struct {
 	Description string
 	// CategoryIDs lists the category identifiers this scanner can produce.
 	CategoryIDs []string
+	// SkipFlag is the group-level skip flag name (e.g. "system-caches").
+	SkipFlag string
+	// SubCategories provides rich metadata for each sub-category.
+	SubCategories []SubCategoryInfo
 	// RiskLevel is the dominant risk level for the group (may be empty
 	// when risk is per-category rather than per-group).
 	RiskLevel string

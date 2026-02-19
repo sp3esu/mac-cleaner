@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/sp3esu/mac-cleaner/internal/engine"
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
 // ScanProgress is a progress event streamed during scanning.
@@ -101,6 +102,13 @@ func (h *Handler) handleScan(ctx context.Context, req Request, w *NDJSONWriter) 
 	// If client disconnected during scan, don't bother with final result.
 	if ctx.Err() != nil {
 		return
+	}
+
+	// Normalize nil slices to empty arrays so JSON encodes [] not null.
+	for i := range result.Results {
+		if result.Results[i].Entries == nil {
+			result.Results[i].Entries = []scan.ScanEntry{}
+		}
 	}
 
 	var totalSize int64

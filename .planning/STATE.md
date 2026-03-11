@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-03-11T19:32:25.839Z"
-last_activity: 2026-03-11 — Completed 12-02 CLI integration for project caches
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-03-11T19:48:03Z"
+last_activity: 2026-03-11 — Completed 13-01 Walk OnFile extension and home directory file scanner
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 2
-  completed_plans: 2
-  percent: 86
+  completed_plans: 3
+  percent: 90
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-11)
 
 **Core value:** Users can safely and confidently reclaim disk space without worrying about deleting something important
-**Current focus:** Phase 12 - Project Cache Scanning
+**Current focus:** Phase 13 - Home Directory File Scanning
 
 ## Current Position
 
-Phase: 12 of 14 (Project Cache Scanning)
-Plan: 2 of 3 in current phase
-Status: Executing phase 12
-Last activity: 2026-03-11 — Completed 12-02 CLI integration for project caches
+Phase: 13 of 14 (Home Directory File Scanning)
+Plan: 1 of 2 in current phase
+Status: Executing phase 13
+Last activity: 2026-03-11 — Completed 13-01 Walk OnFile extension and home directory file scanner
 
-Progress: [==================..] ~86% overall (20/? plans, phases 1-11 complete)
+Progress: [==================..] ~90% overall (21/? plans, phases 1-11 complete)
 
 ## Phase Overview
 
@@ -39,13 +39,13 @@ Progress: [==================..] ~86% overall (20/? plans, phases 1-11 complete)
 | 1-7 | v1.0 MVP | Complete (13 plans) |
 | 8-11 | v1.1 Swift Integration | Complete (5 plans) |
 | 12 | v1.7.0 Extended Scanning | In progress (2/3 plans) |
-| 13 | v1.7.0 Extended Scanning | Not started |
+| 13 | v1.7.0 Extended Scanning | In progress (1/2 plans) |
 | 14 | v1.7.0 Extended Scanning | Not started |
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
+- Total plans completed: 21
 - v1.0: 13 plans in ~4.3 hours
 - v1.1: 5 plans in 2 days
 
@@ -59,8 +59,10 @@ Recent decisions affecting current work:
 - v1.7.0: Three new scanning categories (project caches, home files, git repos) with shared walk utility
 - Research recommends building walk utility inside Phase 12, reused by Phases 13-14
 - Walk uses filepath.WalkDir with OnDir callback; dotfile dirs skipped at depth 1 only
+- Walk extended with OnFile callback (nil-safe, same depth/exclusion semantics as OnDir)
 - Python venv: two projectType entries (venv/.venv) sharing proj-python category
 - Project caches group placed after dev-caches in scanGroups; all 5 types get scan+skip flags
+- formatAge duplicated from pkg/projects to pkg/homedir to avoid import cycle
 
 ### Research Flags
 
@@ -77,10 +79,10 @@ None. All packages compile and all tests pass.
 
 ## Session Continuity
 
-Last session: 2026-03-11T19:30:32Z
-Stopped at: Completed 12-02-PLAN.md
-Resume file: .planning/phases/12-project-cache-scanning/12-02-SUMMARY.md
+Last session: 2026-03-11T19:48:03Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: .planning/phases/13-home-directory-file-scanning/13-01-SUMMARY.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-03-11 (12-02 CLI integration for project caches complete)*
+*Last updated: 2026-03-11 (13-01 Walk OnFile and home directory file scanner complete)*

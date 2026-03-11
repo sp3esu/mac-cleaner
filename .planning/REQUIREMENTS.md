@@ -27,9 +27,9 @@ Requirements for extended scanning milestone. Each maps to roadmap phases.
 
 ### Home Directory Files
 
-- [ ] **HOME-01**: User can scan for large files (default 100MB+) in home directory
-- [ ] **HOME-02**: User can scan for old files (default 180+ days) in home directory
-- [ ] **HOME-03**: Scanner excludes ~/Library, ~/Applications, ~/.Trash, ~/Downloads, and dotfile directories to avoid overlap
+- [x] **HOME-01**: User can scan for large files (default 100MB+) in home directory
+- [x] **HOME-02**: User can scan for old files (default 180+ days) in home directory
+- [x] **HOME-03**: Scanner excludes ~/Library, ~/Applications, ~/.Trash, ~/Downloads, and dotfile directories to avoid overlap
 
 ## Future Requirements
 
@@ -75,9 +75,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GIT-02 | Phase 14 | Pending |
 | GIT-03 | Phase 14 | Pending |
 | GIT-04 | Phase 14 | Pending |
-| HOME-01 | Phase 13 | Pending |
-| HOME-02 | Phase 13 | Pending |
-| HOME-03 | Phase 13 | Pending |
+| HOME-01 | Phase 13 | Complete |
+| HOME-02 | Phase 13 | Complete |
+| HOME-03 | Phase 13 | Complete |
 
 **Coverage:**
 - v1.7.0 requirements: 15 total

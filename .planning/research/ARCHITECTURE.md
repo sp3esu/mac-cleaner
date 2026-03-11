@@ -1,785 +1,433 @@
-# Architecture Patterns: macOS Disk Cleaning CLI Tool
+# Architecture Patterns
 
-**Domain:** macOS disk cleaning CLI tools
-**Researched:** 2026-02-16
-**Confidence:** MEDIUM-HIGH
+**Domain:** Extended scanning for macOS disk cleaner -- home directory files, project caches, git repo management
+**Researched:** 2026-03-11
+**Confidence:** HIGH (based on direct codebase analysis of existing architecture)
 
 ## Recommended Architecture
 
-The standard architecture for macOS disk cleaning CLI tools follows a **layered, component-based design** with clear separation between scanning, analysis, user interaction, and cleanup operations.
+The three new features map cleanly onto the existing scanner architecture with **two new scanner packages** and **one extension to an existing package**. No changes to the engine, scan types, or safety core are required -- the existing interfaces and patterns accommodate all three features.
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│                      CLI Entry Layer                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
-│  │ Flag Parser  │  │ Interactive  │  │  JSON Output │        │
-│  │  (--all)     │  │ Mode Handler │  │   Handler    │        │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘        │
-└─────────┼──────────────────┼──────────────────┼───────────────┘
-          │                  │                  │
-          └──────────────────┴──────────────────┘
-                             │
-┌───────────────────────────────────────────────────────────────┐
-│                     Orchestration Layer                        │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │               Execution Controller                      │   │
-│  │  - Mode detection (interactive vs flag-based)          │   │
-│  │  - Workflow coordination (scan → report → clean)       │   │
-│  │  - Dry-run / Skip flag handling                        │   │
-│  └──────┬──────────────────────────┬──────────────────────┘   │
-└─────────┼──────────────────────────┼───────────────────────────┘
-          │                          │
-          ▼                          ▼
-┌─────────────────────┐    ┌─────────────────────┐
-│   Scanner Layer     │    │   Reporter Layer    │
-│                     │    │                     │
-│  ┌──────────────┐   │    │  ┌──────────────┐  │
-│  │ Path Scanner │   │    │  │ Size Calc    │  │
-│  │ - Parallel   │   │    │  │ - Formatter  │  │
-│  │ - Async I/O  │   │    │  │ - Summary    │  │
-│  └──────┬───────┘   │    │  └──────────────┘  │
-│         │           │    │                     │
-│  ┌──────▼───────┐   │    └─────────────────────┘
-│  │ Rule Matcher │   │
-│  │ - Categories │   │
-│  │ - Filters    │   │
-│  └──────┬───────┘   │
-│         │           │
-│  ┌──────▼───────┐   │
-│  │ Safety Check │   │
-│  │ - SIP paths  │   │
-│  │ - Risk level │   │
-│  └──────────────┘   │
-└─────────┬───────────┘
-          │
-          │ (scan results)
-          │
-┌─────────▼─────────────────┐    ┌────────────────────────┐
-│   Confirmation Layer      │    │    Cleaner Layer       │
-│                           │    │                        │
-│  ┌────────────────────┐   │    │  ┌─────────────────┐  │
-│  │ Interactive Prompt │───┼───▶│  │ Trash Handler   │  │
-│  │ - Category select  │   │    │  │ - System API    │  │
-│  │ - Item select      │   │    │  └─────────────────┘  │
-│  └────────────────────┘   │    │                        │
-│                           │    │  ┌─────────────────┐  │
-│  ┌────────────────────┐   │    │  │ Direct Delete   │  │
-│  │ Auto-confirm       │───┼───▶│  │ - fs.unlink     │  │
-│  │ - Flag-based       │   │    │  └─────────────────┘  │
-│  └────────────────────┘   │    │                        │
-└───────────────────────────┘    │  ┌─────────────────┐  │
-                                 │  │ External Tools  │  │
-                                 │  │ - brew cleanup  │  │
-                                 │  │ - docker prune  │  │
-                                 │  └─────────────────┘  │
-                                 └────────────────────────┘
-                                           │
-                                           ▼
-                                  ┌─────────────────┐
-                                  │  Summary Layer  │
-                                  │  - Stats        │
-                                  │  - Errors       │
-                                  └─────────────────┘
-```
+### New vs Modified Components
+
+| Component | Status | What Changes |
+|-----------|--------|-------------|
+| `pkg/homedir/` | **NEW** | Home directory large/old file scanner |
+| `pkg/projectcache/` | **NEW** | Project build artifact scanner |
+| `pkg/developer/scanner.go` | **MODIFIED** | Add git repo cache scanning functions |
+| `internal/scan/walk.go` | **NEW** | Depth-limited directory walk helper |
+| `internal/engine/registry.go` | **MODIFIED** | Register two new scanners, extend developer scanner info |
+| `internal/safety/risk.go` | **MODIFIED** | Add risk mappings for new category IDs |
+| `internal/cleanup/cleanup.go` | **MODIFIED** | Add `git-gc:` pseudo-path handler |
+| `cmd/categories.go` | **MODIFIED** | Add new group/category definitions and flag variables |
+| `cmd/scan.go` | **MODIFIED** | Wire new flags |
+| `cmd/root.go` | **MODIFIED** | Wire new skip/group flags |
+| `internal/scan/types.go` | **NO CHANGE** | Existing types sufficient |
+| `internal/scan/helpers.go` | **NO CHANGE** | Existing helpers sufficient |
+| `internal/engine/engine.go` | **NO CHANGE** | Existing ScanAll/Cleanup flow works |
+| `internal/engine/scanner.go` | **NO CHANGE** | Scanner interface unchanged |
 
 ### Component Boundaries
 
 | Component | Responsibility | Communicates With |
-|-----------|----------------|-------------------|
-| **CLI Entry Layer** | Parse flags, detect mode, route to appropriate handler | Orchestration Layer |
-| **Orchestration Controller** | Coordinate workflow, handle dry-run, manage skip flags | All layers below |
-| **Scanner Layer** | Discover cleanable files, apply rules, perform safety checks | Orchestration, Reporter |
-| **Rule Matcher** | Match files against cleaning categories, apply filters | Scanner, Config |
-| **Safety Checker** | Validate paths against SIP, check risk levels | Scanner |
-| **Reporter Layer** | Calculate sizes, format output, generate summaries | Orchestration, Output handlers |
-| **Confirmation Layer** | Handle user prompts (interactive) or auto-confirm (flags) | Orchestration, Cleaner |
-| **Cleaner Layer** | Execute actual deletions via Trash, direct delete, or external tools | Confirmation, Summary |
-| **Summary Layer** | Aggregate results, report errors, show statistics | CLI Entry (output) |
+|-----------|---------------|-------------------|
+| `pkg/homedir/` | Walks ~/ finding large (>100MB) and old (>1yr) files, excludes known app dirs | `internal/scan`, `internal/safety` |
+| `pkg/projectcache/` | Finds `node_modules/`, `target/`, `.build/`, `.gradle/build/` etc. under ~/ | `internal/scan`, `internal/safety` |
+| `pkg/developer/` (extended) | Adds git repo detection: `.git/` dirs, measures repo size, estimates reclaimable space | `internal/scan`, `internal/safety`, `os/exec` for `git` CLI |
+| `internal/scan/walk.go` | Shared depth-limited directory walk utility | Used by `homedir` and `projectcache` |
+| `internal/cleanup/cleanup.go` | Extended to handle `git-gc:` pseudo-paths via git command execution | `os/exec` |
 
-## Recommended Project Structure
+## Feature 1: Home Directory File Scanning
+
+### Architecture Decision: Separate Package (`pkg/homedir/`)
+
+Create a new scanner package rather than extending `appleftovers` because:
+- Different scanning strategy: recursive file-level walk vs. directory-level inspection
+- Different risk profile: individual user files vs. app artifacts
+- Different category grouping in the CLI (own flag group)
+
+### Category Design
+
+| Category ID | Description | Risk | Rationale |
+|-------------|-------------|------|-----------|
+| `home-large-files` | Files >100MB in ~/ | `risky` | Could be important media, projects |
+| `home-old-files` | Files not modified in 1+ year, >10MB | `moderate` | Age suggests low value, but not certain |
+
+### Scan Strategy
 
 ```
-src/
-├── cli/                    # CLI entry and mode handling
-│   ├── index.ts           # Main entry point
-│   ├── parser.ts          # Flag/argument parsing
-│   └── modes/             # Mode handlers
-│       ├── interactive.ts # Interactive mode flow
-│       └── flags.ts       # Flag-based mode flow
-├── core/                  # Core business logic
-│   ├── orchestrator.ts    # Workflow coordination
-│   ├── scanner.ts         # File scanning engine
-│   ├── cleaner.ts         # Deletion operations
-│   └── reporter.ts        # Size calculation and formatting
-├── rules/                 # Cleaning rules and categories
-│   ├── index.ts           # Rule registry
-│   ├── system-caches.ts   # System cache rules
-│   ├── app-leftovers.ts   # App leftover rules
-│   ├── dev-caches.ts      # Developer cache rules
-│   └── browser-data.ts    # Browser data rules
-├── safety/                # Safety and validation
-│   ├── sip-checker.ts     # SIP path validation
-│   ├── risk-assessor.ts   # Risk level assessment
-│   └── path-validator.ts  # Path existence/permission checks
-├── ui/                    # User interaction
-│   ├── prompts.ts         # Interactive prompts (inquirer)
-│   ├── formatters.ts      # Output formatting
-│   └── progress.ts        # Progress indicators
-├── adapters/              # External integrations
-│   ├── trash.ts           # macOS Trash API
-│   ├── brew.ts            # Homebrew cleanup
-│   └── docker.ts          # Docker cleanup
-├── types/                 # TypeScript types
-│   ├── scan-result.ts     # Scan result types
-│   ├── clean-target.ts    # Cleaning target types
-│   └── config.ts          # Configuration types
-└── utils/                 # Utilities
-    ├── fs-async.ts        # Async filesystem helpers
-    ├── size-calculator.ts # Size calculation utilities
-    └── logger.ts          # Logging
+Walk ~/ with max depth limit (3-4 levels)
+  Skip: ~/Library, ~/Applications, ~/.Trash, hidden directories
+  Skip: directories already covered by other scanners
+  For each regular file:
+    - Large file check: size > 100MB threshold
+    - Old file check: mtime > 365 days AND size > 10MB (avoid noise)
+  Group into two CategoryResult sets
 ```
 
-### Structure Rationale
+### Key Design Decisions
 
-- **cli/**: Entry point isolation allows easy testing of business logic without CLI concerns
-- **core/**: Business logic separated from I/O concerns follows Clean Architecture principles
-- **rules/**: Organizing rules by category makes them easy to find, modify, and test independently
-- **safety/**: Critical safety logic isolated for thorough testing and auditing
-- **ui/**: All user interaction in one place, swappable for different UIs (TUI, GUI)
-- **adapters/**: External dependencies isolated for easy mocking and testing
+1. **Depth-limited walk, not full recursive**: Scanning all of ~/ recursively is slow and noisy. Limit to top 3-4 levels to catch the common case (large files in Documents, Desktop, Downloads).
+2. **Exclude known directories**: Skip `~/Library/`, `~/Applications/`, hidden directories, and directories already scanned by other scanners. Use a hardcoded exclude list.
+3. **Use `os.Lstat` not `os.Stat`**: Do not follow symlinks -- could lead outside ~/ and violate safety constraints.
+4. **Use mtime, not atime**: macOS APFS does not update `atime` by default (mounted with `noatime` since High Sierra). Use `mtime` (modification time) as the primary age signal. Document this limitation.
+5. **Minimum size for old files**: Require >10MB for "old files" to avoid noise from config files, dotfiles, etc. that are legitimately untouched.
+
+### Scanner Signature
+
+```go
+// pkg/homedir/scanner.go
+package homedir
+
+func Scan() ([]scan.CategoryResult, error)
+```
+
+Follows the exact same pattern as every other scanner. Returns 0-2 CategoryResult entries (large files, old files). Each ScanEntry is a single file path with its size.
+
+### Performance Concern
+
+Walking ~/ is the most expensive scan in the tool. Mitigations:
+- Depth limit (3-4 levels)
+- Directory exclusion list (skip Library, .git, node_modules, etc.)
+- Skip hidden directories by default (dotfiles rarely contain large individual files worth surfacing)
+- File count cap: stop adding entries after first 100 per category to avoid overwhelming output
+
+## Feature 2: Extended Project Caches
+
+### Architecture Decision: New Package (`pkg/projectcache/`)
+
+Separate from `pkg/developer/` because:
+- `developer/` scans well-known tool cache directories at fixed paths (e.g., `~/.npm`, `~/.gradle/caches`)
+- Project caches require *discovering* project roots under ~/ at variable paths
+- Different scan strategy: walk ~/ looking for marker files, then check for sibling build directories
+
+### Category Design
+
+| Category ID | Description | Risk | Rationale |
+|-------------|-------------|------|-----------|
+| `project-node-modules` | `node_modules/` directories in projects | `safe` | Fully reproducible from package.json + lock file |
+| `project-build-dirs` | `.build/`, `build/`, `dist/`, `out/` in projects | `moderate` | Usually reproducible, but custom artifacts possible |
+| `project-cargo-target` | `target/` in Rust projects | `safe` | Fully reproducible from Cargo.toml |
+| `project-venv` | `.venv/`, `venv/`, `.tox/` in Python projects | `moderate` | Reproducible but may contain local config |
+
+### Scan Strategy
+
+```
+Walk ~/ looking for project root markers (depth 1-4):
+  package.json        -> check for node_modules/ beside it
+  Cargo.toml          -> check for target/ beside it
+  Package.swift       -> check for .build/ beside it
+  setup.py/pyproject.toml -> check for .venv/, venv/, .tox/ beside it
+
+For each discovered project with matching build dir:
+  Size it with scan.DirSize()
+  Create ScanEntry with path = build dir, description = "project-name (type)"
+```
+
+### Key Design Decisions
+
+1. **Walk for markers, not for cache dirs directly**: Looking for `node_modules/` directly hits every nested `node_modules/` inside other `node_modules/`. Instead, walk looking for `package.json` at depth 1-4, then check if `node_modules/` exists beside it.
+2. **Do not recurse into build directories**: When a marker is found, check the sibling build dir but do not recurse further into that project. This avoids counting nested monorepo node_modules separately.
+3. **Each build-type produces one CategoryResult**: All `node_modules/` discoveries go into one `project-node-modules` CategoryResult with multiple entries. This mirrors how existing scanners work (e.g., `dev-xcode` has multiple DerivedData entries).
+4. **Exclude paths already covered by `developer` scanner**: Never report `~/.npm`, `~/.gradle/caches`, `~/Library/Caches/Homebrew`. Only report directories *inside project directories*.
+
+### Important: Avoid Double-Counting
+
+The existing `developer` scanner covers global caches (`~/.npm`, `~/.gradle/caches`, etc.). The project cache scanner covers *project-local* build artifacts (`node_modules/`, `target/`, `.build/`). These are complementary, not overlapping. Category descriptions make this explicit.
+
+## Feature 3: Git Repository Cache Management
+
+### Architecture Decision: Extend `pkg/developer/`
+
+Git caches are developer tooling. Adding to the existing developer scanner keeps related concerns together. The developer scanner already handles tools with external CLI dependencies (Docker via `docker system df`).
+
+### Category Design
+
+| Category ID | Description | Risk | Rationale |
+|-------------|-------------|------|-----------|
+| `dev-git-repos` | Large git repositories (>.5GB .git dir) | `moderate` | Informational only -- reports size, does not delete |
+| `dev-git-cleanup` | Reclaimable git space via gc/prune | `safe` | git gc is always safe, reclaims loose objects and old packs |
+
+### Two-Phase Design
+
+**Phase A: Discovery (scan)**
+Walk ~/ looking for `.git/` directories (depth-limited, reuse walk helper). For each:
+- Measure `.git/` directory size with `scan.DirSize()`
+- Only report repos where `.git/` > 500MB
+- Run `git -C <repo> count-objects -vH` to estimate reclaimable space (loose objects + garbage)
+- Create two kinds of entries: informational (dev-git-repos) and actionable (dev-git-cleanup)
+
+**Phase B: Cleanup**
+Git cleanup cannot use `os.RemoveAll` -- it requires running `git gc`. This introduces a new cleanup pattern using pseudo-paths.
+
+### Cleanup Architecture Extension
+
+The existing cleanup package uses `os.RemoveAll` for all filesystem paths and skips pseudo-paths (like `docker:BuildCache`). Git cleanup needs a similar pseudo-path approach:
+
+```go
+// ScanEntry for git cleanup:
+ScanEntry{
+    Path:        "git-gc:/Users/user/projects/my-repo",
+    Description: "my-repo (git gc)",
+    Size:        estimatedReclaimable,
+}
+```
+
+The cleanup package needs a new handler for `git-gc:` prefixed paths:
+
+```go
+// In internal/cleanup/cleanup.go, extend Execute():
+if strings.HasPrefix(entry.Path, "git-gc:") {
+    repoPath := strings.TrimPrefix(entry.Path, "git-gc:")
+    err := runGitGC(ctx, repoPath)
+    // handle result
+    continue
+}
+```
+
+This follows the existing Docker pseudo-path pattern (`docker:BuildCache`) but adds command execution instead of skipping. Use `exec.CommandContext` with timeout (60s per repo) for safety.
+
+### Key Design Decisions
+
+1. **Pseudo-path pattern for git gc**: Consistent with how Docker entries already work. The cleanup package already handles pseudo-paths -- this adds a new actionable prefix.
+2. **Separate "discovery" from "cleanup" categories**: `dev-git-repos` is informational (shows large repos, helps users understand disk usage). `dev-git-cleanup` is actionable (runs git gc). Users may want to see large repos without cleaning them.
+3. **Size threshold for reporting**: Only report repos with `.git/` > 500MB to avoid noise. Most repos are small and git gc would save negligible space.
+4. **Timeout on git gc**: Git gc on a large monorepo can take minutes. Use `exec.CommandContext` with a 60-second timeout per repo.
+5. **Never offer to delete repos**: The `dev-git-repos` category uses real paths but is marked informational. The `dev-git-cleanup` category uses `git-gc:` pseudo-paths. Neither triggers `os.RemoveAll` on the repo itself.
+6. **CmdRunner injection**: Reuse the existing `CmdRunner` pattern from developer scanner (used for Docker) to make git commands testable.
+
+### Git CLI Dependency
+
+Same pattern as Docker: check if `git` is available via `exec.LookPath("git")`, skip silently if not installed. Use `exec.CommandContext` with separate args (never shell invocation per security rules in CLAUDE.md).
 
 ## Data Flow
 
-### Scan → Report → Confirm → Clean → Summary Flow
+### Existing Flow (unchanged)
 
 ```
-User Command
-    │
-    ▼
-1. PARSE & ROUTE
-   ├─ Flag-based? → Extract flags (--all, --system-caches, --skip)
-   └─ Interactive? → Prepare prompt system
-    │
-    ▼
-2. SCAN PHASE
-   ├─ Load applicable rules based on flags/selection
-   ├─ Scan paths in parallel (ThreadPool/Promise.all)
-   ├─ Apply filters (--skip flags, SIP checks)
-   ├─ Calculate sizes
-   └─ Build ScanResult[]
-    │
-    ▼
-3. REPORT PHASE
-   ├─ Group by category
-   ├─ Calculate totals
-   ├─ Format for display/JSON
-   └─ Output results
-    │
-    ▼
-4. CONFIRMATION PHASE
-   ├─ Interactive: Show prompt, get user selection
-   ├─ Flag-based: Auto-confirm based on flags
-   └─ --dry-run: Skip to summary
-    │
-    ▼
-5. CLEAN PHASE
-   ├─ For each confirmed item:
-   │   ├─ Check permissions
-   │   ├─ Move to Trash OR direct delete OR external tool
-   │   └─ Record result (success/error)
-   └─ Parallel execution with rate limiting
-    │
-    ▼
-6. SUMMARY PHASE
-   ├─ Aggregate results
-   ├─ Calculate space freed
-   ├─ Report errors
-   └─ Exit with code (0 = success, 1 = errors)
+CLI/Server
+    |
+    v
+Engine.ScanAll()
+    |
+    v (sequential, per registered scanner)
+Scanner.Scan() -> []CategoryResult
+    |
+    v
+FilterSkipped() -> storeResults() -> ScanToken
+    |
+    v
+Engine.Cleanup(token) -> cleanup.Execute()
+    |
+    v
+os.RemoveAll(path) per entry  |  skip pseudo-paths (docker:*)
 ```
 
-### Interactive vs Flag-Based Mode Flow
+### Extended Flow (additions marked with +)
 
 ```
-Interactive Mode:
-  Parse → Scan all → Report → Prompt by category → Prompt by item → Clean → Summary
-
-Flag-Based Mode:
-  Parse → Apply flag filters → Scan filtered → Report → Auto-confirm → Clean → Summary
-
-Dry-Run Mode (both):
-  Parse → Scan → Report → Summary (skip clean)
+CLI/Server
+    |
+    v
+Engine.ScanAll()
+    |
+    v (sequential, per registered scanner)
+Scanner.Scan() -> []CategoryResult
+    + homedir.Scan()       -> home-large-files, home-old-files
+    + projectcache.Scan()  -> project-node-modules, project-build-dirs, ...
+    + developer.Scan()     -> ... + dev-git-repos, dev-git-cleanup
+    |
+    v
+FilterSkipped() -> storeResults() -> ScanToken
+    |
+    v
+Engine.Cleanup(token) -> cleanup.Execute()
+    |
+    v
++ if git-gc: prefix   -> runGitGC(repoPath)
+  if docker: prefix    -> skip (existing)
+  else                 -> os.RemoveAll(path)
 ```
 
-### Key Data Structures
+## Patterns to Follow
 
-```typescript
-// Flows through the system
-interface ScanResult {
-  path: string;
-  category: Category;
-  size: number;
-  riskLevel: 'safe' | 'moderate' | 'risky' | 'manual';
-  reason: string;  // Why this is cleanable
-}
+### Pattern 1: Scanner Adapter (existing, reuse exactly)
 
-interface CleanResult {
-  path: string;
-  success: boolean;
-  bytesFreed?: number;
-  error?: Error;
-  method: 'trash' | 'delete' | 'external';
-}
+Every scanner exports a `Scan() ([]scan.CategoryResult, error)` function. The engine wraps it via `NewScanner(info, fn)`. New scanners follow this exactly.
 
-interface Summary {
-  scanned: number;
-  selected: number;
-  cleaned: number;
-  bytesFreed: number;
-  errors: CleanResult[];
-  duration: number;
-}
-```
-
-## Architectural Patterns
-
-### Pattern 1: Rule-Based Scanning with Config Files
-
-**What:** Define cleaning targets in configuration files (JSON/TypeScript) rather than hardcoding paths in scanner logic.
-
-**When to use:** When you need flexibility to add new cleaning targets without code changes, or when different users might want different rules.
-
-**Trade-offs:**
-- **Pros:** Easy to extend, user-customizable, testable without code changes
-- **Cons:** Slightly more complex initial setup, config validation needed
-
-**Example:**
-```typescript
-// rules/system-caches.ts
-export const systemCacheRules: CleaningRule[] = [
-  {
-    category: 'system-caches',
-    paths: [
-      '~/Library/Caches/*',
-      '~/Library/Logs/*',
-    ],
-    exclude: [
-      '~/Library/Caches/com.apple.*',  // System-critical
-    ],
-    riskLevel: 'safe',
-    reason: 'System caches regenerate automatically',
-  },
-];
-
-// core/scanner.ts
-async function scan(rules: CleaningRule[]): Promise<ScanResult[]> {
-  const results: ScanResult[] = [];
-  for (const rule of rules) {
-    for (const pathPattern of rule.paths) {
-      const matches = await glob(pathPattern);
-      const filtered = matches.filter(p => !isExcluded(p, rule.exclude));
-      const checked = await Promise.all(
-        filtered.map(p => safetyCheck(p, rule.riskLevel))
-      );
-      results.push(...checked.filter(r => r.safe));
+```go
+// pkg/homedir/scanner.go
+func Scan() ([]scan.CategoryResult, error) {
+    home, err := os.UserHomeDir()
+    if err != nil {
+        return nil, fmt.Errorf("cannot determine home directory: %w", err)
     }
-  }
-  return results;
-}
-```
-
-**Recommendation:** Use config-based rules for mac-cleaner. Hardcoding is simpler initially but becomes maintenance burden. Plugin system is overkill for this scope.
-
-### Pattern 2: Safety-First Architecture with Multiple Validation Layers
-
-**What:** Apply multiple layers of safety checks before any deletion: SIP validation → Risk assessment → Permission check → User confirmation.
-
-**When to use:** Always, for any disk cleaning tool. User trust depends on safety.
-
-**Trade-offs:**
-- **Pros:** Prevents catastrophic mistakes, builds user trust
-- **Cons:** Adds some overhead, requires careful ordering
-
-**Example:**
-```typescript
-// safety/pipeline.ts
-async function validateForCleaning(path: string, riskLevel: RiskLevel): Promise<ValidationResult> {
-  // Layer 1: SIP protection check
-  if (isSIPProtected(path)) {
-    return { safe: false, reason: 'SIP-protected path' };
-  }
-
-  // Layer 2: Risk assessment
-  if (riskLevel === 'manual') {
-    return { safe: false, reason: 'Manual intervention required' };
-  }
-
-  // Layer 3: Permission check
-  if (!canAccess(path)) {
-    return { safe: false, reason: 'Insufficient permissions' };
-  }
-
-  // Layer 4: Path existence
-  if (!await exists(path)) {
-    return { safe: false, reason: 'Path does not exist' };
-  }
-
-  return { safe: true };
-}
-
-// Hardcoded SIP paths from official macOS documentation
-const SIP_PROTECTED_PATHS = [
-  '/System',
-  '/usr',      // except /usr/local
-  '/bin',
-  '/sbin',
-  '/var',
-];
-
-function isSIPProtected(path: string): boolean {
-  return SIP_PROTECTED_PATHS.some(p =>
-    path.startsWith(p) && !path.startsWith('/usr/local')
-  );
-}
-```
-
-### Pattern 3: Parallel Scanning with Controlled Concurrency
-
-**What:** Scan multiple paths concurrently using Promise.all or worker threads, but limit concurrency to avoid overwhelming the filesystem.
-
-**When to use:** For CLI tools scanning many directories. Essential for good UX.
-
-**Trade-offs:**
-- **Pros:** Much faster than sequential scanning (3-10x speedup observed in existing tools)
-- **Cons:** More complex error handling, need to manage resource limits
-
-**Example:**
-```typescript
-// core/scanner.ts with controlled concurrency
-import pLimit from 'p-limit';
-
-async function scanPaths(paths: string[], concurrency = 8): Promise<ScanResult[]> {
-  const limit = pLimit(concurrency);
-  const results = await Promise.all(
-    paths.map(path => limit(() => scanSinglePath(path)))
-  );
-  return results.flat();
-}
-
-async function scanSinglePath(path: string): Promise<ScanResult[]> {
-  try {
-    const stats = await fs.stat(path);
-    if (stats.isDirectory()) {
-      const entries = await fs.readdir(path);
-      return scanPaths(entries.map(e => join(path, e)));
+    var results []scan.CategoryResult
+    if cr := scanLargeFiles(home); cr != nil {
+        cr.SetRiskLevels(safety.RiskForCategory)
+        results = append(results, *cr)
     }
-    return [{
-      path,
-      size: stats.size,
-      // ... other fields
-    }];
-  } catch (error) {
-    // Log and continue - don't fail entire scan for one path
-    logger.warn(`Failed to scan ${path}:`, error);
-    return [];
-  }
+    if cr := scanOldFiles(home); cr != nil {
+        cr.SetRiskLevels(safety.RiskForCategory)
+        results = append(results, *cr)
+    }
+    return results, nil
 }
 ```
 
-### Pattern 4: Mode Detection and Adapter Pattern for UI
+### Pattern 2: Pseudo-Path Cleanup (existing, extend)
 
-**What:** Detect execution mode (interactive vs non-interactive) early and use different adapters for user interaction.
+Docker already uses `docker:Type` pseudo-paths that are skipped by cleanup. Git uses `git-gc:/path/to/repo` pseudo-paths that trigger `git gc` execution. The cleanup package dispatches based on prefix.
 
-**When to use:** For CLI tools supporting both interactive prompts and scriptable flag-based execution.
+### Pattern 3: External CLI with Timeout (existing in developer scanner, reuse)
 
-**Trade-offs:**
-- **Pros:** Clean separation, easy to test each mode independently
-- **Cons:** Slight duplication of logic between modes
+Developer scanner already uses `exec.CommandContext` with timeout for Docker. Git operations follow the same pattern with `CmdRunner` dependency injection for testability.
 
-**Example:**
-```typescript
-// cli/modes/detector.ts
-function detectMode(args: ParsedArgs): 'interactive' | 'flags' {
-  // If any cleaning flags specified, use flag-based mode
-  if (args.all || args.systemCaches || args.devCaches || args.browserData) {
-    return 'flags';
-  }
-  // If --json or CI environment, force non-interactive
-  if (args.json || process.env.CI) {
-    return 'flags';
-  }
-  // Default to interactive if TTY available
-  if (process.stdout.isTTY) {
-    return 'interactive';
-  }
-  return 'flags';
-}
-
-// cli/modes/interactive.ts
-async function runInteractive(orchestrator: Orchestrator) {
-  const scanResults = await orchestrator.scan();
-
-  // Group by category
-  const byCategory = groupBy(scanResults, r => r.category);
-
-  // Category selection
-  const selectedCategories = await prompts.multiselect({
-    message: 'Select categories to clean',
-    choices: Object.keys(byCategory).map(cat => ({
-      title: cat,
-      value: cat,
-      description: `${byCategory[cat].length} items, ${formatSize(totalSize(byCategory[cat]))}`,
-    })),
-  });
-
-  // Item selection within categories
-  for (const category of selectedCategories) {
-    const items = byCategory[category];
-    const selected = await prompts.multiselect({
-      message: `Select items in ${category}`,
-      choices: items.map(item => ({
-        title: basename(item.path),
-        value: item,
-        description: `${formatSize(item.size)} - ${item.reason}`,
-      })),
-    });
-    await orchestrator.clean(selected);
-  }
-
-  orchestrator.showSummary();
-}
-
-// cli/modes/flags.ts
-async function runFlagBased(orchestrator: Orchestrator, args: ParsedArgs) {
-  // Determine which categories to scan based on flags
-  const categories = [];
-  if (args.all || args.systemCaches) categories.push('system-caches');
-  if (args.all || args.devCaches) categories.push('dev-caches');
-  if (args.all || args.browserData) categories.push('browser-data');
-  if (args.all || args.appLeftovers) categories.push('app-leftovers');
-
-  const scanResults = await orchestrator.scanCategories(categories);
-
-  // Apply --skip filters
-  const filtered = applySkipFilters(scanResults, args.skip);
-
-  orchestrator.report(filtered);
-
-  if (!args.dryRun) {
-    await orchestrator.clean(filtered);
-  }
-
-  orchestrator.showSummary();
+```go
+func runGitGC(runner CmdRunner, repoPath string) error {
+    ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+    defer cancel()
+    _, err := runner(ctx, "git", "-C", repoPath, "gc", "--prune=now")
+    return err
 }
 ```
 
-### Pattern 5: Graceful Degradation for External Tools
+### Pattern 4: Depth-Limited Walk (new shared utility)
 
-**What:** For cleanup tasks requiring external tools (brew, docker), detect availability and gracefully skip if not installed.
+Neither `scan.ScanTopLevel` (single level) nor `scan.DirSize` (full recursive) supports depth-limited walking with exclusion. A new helper is needed:
 
-**When to use:** When integrating with optional tools that might not be present on all systems.
-
-**Trade-offs:**
-- **Pros:** Broader compatibility, better UX
-- **Cons:** Need to maintain detection logic
-
-**Example:**
-```typescript
-// adapters/brew.ts
-export class BrewAdapter {
-  private available?: boolean;
-
-  async isAvailable(): Promise<boolean> {
-    if (this.available !== undefined) return this.available;
-    try {
-      await exec('which brew');
-      this.available = true;
-    } catch {
-      this.available = false;
-    }
-    return this.available;
-  }
-
-  async cleanup(): Promise<CleanResult[]> {
-    if (!await this.isAvailable()) {
-      return [{
-        path: 'brew',
-        success: false,
-        error: new Error('Homebrew not installed'),
-        method: 'external',
-      }];
-    }
-
-    const output = await exec('brew cleanup --prune=all -s --dry-run');
-    // Parse output to estimate space savings
-    const size = parseBrewOutput(output);
-
-    if (!this.dryRun) {
-      await exec('brew cleanup --prune=all -s');
-    }
-
-    return [{
-      path: 'homebrew-cache',
-      success: true,
-      bytesFreed: size,
-      method: 'external',
-    }];
-  }
-}
+```go
+// internal/scan/walk.go (new file)
+// WalkDepthLimited walks a directory tree up to maxDepth levels deep,
+// calling fn for each entry. Depth 0 means root entries only.
+// The exclude set skips entire directory subtrees by base name.
+func WalkDepthLimited(root string, maxDepth int, exclude map[string]bool,
+    fn func(path string, d fs.DirEntry, depth int) error) error
 ```
 
-## Build Order and Component Dependencies
+Both `homedir` and `projectcache` scanners need depth-limited walks. This belongs in `internal/scan/` as a shared utility, consistent with `DirSize` and `ScanTopLevel` living there.
 
-### Recommended Build Order
+## Anti-Patterns to Avoid
 
-1. **Phase 1: Types & Core Models** (No dependencies)
-   - Define TypeScript types (ScanResult, CleanResult, Config)
-   - Minimal, can work alongside other phases
+### Anti-Pattern 1: Full Recursive Walk of ~/
 
-2. **Phase 2: Safety Layer** (Depends on: Types)
-   - SIP checker (hardcoded paths, pure logic)
-   - Risk assessor
-   - Path validator
-   - Can be built and tested in isolation
+**What:** Walking every file under ~/ with no depth limit or exclusions.
+**Why bad:** Can take 10+ minutes on a 500GB home directory. Walks through Library, .git object stores, nested node_modules -- all waste.
+**Instead:** Depth-limited walk (3-4 levels) with directory exclusion list.
 
-3. **Phase 3: Rules System** (Depends on: Types, Safety)
-   - Rule definitions for each category
-   - Rule registry
-   - Needs safety layer to validate paths
+### Anti-Pattern 2: Overlapping with Existing Scanners
 
-4. **Phase 4: Scanner** (Depends on: Types, Safety, Rules)
-   - File system scanning
-   - Rule matching
-   - Size calculation
-   - Core functionality, used by all modes
+**What:** Project cache scanner also reports `~/.npm`, `~/.gradle/caches`, etc.
+**Why bad:** Double-counting inflates reported savings. Users see duplicate entries and get confused.
+**Instead:** Project caches = project-local build artifacts only. Global caches stay in developer scanner. Explicitly exclude known global cache paths.
 
-5. **Phase 5: Reporter** (Depends on: Types, Scanner results)
-   - Formatting utilities
-   - Summary generation
-   - Can be built in parallel with Scanner if interfaces defined
+### Anti-Pattern 3: Offering to Delete Git Repos
 
-6. **Phase 6: Cleaner** (Depends on: Types, Safety)
-   - Trash integration
-   - Direct delete
-   - External tool adapters (brew, docker)
-   - Needs safety layer for validation
+**What:** `dev-git-repos` category entries have real filesystem paths, allowing `os.RemoveAll` to delete the entire repo.
+**Why bad:** Catastrophic data loss. Git repos contain irreplaceable local work (uncommitted changes, local branches, stashes).
+**Instead:** `dev-git-repos` is informational only (pseudo-path like `git-info:/path` or not included in cleanup). Only `dev-git-cleanup` is actionable, using `git-gc:` pseudo-paths that run `git gc`, not deletion.
 
-7. **Phase 7: UI Components** (Depends on: Types, Reporter)
-   - Prompts (interactive mode)
-   - Progress indicators
-   - Output formatters
-   - Can be built in parallel with Cleaner
+### Anti-Pattern 4: Relying on atime for "Old Files"
 
-8. **Phase 8: Orchestrator** (Depends on: Scanner, Cleaner, Reporter, UI)
-   - Workflow coordination
-   - Mode handling
-   - Dry-run logic
-   - Integrates all other components
+**What:** Using file access time to determine if a file is "old."
+**Why bad:** APFS on macOS does not update atime by default (`noatime` mount since High Sierra). Files appear "never accessed" even if used daily.
+**Instead:** Use mtime (modification time). Not perfect (files can be read without modification) but reliable on APFS.
 
-9. **Phase 9: CLI Entry** (Depends on: Orchestrator)
-   - Argument parsing
-   - Mode detection
-   - Entry point
-   - Final integration layer
+### Anti-Pattern 5: Creating New Engine/Scanner Interfaces
+
+**What:** Introducing new interfaces or registration patterns for the new scanners.
+**Why bad:** The existing `Scanner` interface, `NewScanner` adapter, and `RegisterDefaults` flow work perfectly. Adding complexity creates inconsistency.
+**Instead:** Follow the exact same registration pattern. New scanners are just more calls to `e.Register(NewScanner(...))` in `RegisterDefaults`.
+
+## Integration Checklist (Registration Points)
+
+Each new feature requires changes at exactly these points. This is the complete list -- no other files need modification:
+
+### For Each New Scanner Package (`homedir`, `projectcache`)
+
+1. **`pkg/<name>/scanner.go`** -- Implement `Scan() ([]scan.CategoryResult, error)`
+2. **`internal/safety/risk.go`** -- Add category IDs to `categoryRisk` map
+3. **`internal/engine/registry.go`** -- Add import and `e.Register(NewScanner(...))` call in `RegisterDefaults`
+4. **`cmd/categories.go`** -- Add flag variables, `groupDef` entry to `scanGroups` with `categoryDef` items
+5. **`cmd/scan.go`** -- Register cobra flags for new targeted scan flags
+6. **`cmd/root.go`** -- Register group-level `--<name>` and `--skip-<name>` flags
+7. **READMEs** -- Update all 6 README files (English + 5 translations)
+
+### For Git Scanner Extension (within `developer`)
+
+Same as above except:
+- Step 1 is modification of `pkg/developer/scanner.go` (not a new package)
+- Step 3 is modification of existing developer scanner info in `RegisterDefaults` (add new category IDs and subcategories)
+- Additional step: **`internal/cleanup/cleanup.go`** -- Add `git-gc:` pseudo-path handler with `exec.CommandContext`
+
+## Suggested Build Order
+
+Build in this order because each phase builds on the previous and can be tested independently.
+
+### Phase 1: Depth-Limited Walk Helper
+
+**What:** Add `WalkDepthLimited()` to `internal/scan/walk.go`
+**Why first:** Both Feature 1 (homedir) and Feature 2 (projectcache) depend on this. Small, well-defined, fully testable, no CLI changes needed.
+**Tests:** Unit tests with `t.TempDir()` -- nested dirs at various depths, exclusion behavior, edge cases
+**Touches:** `internal/scan/walk.go` (new file only)
+**Estimated complexity:** Low
+
+### Phase 2: Extended Project Caches (`pkg/projectcache/`)
+
+**What:** New scanner that finds project build artifacts (node_modules, target/, .build/, venv/)
+**Why before homedir:** Simpler scan logic (look for marker files, check sibling dirs). Establishes the depth-limited walk usage pattern. Results are highly actionable (always safe to delete reproducible build artifacts). Good validation that the walk helper works in practice.
+**Tests:** Scanner unit tests with mock project directory trees in `t.TempDir()`
+**Touches:** All 7 registration points listed above
+**Estimated complexity:** Medium
+
+### Phase 3: Home Directory File Scanning (`pkg/homedir/`)
+
+**What:** New scanner for large/old files in ~/
+**Why after project caches:** Reuses depth-limited walk (proven in Phase 2). Needs careful exclusion list that references project cache scanner's targets to avoid noise. More subjective thresholds (size, age) require more testing.
+**Tests:** Scanner unit tests, threshold edge cases, exclusion list coverage, mtime-based age tests
+**Touches:** All 7 registration points listed above
+**Estimated complexity:** Medium-High (exclusion logic, threshold tuning)
+
+### Phase 4: Git Repository Cache Management
+
+**What:** Extend developer scanner with git repo discovery + extend cleanup package with `git-gc:` handler
+**Why last:** Most architecturally distinct -- it is the only feature that modifies the cleanup package. Benefits from all prior patterns being established. The pseudo-path cleanup extension has the widest blast radius of all changes.
+**Tests:** Scanner tests (mock `.git/` dirs with known sizes), git gc handler tests (mock `CmdRunner`), integration tests verifying pseudo-path dispatch
+**Touches:** All 7 registration points + cleanup.go extension
+**Estimated complexity:** Medium-High (external CLI, cleanup extension, two related categories)
+
+### Phase Ordering Rationale
+
+- Phase 1 is a pure utility with no UI/CLI surface -- safe, isolated foundation
+- Phase 2 is the most straightforward new scanner -- validates the full registration pattern end-to-end
+- Phase 3 is more complex but uses the same skeleton as Phase 2, so learnings carry over
+- Phase 4 is architecturally distinct (cleanup extension) and should be last to minimize blast radius; all other scanners are proven working before touching cleanup
 
 ### Dependency Graph
 
 ```
-                         Types (1)
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-       Safety (2)       Rules (3)       Reporter (5)
-          │                │                │
-          └────────┬───────┴────────────────┘
-                   │
-              Scanner (4)
-                   │
-          ┌────────┴─────────┐
-          │                  │
-      Cleaner (6)        UI (7)
-          │                  │
-          └─────────┬────────┘
-                    │
-              Orchestrator (8)
-                    │
-              CLI Entry (9)
+Phase 1: internal/scan/walk.go
+    |
+    +---> Phase 2: pkg/projectcache/ + registration
+    |         |
+    +---> Phase 3: pkg/homedir/ + registration
+              |
+              +---> Phase 4: pkg/developer/ extension + cleanup extension
 ```
 
-### Critical Path
+Phases 2 and 3 are independent of each other (could theoretically be parallel), but sequential is safer for the registration-point changes which overlap in the same files.
 
-**Scanner → Orchestrator → CLI Entry** is the critical path. These must work together for basic functionality. Other components can be stubbed or simplified initially:
-- Safety checks can start with basic SIP validation
-- Cleaner can use simple delete initially, add Trash later
-- UI can be basic console.log initially, add prompts later
+## Scalability Considerations
 
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Scanning Before Parsing User Intent
-
-**What people do:** Scan all possible locations immediately on startup, then filter based on user selections.
-
-**Why it's wrong:**
-- Wastes time scanning paths the user didn't ask for
-- In flag-based mode (--system-caches only), you scan everything unnecessarily
-- Poor UX - user waits for full scan when they only wanted one category
-
-**Do this instead:**
-Parse flags/get user input first, then scan only requested categories. Load rules on-demand.
-
-```typescript
-// WRONG
-const allResults = await scanner.scanEverything();
-const filtered = allResults.filter(r => selectedCategories.includes(r.category));
-
-// RIGHT
-const rulesToApply = rules.filter(r => selectedCategories.includes(r.category));
-const results = await scanner.scan(rulesToApply);
-```
-
-### Anti-Pattern 2: Direct Deletion Without Trash
-
-**What people do:** Use `fs.unlink` or `rm -rf` for all deletions to avoid Trash API complexity.
-
-**Why it's wrong:**
-- No recovery path for users if something goes wrong
-- Violates user expectations (macOS users expect deletions to go to Trash)
-- High risk if safety checks fail
-
-**Do this instead:**
-Use macOS Trash API (via `trash` npm package) as default, direct delete only for specific cases with explicit warning.
-
-```typescript
-// Use trash for user-facing deletions
-import trash from 'trash';
-await trash(['/path/to/file']);
-
-// Direct delete only for:
-// - Explicitly requested (--force flag)
-// - Empty directories
-// - Known temp files that don't need recovery
-```
-
-### Anti-Pattern 3: Synchronous File Operations
-
-**What people do:** Use sync fs operations (`fs.statSync`, `fs.readdirSync`) for simplicity.
-
-**Why it's wrong:**
-- Blocks event loop during scanning
-- Prevents parallel execution
-- Poor performance on large directory trees
-
-**Do this instead:**
-Use async operations with controlled concurrency.
-
-### Anti-Pattern 4: Hardcoding All Paths in Scanner
-
-**What people do:** Put all cache paths directly in scanner code:
-```typescript
-const pathsToScan = [
-  '~/Library/Caches/Chrome',
-  '~/Library/Caches/Firefox',
-  // ... 100 more lines
-];
-```
-
-**Why it's wrong:**
-- Hard to maintain as apps change cache locations
-- Can't add new targets without code changes
-- Difficult to test individual categories
-- No way for users to customize
-
-**Do this instead:**
-Separate rule definitions from scanning logic (Pattern 1).
-
-### Anti-Pattern 5: Single-Pass Scanning and Cleaning
-
-**What people do:** Scan and delete in one pass to "optimize performance":
-```typescript
-for (const path of paths) {
-  if (shouldClean(path)) {
-    await delete(path);  // Deleting while scanning
-  }
-}
-```
-
-**Why it's wrong:**
-- Can't show "what would be cleaned" before cleaning
-- --dry-run becomes complicated
-- No opportunity for user review in interactive mode
-- Partial failures leave unclear state
-
-**Do this instead:**
-Always separate scan → report → confirm → clean phases, even in flag-based mode.
-
-## Integration Points
-
-### System APIs
-
-| API | Purpose | Implementation | Notes |
-|-----|---------|----------------|-------|
-| **macOS Trash** | Move files to Trash instead of permanent delete | Use `trash` npm package (wraps NSFileManager) | Requires Full Disk Access for some paths |
-| **File System** | Scan, stat, delete operations | Node.js `fs/promises` | Use async operations, handle ENOENT gracefully |
-| **Process Execution** | Run external commands (brew, docker) | Node.js `child_process.exec` with promisify | Parse stdout, handle non-zero exit codes |
-
-### External Tools (Optional)
-
-| Tool | Integration Method | Availability Check | Notes |
-|------|-------------------|-------------------|-------|
-| **Homebrew** | Execute `brew cleanup --prune=all -s` | `which brew` | Parse output for space savings estimate |
-| **Docker** | Execute `docker system prune` | `which docker` | Multiple prune options (images, containers, volumes) |
-| **npm/yarn/pnpm** | Execute `[tool] cache clean` | Check for lock files in scanned dirs | Project-specific, not global |
-
-### Module Boundaries
-
-```
-CLI Layer ←→ Orchestrator    # Commands to actions
-    ↕
-Orchestrator ←→ Scanner      # Initiate scans
-    ↕
-Orchestrator ←→ Cleaner      # Execute cleaning
-    ↕
-Orchestrator ←→ Reporter     # Get summaries
-    ↕
-Scanner ←→ Rules             # Apply rules
-    ↕
-Scanner ←→ Safety            # Validate paths
-    ↕
-Cleaner ←→ Safety            # Pre-delete checks
-    ↕
-Cleaner ←→ Adapters          # External tool integration
-```
-
-**Key principle:** Orchestrator is the only component that coordinates between Scanner, Cleaner, and Reporter. They don't call each other directly.
+| Concern | Current (10 scanners) | After v1.7 (12 scanners) | Notes |
+|---------|----------------------|-------------------------|-------|
+| Scan time | ~5-10s typical | ~15-30s (homedir walk is expensive) | Consider running homedir last so fast scanners report first |
+| Category count | ~40 categories | ~48 categories | CLI flag list getting long; may need flag grouping in help text |
+| Cleanup pseudo-paths | 1 prefix (docker:) | 2 prefixes (docker:, git-gc:) | Consider a dispatcher map instead of if/else chain if more are added |
 
 ## Sources
 
-### macOS Cleaning Tools (HIGH confidence - direct repository analysis)
-- [mac-cleanup-go](https://github.com/2ykwang/mac-cleanup-go) - TUI cleaner with parallel scanning, 107 targets, risk levels
-- [MacCleanCLI](https://github.com/QDenka/MacCleanCLI) - Python tool with SOLID architecture, multi-threaded scanning
-- [mac-cleanup-py](https://github.com/mac-cleanup/mac-cleanup-py) - Modular plugin-based architecture, 40+ modules
-
-### CLI Framework Architecture (MEDIUM confidence - comparison sources)
-- [Node.js CLI Frameworks Comparison](https://www.oreateai.com/blog/indepth-comparison-of-cli-frameworks-technical-features-and-application-scenarios-of-yargs-commander-and-oclif/24440ae03bfbae6c4916c403a728f6da)
-- [Building CLI Applications with Node.js](https://ibrahim-haouari.medium.com/building-cli-applications-made-easy-with-these-nodejs-frameworks-2c06d1ff7a51)
-
-### macOS System Architecture (HIGH confidence - official documentation and community)
-- [macOS SIP Protection Paths](https://book.hacktricks.wiki/en/macos-hardening/macos-security-and-privilege-escalation/macos-security-protections/macos-sip)
-- [System Integrity Protection Overview](https://www.cleverfiles.com/help/system-integrity-protection.html)
-- [Safe macOS Cache Locations](https://macpaw.com/how-to/clear-cache-on-mac)
-- [Library/Caches on Mac](https://iboysoft.com/wiki/library-caches-mac.html)
-
-### CLI Design Patterns (MEDIUM confidence - design guidance)
-- [Command-line design guidance - Microsoft](https://learn.microsoft.com/en-us/dotnet/standard/commandline/design-guidance)
-- [Command Line Interface Guidelines](https://clig.dev/)
-- [Understanding Terminal Architecture](https://medium.com/connected-things/understanding-terminal-architecture-from-ttys-to-modern-cli-tools-f42fe08652a3)
-
-### Tool-Specific Implementation (MEDIUM confidence - official docs)
-- [Homebrew cleanup documentation](https://docs.brew.sh/Manpage)
-- [Homebrew Cleanup class](https://docs.brew.sh/rubydoc/Homebrew/Cleanup.html)
-- [ncdu disk usage analyzer](https://dev.yorhel.nl/ncdu)
-
----
-
-*Architecture research for: macOS disk cleaning CLI tool*
-*Researched: 2026-02-16*
-*Confidence: MEDIUM-HIGH (verified through multiple real-world implementations and official macOS documentation)*
+- Codebase analysis: `internal/engine/`, `internal/scan/`, `internal/safety/`, `internal/cleanup/`, `pkg/developer/`, `cmd/categories.go`, `cmd/scan.go` (HIGH confidence -- direct code reading)
+- Architecture patterns derived from existing scanner implementations in `pkg/*/scanner.go` (HIGH confidence)
+- APFS atime behavior: macOS APFS mounts with `noatime` by default since High Sierra (MEDIUM confidence -- well-known macOS behavior, not verified against current Apple docs)
+- git count-objects and git gc behavior: standard git documentation (HIGH confidence -- stable git features)

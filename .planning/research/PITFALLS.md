@@ -1,433 +1,234 @@
-# Pitfalls Research
+# Domain Pitfalls: v1.7.0 Extended Scanning
 
-**Domain:** macOS Disk Cleaning CLI Tools
-**Researched:** 2026-02-16
-**Confidence:** MEDIUM (WebSearch-verified, multiple sources)
+**Domain:** Home directory file scanning, extended project caches, git repository cache management
+**Researched:** 2026-03-11
+**Confidence:** HIGH (codebase analysis + official docs + multiple web sources)
 
 ## Critical Pitfalls
 
-### Pitfall 1: Deleting System Integrity Protection (SIP) Protected Directories
+Mistakes that cause data loss, repository corruption, or require rewrites.
 
-**What goes wrong:**
-Tool attempts to delete files in `/System`, `/bin`, `/sbin`, `/usr` (except `/usr/local`), causing operation to fail with "operation not permitted" errors, or worse, breaking system boot if SIP is disabled during cleaning.
+### Pitfall 1: Home Directory Scan Deletes User Files Via Overly Broad Matching
 
-**Why it happens:**
-Developers unfamiliar with macOS security model assume root/sudo access grants full filesystem control. SIP prevents modification of protected directories even with root privileges.
+**What goes wrong:** A "large/old files" scanner in `~/` flags files the user actually wants -- project archives, media libraries, VM images, encrypted vaults. User confirms deletion of a category and loses irreplaceable data.
 
-**How to avoid:**
-- Hardcode SIP-protected paths into exclusion list: `/System/*`, `/bin/*`, `/sbin/*`, `/usr/*` (except `/usr/local`)
-- Never suggest disabling SIP to users
-- Test on SIP-enabled systems (default configuration)
-- Check extended attribute `com.apple.rootless` before attempting deletion
+**Why it happens:** The existing scanner pattern (`ScanTopLevel` + `DirSize`) works well for known cache directories where everything is deletable. Home directory scanning is fundamentally different: every file is potentially important. Reusing the same "scan, list, delete" pattern without understanding that the risk model is inverted leads to data loss.
 
-**Warning signs:**
-- "Operation not permitted" errors during cleaning
-- User reports requiring Recovery Mode boot after cleaning
-- Requests to disable SIP in documentation/issues
+**Consequences:**
+- Permanent loss of user documents, media, projects
+- Loss of trust -- one bad deletion means the tool is never used again
+- Unlike cache deletion (recoverable via rebuild), home directory file deletion is irrecoverable without Time Machine
 
-**Phase to address:**
-Phase 1: Core Scanning - Build hardcoded SIP protection into path scanning logic from day one.
+**Prevention:**
+- Home directory scanner must be **read-only/advisory only** -- report large files but NEVER offer direct deletion through the existing cleanup flow
+- If deletion is supported, it must be per-file confirmation (not per-category batch)
+- Add a new risk level or flag: `"informational"` for items that should never enter the `cleanup.Execute` path
+- Minimum size threshold (e.g., 100MB) to avoid noise
+- Exclude well-known directories that have their own scanners: `Library/`, `.npm/`, `.gradle/`, etc.
+- Exclude dotfiles and dotdirectories by default (configuration, not junk)
 
----
+**Detection:** If the home directory scanner produces `ScanEntry` items with paths that could flow into `cleanup.Execute` unchanged, the design is wrong.
 
-### Pitfall 2: Deleting Active Swap Files
+### Pitfall 2: Git GC/Prune Corrupts Repository During Concurrent Operations
 
-**What goes wrong:**
-Attempting to delete `/private/var/vm/swapfile*` while system is running causes kernel panic and immediate system crash. User loses all unsaved work.
+**What goes wrong:** Running `git gc` or `git prune` on a repository while the user (or IDE background processes) is actively using it causes object database corruption. Loose objects referenced by an in-progress operation get deleted, leading to a broken repository.
 
-**Why it happens:**
-Swap files appear as large space consumers (can be GBs), making them tempting cleanup targets. Developers assume "if it's deletable, it's safe."
+**Why it happens:** Git's garbage collection deletes unreferenced loose objects. If another process has created an object but hasn't yet written the reference (e.g., during a rebase, merge, or commit), gc can delete that object. The default 2-week grace period on `--prune` mitigates this, but using `--prune=now` (which is tempting for "maximum space savings") eliminates the safety window entirely.
 
-**How to avoid:**
-- Never delete swap files (`/private/var/vm/swapfile*`)
-- Never delete sleepimage while system is running (`/private/var/vm/sleepimage`)
-- Exclude entire `/private/var/vm/` directory from cleaning operations
-- Document: "Swap files are automatically managed by macOS and deleted on reboot"
+**Consequences:**
+- Corrupted git repository (missing objects)
+- Lost commits, broken history
+- Recovery requires `git fsck` + manual repair or clone from remote
+- If the user has unpushed work, it may be permanently lost
 
-**Warning signs:**
-- Tool shows swap files as reclaimable space
-- Kernel panics reported after cleaning
-- Users report system crashes mid-cleanup
+**Prevention:**
+- NEVER use `--prune=now` -- always use the default 2-week grace period
+- Check for `.git/index.lock` before running gc -- if present, another operation is in progress
+- Check for active worktrees (`git worktree list`) -- gc in the main repo affects all worktrees
+- Use `git gc` (which wraps prune safely) rather than calling `git prune` directly
+- Run with `--dry-run` equivalent first: report what would be reclaimed without doing it
+- Consider only offering `git gc` as an action, not as part of the automated cleanup flow
+- Set the category risk to `RiskRisky`
 
-**Phase to address:**
-Phase 1: Core Scanning - Hardcode `/private/var/vm/` exclusion in initial implementation.
+**Detection:** If the implementation calls `git prune --prune=now` or `git gc --prune=now`, it is unsafe. If it runs git commands without checking for lock files, it risks concurrent operation conflicts.
 
----
+### Pitfall 3: Project Cache Scanner Deletes Actively-Used Build Caches
 
-### Pitfall 3: Deleting Caches Without Understanding Type/Impact
+**What goes wrong:** Scanner finds `node_modules/`, `.build/`, `target/`, `.gradle/` directories and offers to delete them. User accepts. The project they were actively working on now requires a full dependency reinstall and rebuild, which may take 10-30 minutes and require network access.
 
-**What goes wrong:**
-Blindly deleting all caches causes severe consequences:
-- Spotlight re-index (hours of high CPU/disk usage)
-- App re-authentication (users locked out of accounts)
-- Developer tools breakage (Xcode won't build, can require macOS reinstall)
-- Performance degradation until caches rebuild
+**Why it happens:** Project caches are indistinguishable from "junk" by size and age alone. A 2GB `node_modules/` in a project last modified yesterday is actively needed. The same directory in a project untouched for 2 years is safe to clean. The existing scanner pattern doesn't consider project activity.
 
-**Why it happens:**
-All caches look the same (just files in directories). Developers treat "cache" as universally safe to delete without understanding macOS cache hierarchy.
+**Consequences:**
+- Developer loses build state mid-work
+- `npm install` / `gradle build` required before resuming work (slow, needs network)
+- If offline or on metered connection, developer is blocked
+- If lock files have drifted from what's in the cache, dependency resolution may produce different results
 
-**How to avoid:**
-**NEVER delete:**
-- System caches: `/System/Library/Caches/*` (SIP-protected anyway)
-- Spotlight index: `/private/var/db/Spotlight-V100/` or `.Spotlight-V100/`
-- Authentication tokens: `~/Library/Application Support/*/Tokens/`
-- Keychain caches: `~/Library/Keychains/`
+**Prevention:**
+- Use project root modification time (or git status) to determine activity -- never offer to clean caches from recently-active projects
+- Define "recently active" threshold (e.g., 30 days since last modification to any source file)
+- Show project path and last-active date in scan results so users can make informed decisions
+- Default to showing project caches as informational, require explicit opt-in for deletion
+- Set risk level to `RiskRisky` for all project build caches
 
-**DELETE ONLY:**
-- User app caches: `~/Library/Caches/[app-name]/*`
-- Browser caches: `~/Library/Caches/com.apple.Safari/`
-- Package manager caches: `~/Library/Caches/Homebrew/`, `~/.npm/`
-
-**Require explicit user consent for:**
-- Xcode caches: `~/Library/Developer/Xcode/DerivedData/` (can be 100GB+, but rebuilding is slow)
-- Font caches: `~/Library/Caches/com.apple.FontRegistry/` (causes font rendering issues until rebuild)
-- Photo library caches: Deleting causes re-generation of thumbnails (hours for large libraries)
-
-**Warning signs:**
-- Users report "Mac is slow after cleaning"
-- Spotlight search not working after cleanup
-- Apps requiring re-login after cleanup
-- Developer reports Xcode build failures
-
-**Phase to address:**
-Phase 1: Core Scanning - Implement cache categorization (safe/risky/forbidden)
-Phase 2: Smart Cleaning - Add risk warnings and consent UI for risky caches
+**Detection:** If the scanner reports `node_modules/` from a project modified today as a deletion candidate without warning, the design lacks activity awareness.
 
 ---
 
-### Pitfall 4: Misunderstanding Purgeable Space on APFS
+## Moderate Pitfalls
 
-**What goes wrong:**
-Tool reports "X GB freed" but users see no change in available space. Users think tool is broken or scam. Root cause: purgeable space (local Time Machine snapshots, caches) is already automatically managed by macOS.
+### Pitfall 4: Home Directory Scan Performance Causes Tool to Appear Hung
 
-**Why it happens:**
-APFS reports purgeable space separately. Developers count it as "reclaimable" without understanding macOS purges it automatically when needed.
+**What goes wrong:** Scanning `~/` recursively with `filepath.WalkDir` on a home directory with 500K+ files takes minutes. The tool appears frozen. Users force-quit or assume it is broken.
 
-**How to avoid:**
-- Use `diskutil apfs list` to distinguish purgeable vs. truly deletable space
-- Don't count local Time Machine snapshots (auto-deleted after 24h or when space needed)
-- Report separately: "X GB freed + Y GB already purgeable by macOS"
-- Document: "macOS automatically frees purgeable space when storage is low"
-- Don't delete Time Machine local snapshots unless user explicitly requests (they enable quick restores)
+**Why it happens:** `DirSize` uses `filepath.WalkDir` which stats every file. Home directories can contain millions of files (Photos library alone can have hundreds of thousands). The existing scanners target known paths with bounded depth, but a home directory scan is unbounded.
 
-**Warning signs:**
-- Users report "cleaned X GB but Finder shows same available space"
-- Confusion about why reported savings don't match reality
-- Bad reviews claiming tool doesn't work
+**Prevention:**
+- Scan only top-level items in `~/` (depth 1) for the overview
+- Use `os.ReadDir` + `entry.Info()` for top-level sizing, NOT recursive `DirSize` for every subdirectory
+- For subdirectories the user drills into, size lazily on demand
+- Set a timeout per top-level entry (e.g., 5 seconds) and report "size unknown" if exceeded
+- Skip known-huge directories during initial scan: `Library/`, `Photos Library.photoslibrary/`, `.Trash/`
+- Report progress via the existing `ScanEvent` mechanism so the UI shows activity
 
-**Phase to address:**
-Phase 2: Smart Cleaning - Implement proper APFS space reporting
-Phase 3: Reporting - Clear communication about purgeable vs. freed space
+### Pitfall 5: iCloud Desktop & Documents Symlinks Cause Double-Counting or Deletion of Cloud Files
 
----
+**What goes wrong:** When "Desktop & Documents Folders" is enabled in iCloud, `~/Desktop` and `~/Documents` may be symlinks to `~/Library/Mobile Documents/com~apple~CloudDocs/`. Scanning both `~/` top-level and following symlinks counts the same files twice. Worse: deleting files from the local path deletes them from iCloud Drive for all devices.
 
-### Pitfall 5: Ignoring Sealed System Volume (SSV) on Modern macOS
+**Why it happens:** macOS transparently redirects Desktop/Documents to iCloud storage. The tool follows the symlink and treats the target as a separate location, or deletes "local" files that are actually cloud-synced.
 
-**What goes wrong:**
-Tool attempts to modify System volume, fails silently or with cryptic errors. macOS Big Sur+ uses signed/sealed system volume that rejects all modifications.
+**Prevention:**
+- Use `os.Lstat` (not `os.Stat`) when scanning `~/` top-level to detect symlinks
+- If a top-level entry is a symlink, resolve it and check if it points into `~/Library/Mobile Documents/`
+- Flag iCloud-synced directories with a warning: "This directory is synced to iCloud -- deleting files here removes them from all devices"
+- Never auto-delete files in iCloud-synced directories
+- The existing `safety.IsPathBlocked` resolves symlinks, which is correct, but the scanner itself must be aware of iCloud semantics
 
-**Why it happens:**
-Developers test on older macOS versions or don't understand SSV architecture. System volume is read-only and cryptographically signed.
+### Pitfall 6: Git Scanner Finds Bare Repos, Submodules, and Worktrees
 
-**How to avoid:**
-- Understand APFS volume structure: System (sealed, read-only) vs. Data (writable)
-- Never attempt to clean System volume
-- All user-deletable content is on Data volume
-- Use `diskutil apfs list` to identify volume types
-- Only operate on Data volume and user directories
+**What goes wrong:** The git cache scanner assumes every `.git` directory is a standalone repository. It misidentifies:
+- Bare repositories (servers, mirrors) where the object database IS the repository
+- Git submodules (`.git` is a file pointing to parent's `.git/modules/`)
+- Git worktrees (share the object database with the main repo)
 
-**Warning signs:**
-- Errors when trying to delete from `/System/` on macOS 11+
-- Tool works on Catalina but fails on Big Sur+
-- Users report "permission denied" despite granting Full Disk Access
+Running `git gc` on a submodule's `.git` directory or a worktree fails or corrupts the parent.
 
-**Phase to address:**
-Phase 1: Core Scanning - Implement SSV awareness, restrict operations to Data volume
+**Why it happens:** Developers check for `.git` directory existence as a repository indicator without checking its type.
 
----
+**Prevention:**
+- Check if `.git` is a file (submodule/worktree) vs directory (real repo) before offering gc
+- For submodules: `.git` is a file containing `gitdir: ../..` -- skip these
+- For worktrees: `.git` is a file containing `gitdir: /path/to/main/.git/worktrees/name` -- skip these
+- For bare repos: no `.git` directory, the repo root IS the git database -- skip these (check for `HEAD` file + `objects/` dir without a parent `.git/`)
+- Only offer gc on actual standalone repository roots
 
-### Pitfall 6: Requesting Full Disk Access Without Justification
+### Pitfall 7: Scanning Finds node_modules in Non-JS Projects (False Positive Pattern Matching)
 
-**What goes wrong:**
-Users distrust tool, refuse to grant permissions, or grant permissions without understanding risk. If tool is compromised (supply chain attack, malicious update), attacker has full system access.
+**What goes wrong:** Scanner looks for known directory names (`node_modules`, `.build`, `target`, `.gradle`, `.cache`) but these names can appear in non-standard contexts:
+- `target/` in a Rust project vs `target/` as a user-created directory
+- `.build/` in a Swift Package Manager project vs `.build/` in a custom build system
+- `.cache/` in a project vs `~/.cache/` (XDG standard)
 
-**Why it happens:**
-Developers request maximum permissions "just in case" rather than least-privilege approach.
+**Why it happens:** Pattern matching on directory names without verifying project type.
 
-**How to avoid:**
-- Minimize permission requests - only ask for what's truly needed
-- Most user caches don't require Full Disk Access
-- Document exactly why each permission is needed
-- Provide "basic mode" without Full Disk Access for cautious users
-- Consider sandboxed distribution (Mac App Store) for trust
+**Prevention:**
+- Verify project type before classifying caches:
+  - `node_modules/` requires `package.json` in parent
+  - `target/` as Rust requires `Cargo.toml` in parent
+  - `.build/` as Swift requires `Package.swift` in parent
+  - `.gradle/` build cache requires `build.gradle` or `build.gradle.kts` in parent
+- Only scan for project caches when a matching project manifest file exists
+- Category descriptions should include project context: "node_modules in ~/projects/my-app" not just "node_modules"
 
-**Warning signs:**
-- Tool requests Full Disk Access immediately on first run
-- No explanation of why permissions are needed
-- Users refuse to grant permissions
-- Security-conscious users flag tool as suspicious
+### Pitfall 8: Cleanup of Git Repos Requires exec.Command -- Different from File Deletion
 
-**Phase to address:**
-Phase 1: Core Scanning - Design to minimize required permissions
-Phase 3: Reporting - Transparent permission documentation
+**What goes wrong:** The existing `cleanup.Execute` uses `os.RemoveAll` for all entries. Git cache management requires running `git gc`, `git clean`, etc. -- external commands, not file deletion. Trying to shoehorn git operations into the existing cleanup path either breaks the abstraction or requires a parallel code path that bypasses safety checks.
 
----
+**Why it happens:** The current architecture assumes cleanup = delete files. Git repo maintenance is a fundamentally different operation (run a command inside the repo).
 
-### Pitfall 7: Deleting Files with False Positives (Wrong File Classification)
-
-**What goes wrong:**
-Tool misidentifies important files as junk:
-- Application preferences as "unused config"
-- Project files as "temp files"
-- User documents in uncommon locations as "junk"
-- Plugin/extension files as "leftover files"
-
-Result: User loses data, broken applications, requires restore from backup.
-
-**Why it happens:**
-Overly aggressive pattern matching ("anything in /tmp is safe", "*.log can be deleted", "if not accessed in 30 days, it's unused"). Edge cases not tested.
-
-**How to avoid:**
-- Conservative classification - bias toward NOT deleting
-- Whitelist approach for known-safe patterns, not blacklist
-- Never delete files based solely on:
-  - Extension (.log, .tmp, .cache can be important)
-  - Last access time (backup drives, seasonal projects)
-  - Filename pattern (temp-* might be user's naming)
-- Show preview before deletion with file paths visible
-- Categorize by confidence: "Safe" vs "Review Recommended"
-- Exclude common project directories: `*/node_modules/*/`, `*/.git/`, `*/build/` (user should clean these intentionally)
-
-**Warning signs:**
-- Users report broken apps after cleaning
-- "I lost my files" support requests
-- Need for "undo" functionality
-- Requests for backup/restore features
-
-**Phase to address:**
-Phase 1: Core Scanning - Conservative classification rules
-Phase 2: Smart Cleaning - Preview UI with clear categorization
-Phase 4: Safety Features - Dry-run mode (already planned)
+**Prevention:**
+- Extend `ScanEntry` or create a new type to distinguish "delete this path" from "run this command in this directory"
+- Consider pseudo-paths (like `docker:BuildCache`) as precedent -- the codebase already handles non-filesystem entries
+- Git operations should use the existing `CmdRunner` pattern (dependency injection for testing) from the developer scanner
+- Safety checks for git operations: verify `.git` integrity before gc, check for lock files, verify no in-progress operations
+- The cleanup progress reporting must handle the fact that `git gc` is a single long operation, not per-file deletion
 
 ---
 
-### Pitfall 8: Breaking App Functionality by Deleting "Application Support" Files
+## Minor Pitfalls
 
-**What goes wrong:**
-Deleting `~/Library/Application Support/[app]/` content breaks apps:
-- Licenses/activation lost (must re-purchase or re-activate)
-- Settings/preferences lost
-- Plugin configurations lost
-- Local databases corrupted
+### Pitfall 9: Hardlinks in Git Object Database Cause Incorrect Size Reporting
 
-**Why it happens:**
-"Application Support" sounds like it contains support files, not essential data. Directory can be large (GBs), making it tempting target.
+**What goes wrong:** Git's object database uses hardlinks in some configurations (especially after `git clone --local`). `DirSize` counts each hardlink as a separate file, inflating the reported size. User sees "5 GB reclaimable" but only 500 MB is actually freed.
 
-**How to avoid:**
-- Never delete `~/Library/Application Support/` without per-app knowledge
-- Whitelist known-safe subdirectories (app-specific research required)
-- Known risky areas:
-  - `*/Adobe/` (licenses, activations)
-  - `*/Steam/` (game installations)
-  - Database files (*.sqlite, *.db)
-- Only clean obvious caches: `*/Cache/`, `*/Caches/`, `*/HTTPCache/`
-- Require explicit user approval for Application Support cleaning
+**Prevention:**
+- For git repos, use `git count-objects -vH` to get accurate size of loose objects and packs
+- Don't use `DirSize` on `.git/objects/` -- it will double-count hardlinked objects
 
-**Warning signs:**
-- Users report apps asking for license codes after cleaning
-- "My app settings are gone" complaints
-- Apps won't launch after cleanup
+### Pitfall 10: Extended Attributes and Quarantine Flags
 
-**Phase to address:**
-Phase 2: Smart Cleaning - Application Support analysis with risk classification
-Phase 4: Safety Features - Per-app cleaning with warnings
+**What goes wrong:** macOS attaches extended attributes (xattrs) to downloaded files, including quarantine flags (`com.apple.quarantine`). These are invisible to `DirSize` but affect file behavior. Deleting and recreating files (e.g., after `npm install`) may lose quarantine information, changing Gatekeeper behavior.
+
+**Prevention:**
+- This is informational only -- no action needed for the scanning phase
+- If the tool ever implements "move to trash" instead of "delete," xattrs must be preserved
+
+### Pitfall 11: Locale-Dependent Directory Names
+
+**What goes wrong:** Some macOS directories have localized display names (e.g., "Schreibtisch" for "Desktop" in German Finder). The actual filesystem paths are always English, but users may be confused if the tool shows `~/Desktop` when their Finder shows "Schreibtisch."
+
+**Prevention:**
+- Always use filesystem paths (English) internally
+- Consider displaying Finder-style localized names in descriptions where possible
+- This is a UX concern, not a safety concern -- filesystem paths are always consistent
 
 ---
-
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Using simple file age for cleanup decisions | Easy to implement | False positives (deletes rarely-accessed but important files) | Never - too risky |
-| Requesting Full Disk Access upfront | Access to all cleanable areas | User distrust, security risk | Only if truly needed and justified |
-| Deleting entire cache directories | Maximum space savings | App breakage, performance issues | Only with explicit per-app knowledge |
-| Using sudo/root permissions | Bypass permission checks | Security risk, can bypass SIP on older systems | Never - use proper user permissions |
-| Hard-coding file paths | Fast implementation | Breaks on macOS updates, localization issues | Never - use system APIs |
-| Skipping dry-run testing | Faster development | Production data loss | Never - dry-run is essential |
-
-## Integration Gotchas
-
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| APFS space calculation | Using `df` (shows inaccurate data with purgeable space) | Use `diskutil apfs list` for accurate breakdown |
-| File permissions check | Using `access()` or stat (doesn't account for SIP/TCC) | Use `removefile()` with error handling, check extended attributes |
-| Spotlight index location | Assuming single location | Check both `/private/var/db/Spotlight-V100/` and per-volume `.Spotlight-V100/` |
-| Time Machine snapshots | Attempting to delete manually | Use `tmutil deletelocalsnapshots` or let macOS manage |
-| Homebrew cache | Deleting `~/Library/Caches/Homebrew/` | Use `brew cleanup` (respects dependencies, safer) |
-| npm/yarn cache | Deleting `~/.npm/` | Use `npm cache clean --force` (ensures consistency) |
-
-## Performance Traps
-
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Recursive scanning without limits | Scan hangs forever, high CPU | Set max depth, skip symlinks, timeout per directory | Large directories (node_modules, photo libraries) |
-| Loading entire file lists into memory | RAM explosion, OOM crashes | Stream/iterator pattern, process in batches | >10K files |
-| Parallel deletion without throttling | System unresponsive, Finder freezes | Limit concurrent operations (max 10 parallel) | Deleting 1000+ files |
-| Scanning network volumes | Extremely slow, timeouts | Skip network mounts by default (check mount point type) | Any network volume |
-| Not handling APFS clones | Reporting incorrect space savings | Use APFS-aware APIs to detect clones | User expectations vs reality |
-
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Following symlinks during deletion | Can delete files outside intended scope, potential privilege escalation | Use `lstat()` not `stat()`, never follow symlinks, check for `.` and `..` |
-| Not validating user-provided paths | Path traversal attacks (user inputs `../../` to escape) | Canonicalize paths, verify within allowed directories |
-| Storing file list in temp file | Information disclosure (other processes can read) | Use secure temp directory with restricted permissions |
-| Running with elevated privileges unnecessarily | Malicious files could exploit elevated context | Run as user, only elevate for specific operations if needed |
-| Not checking for hardlinks | Deleting shared data affects multiple files | Count hardlinks before deletion, warn if >1 |
-| Trusting file extensions | Malicious files disguised as safe types | Check file type, not just extension |
-
-## UX Pitfalls
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No preview before deletion | User anxiety, distrust | Always show what will be deleted with sizes |
-| Unclear space savings | Confusion (purgeable vs actual) | Separate report: "X GB will be freed, Y GB already purgeable" |
-| No dry-run mode | Fear of running tool | Default to dry-run, require flag for actual deletion |
-| Deleting immediately without confirmation | Accidental data loss | Multi-step: scan → review → confirm → delete |
-| No progress indication | Appears hung, users force-quit | Real-time progress with file count and current operation |
-| Technical jargon in output | Users don't understand what's being cleaned | Plain language: "Safari cache" not "com.apple.Safari.Cache" |
-| No undo/recovery option | Permanent data loss panic | Keep deletion log for recovery guidance, suggest backups |
-| Cleaning everything by default | Overly aggressive, breaks things | Categorize by risk, only auto-select "safe" items |
-
-## "Looks Done But Isn't" Checklist
-
-- [ ] **Dry-run mode:** Often missing actual prevention (still opens files/checks permissions) — verify no filesystem modifications occur
-- [ ] **Permission handling:** Often missing TCC (Transparency, Consent, Control) checks — verify tool handles permission denials gracefully
-- [ ] **Error handling:** Often missing handling for in-use files — verify deletion continues after errors
-- [ ] **Space calculation:** Often missing APFS clones/hardlinks — verify reported space matches reality
-- [ ] **Localization:** Often missing non-English system support — verify works on localized macOS
-- [ ] **macOS version differences:** Often tested on single version — verify on macOS 11, 12, 13, 14, 15
-- [ ] **Apple Silicon vs Intel:** Often missing architecture-specific paths — verify on both platforms
-- [ ] **Edge cases:** Often missing handling of special characters in filenames — verify with unicode, spaces, special chars
-- [ ] **Backup verification:** Often suggests backup but doesn't verify — verify Time Machine enabled before cleaning
-- [ ] **Cleanup after failure:** Often leaves partial state — verify cleanup is atomic or resumable
-
-## Recovery Strategies
-
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Deleted SIP-protected files | LOW (impossible without SIP disabled) | If somehow occurred: Boot Recovery Mode, reinstall macOS |
-| Deleted swap files | LOW (auto-recreated) | Reboot system, swap files regenerate automatically |
-| Deleted user caches | MEDIUM | Wait for apps to rebuild caches (minutes to hours), no data loss |
-| Deleted Spotlight index | MEDIUM | Reindex via System Preferences (hours), or `sudo mdutil -E /` |
-| Deleted Application Support | HIGH | Restore from Time Machine backup, or reinstall apps |
-| Deleted authentication tokens | MEDIUM | Re-login to affected apps (might require MFA) |
-| Deleted Xcode DerivedData | MEDIUM | Xcode rebuilds automatically (slow for large projects) |
-| Deleted Time Machine snapshots | MEDIUM | Lost quick restore points, but backups still exist |
-| Deleted wrong user files | HIGH | Time Machine restore or third-party recovery tool (Disk Drill) |
-| Kernel panic from swap deletion | LOW | System auto-reboots, no data loss if apps saved work |
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| SIP-protected paths | Phase 1: Core Scanning | Run on SIP-enabled system, verify no "operation not permitted" errors |
-| Swap file deletion | Phase 1: Core Scanning | Verify `/private/var/vm/` excluded from scan results |
-| Cache type misclassification | Phase 1: Core Scanning + Phase 2: Smart Cleaning | Verify safe/risky/forbidden categorization, test on developer Mac |
-| Purgeable space confusion | Phase 2: Smart Cleaning + Phase 3: Reporting | Compare reported savings to `diskutil apfs list` output |
-| SSV modification attempts | Phase 1: Core Scanning | Test on macOS 11+, verify System volume not scanned |
-| Excessive permission requests | Phase 1: Core Scanning | Verify basic cleaning works without Full Disk Access |
-| False positive file deletion | Phase 1: Core Scanning + Phase 2: Smart Cleaning | Test with project directories, verify no false positives |
-| Application Support breakage | Phase 2: Smart Cleaning + Phase 4: Safety | Test with common apps, verify no license/settings loss |
 
 ## Phase-Specific Warnings
 
-### Phase 1: Core Scanning
-**Critical:** This phase defines safety boundaries. Get exclusion lists right from the start:
-- Hardcode SIP-protected paths
-- Exclude VM directory
-- Implement conservative file classification
-- Test on multiple macOS versions (11, 12, 13, 14, 15)
-- Test on both Intel and Apple Silicon
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| Home directory scanning | Pitfall 1 (deleting user files), Pitfall 4 (performance), Pitfall 5 (iCloud) | Advisory-only mode, depth-1 scan, iCloud detection |
+| Project cache detection | Pitfall 3 (active projects), Pitfall 7 (false positives) | Activity-based filtering, project manifest verification |
+| Git repo management | Pitfall 2 (gc corruption), Pitfall 6 (submodules/worktrees), Pitfall 8 (exec vs delete) | Lock file checks, repo type detection, new cleanup abstraction |
+| Integration with existing engine | Pitfall 8 (cleanup abstraction mismatch) | Extend ScanEntry or use pseudo-path pattern for non-delete operations |
+| Risk level assignment | All new categories need correct risk mapping | Home files = risky, project caches = risky, git gc = risky |
 
-**Deeper research needed:**
-- Per-app Application Support directory safety (requires app-specific knowledge)
-- Complete list of authentication token locations
-- APFS snapshot handling differences across macOS versions
+## Integration Pitfalls (Specific to This Codebase)
 
-### Phase 2: Smart Cleaning
-**Critical:** Don't rely on heuristics alone:
-- File age is not sufficient for safety determination
-- File extension is not sufficient for type determination
-- Size is not an indicator of importance
-- Access time can be misleading (backup volumes, seasonal projects)
+### The cleanup.Execute Assumption
 
-**Deeper research needed:**
-- Which caches are safe vs risky for popular apps
-- Developer tool cache implications
-- Photo/music library cache regeneration costs
+`cleanup.Execute` calls `os.RemoveAll(entry.Path)` for every entry. The three new features challenge this:
 
-### Phase 3: Reporting
-**Critical:** Clear communication prevents user confusion:
-- Separate purgeable vs truly freed space
-- Explain why space savings might not match Finder immediately
-- Show what was skipped and why
-- Provide plain language descriptions
+1. **Home directory files:** Should NOT enter `cleanup.Execute` at all (advisory only), or need per-file confirmation
+2. **Project caches:** Can use `os.RemoveAll` but must be filtered by activity first
+3. **Git repos:** Need `exec.Command("git", "gc")` instead of `os.RemoveAll`
 
-### Phase 4: Safety Features
-**Critical:** Multiple layers of protection:
-- Dry-run must truly prevent modifications
-- Preview must show actual file paths, not just categories
-- Confirmation should summarize risk level
-- Consider deletion log for recovery guidance
+**Resolution:** Use the existing pseudo-path pattern (`docker:BuildCache` precedent) for git operations. The `isPseudoPath` check in cleanup already skips non-`/` paths. Git entries could use `git-gc:/path/to/repo` as the path, with a separate handler. For home directory files, consider a new `ScanEntry.Action` field or separate the advisory scanner from the actionable scanner list.
 
-**Deeper research needed:**
-- Recovery/undo mechanisms (feasibility, storage cost)
-- Backup verification methods
-- Integration with Time Machine
+### The Risk Level Gap
+
+Current risk levels are `safe`, `moderate`, `risky`. Home directory files need a level above `risky` -- something like `"informational"` or `"advisory"` that signals "show but don't offer deletion." Without this, the UI will present home directory files alongside caches with the same "delete?" prompt.
+
+**Resolution:** Add a fourth risk level or an `Actionable bool` field on `ScanEntry`. The existing `RiskForCategory` function and `categoryRisk` map in `safety/risk.go` accommodate this easily -- the question is whether the CLI and server UIs handle it correctly.
+
+### Scanner Registration Order
+
+New scanners must be registered in `engine.DefaultScanners()`. The home directory scanner will be slow (even depth-1 on a large home dir). If registered first, it delays all subsequent scanner results.
+
+**Resolution:** Register the home directory scanner last, or implement concurrent scanner execution (noted as a future option in PROJECT.md: "concurrent can be added without API change").
 
 ## Sources
 
-**macOS Security & Architecture:**
-- [Apple: About System Integrity Protection](https://support.apple.com/en-us/102149)
-- [Apple: Signed system volume security](https://support.apple.com/guide/security/signed-system-volume-security-secd698747c9/web)
-- [System Integrity Protection - Wikipedia](https://en.wikipedia.org/wiki/System_Integrity_Protection)
-- [macOS SIP - HackTricks](https://book.hacktricks.wiki/en/macos-hardening/macos-security-and-privilege-escalation/macos-security-protections/macos-sip.html)
-
-**APFS & Storage Management:**
-- [DaisyDisk: Local APFS snapshots](https://daisydiskapp.com/guide/4/en/Snapshots/)
-- [Der Flounder: Reclaiming drive space by thinning APFS snapshot backups](https://derflounder.wordpress.com/2018/04/07/reclaiming-drive-space-by-thinning-apple-file-system-snapshot-backups/)
-- [MacPaw: How to clear purgeable space on Mac](https://macpaw.com/how-to/purgeable-space-on-macos)
-- [Michael Tsai: Clearing Space on Your Mac](https://mjtsai.com/blog/2024/03/19/clearing-space-on-your-mac/)
-
-**Cleaning Tool Best Practices:**
-- [Macworld: Best Mac Cleaner software 2026](https://www.macworld.com/article/673271/best-mac-cleaner-vs-cleanmymac.html)
-- [TheSweetBits: Best Mac Cleaner Apps 2026](https://thesweetbits.com/best-mac-cleaner-software/)
-- [CleanMyMac: 10 safe free Mac cleaners](https://cleanmymac.com/blog/best-free-mac-cleaners)
-- [MacPaw: How to clean up Mac](https://macpaw.com/how-to/clean-up-mac)
-
-**Cache Management:**
-- [iBoysoft: What Is ~/Library/Caches on Mac & Is It Safe to Delete It?](https://iboysoft.com/wiki/library-caches-mac.html)
-- [MacPaw: Ways to clear cache on Mac: which files are safe to delete?](https://macpaw.com/how-to/clear-cache-on-mac)
-- [MacPaw: How to clear Xcode cache](https://macpaw.com/how-to/clear-xcode-cache)
-
-**System Files & Recovery:**
-- [Apple Community: What files are safe to delete or move?](https://discussions.apple.com/docs/DOC-2112)
-- [MacRumors: sleepimage/swap files safe to delete?](https://forums.macrumors.com/threads/sleepimage-swap-files-safe-to-delete.265475/)
-- [MacPaw: How to recover deleted files on Mac](https://macpaw.com/how-to/recover-deleted-files-on-mac)
-- [Remo: Recover Files Deleted by CleanMyMac](https://www.remosoftware.com/info/recover-files-deleted-by-cleanmymac)
-
-**Permissions & Full Disk Access:**
-- [MacPaw: Full Disk Access explained](https://macpaw.com/how-to/full-disk-access)
-- [iBoysoft: What Is Full Disk Access on Mac & Is It Safe](https://iboysoft.com/wiki/full-disk-access-mac.html)
-- [MacPaw: Full Disk Access permission for CleanMyMac](https://macpaw.com/support/cleanmymac/knowledgebase/full-disk-access)
-
-**Spotlight & Indexing:**
-- [Apple: Rebuild the Spotlight index](https://support.apple.com/en-us/102321)
-- [MacPaw: How to rebuild Spotlight index](https://macpaw.com/how-to/reindex-spotlight)
-- [MacRumors: How to Rebuild Spotlight Index](https://www.macrumors.com/how-to/rebuild-spotlight-search-index-on-mac/)
+- [Git GC Documentation](https://git-scm.com/docs/git-gc) -- concurrent operation risks, prune grace period
+- [Git Worktree Documentation](https://git-scm.com/docs/git-worktree) -- shared object database
+- [Git Prune - Atlassian](https://www.atlassian.com/git/tutorials/git-prune) -- prune safety practices
+- [GitHub Engineering: Scaling Git's GC](https://github.blog/engineering/architecture-optimization/scaling-gits-garbage-collection/) -- gc at scale
+- [Go filepath.Walk Performance Issue #16399](https://github.com/golang/go/issues/16399) -- Walk vs WalkDir performance
+- [Go filepath.Walk Memory Leak Issue #36197](https://github.com/golang/go/issues/36197) -- memory issues with large trees
+- [Apple Community: iCloud Desktop & Documents Symlinks](https://discussions.apple.com/thread/250723356) -- symlink behavior
+- [DevToolbox: Git index.lock Fix Guide](https://devtoolbox.dedyn.io/blog/git-index-lock-file-exists-fix-guide) -- lock file detection
 
 ---
-*Pitfalls research for: macOS Disk Cleaning CLI Tools*
-*Researched: 2026-02-16*
+*Pitfalls research for: mac-cleaner v1.7.0 Extended Scanning*
+*Researched: 2026-03-11*

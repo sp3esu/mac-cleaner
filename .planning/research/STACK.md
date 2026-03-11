@@ -1,202 +1,189 @@
-# Technology Stack
+# Stack Research
 
-**Project:** mac-cleaner
-**Researched:** 2026-02-16
+**Domain:** macOS disk cleaner - home directory scanning, project cache detection, git cache management
+**Researched:** 2026-03-11
 **Confidence:** HIGH
 
 ## Executive Recommendation
 
-**Use Go** for building this macOS CLI disk cleaning tool. Go offers the best balance of simplicity, ecosystem maturity, cross-compilation, and single binary distribution for CLI tools targeting macOS users.
+**No new dependencies needed.** All three v1.7.0 features (home directory file scanning, extended project cache detection, git repository cache management) build entirely on Go stdlib and existing internal packages. The codebase already has every pattern required: recursive directory walking, external command execution with dependency injection, safety checks, and pseudo-path conventions for non-filesystem cleanup.
 
 ## Recommended Stack
 
-### Core Language & Runtime
+### Core Technologies
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| Go | 1.26+ | Primary language | Single binary distribution, excellent stdlib for file operations, fast compilation, simple cross-compilation, mature CLI ecosystem. Go 1.26 released February 2026 with latest improvements. |
-| Cobra | v1.10.2+ | CLI framework | Industry standard used by kubectl, docker, hugo, GitHub CLI. Sophisticated command tree architecture, automatic help generation, persistent flags, pre/post hooks. Latest stable release December 2024. |
-| Viper | Latest | Configuration management | Pairs perfectly with Cobra for handling config files, environment variables, and CLI flags in a unified way. |
+| `filepath.WalkDir` | Go 1.25 stdlib | Recursive directory traversal for home dir scanning and project cache discovery | Stdlib since Go 1.16. More efficient than `filepath.Walk` (avoids `os.Lstat` per entry). Already used implicitly by `scan.DirSize`. No reason to add a third-party walker. |
+| `os/exec` | Go 1.25 stdlib | Running `git` commands for repo cache management (gc, prune) | Already established pattern in codebase (`developer.CmdRunner`, `appleftovers.CmdRunner`). Reuse the `CmdRunner` injection pattern for testability. |
+| `os.FileInfo` / `fs.DirEntry` | Go 1.25 stdlib | File metadata (size, modification time) for large/old file detection | Standard approach. `DirEntry.Info()` gives size and mod time. No need for syscall-level stat. |
+| `time` | Go 1.25 stdlib | Age threshold calculations for old file detection | Already used in `appleftovers` for 90-day download threshold. Same pattern applies. |
 
-### Supporting Libraries
+### Supporting Libraries (Existing Internal Packages)
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| encoding/json | stdlib | JSON output | Built-in, zero dependencies. Use for --json flag output. encoding/json/v2 published Feb 2026 with improved semantic processing. |
-| path/filepath | stdlib | File path operations | Cross-platform path handling. Use filepath.Walk or io/fs.WalkDir (more efficient, introduced Go 1.16+) for directory traversal. |
-| os | stdlib | File operations | File stat, removal, size calculation. Native macOS path expansion for ~/Library paths. |
-| fatih/color | v1.18.0+ | Colored terminal output | Automatic tty detection, NO_COLOR env var support, Windows compatibility. Use for interactive mode visual feedback. |
-| go-isatty | Latest | Terminal detection | Auto-detect if output is terminal or pipe. Essential for disabling colors in --json mode. |
+| Library | Purpose | How It's Used |
+|---------|---------|---------------|
+| `internal/scan` | `ScanTopLevel`, `DirSize`, `ScanEntry`, `CategoryResult` types | Use for all new scanner output. Existing helpers handle permission errors, safety checks, and size computation. |
+| `internal/safety` | `IsPathBlocked`, `RiskForCategory` | Must be called on every discovered path. Extend `RiskForCategory` with new category IDs. |
+| `internal/engine` | `Scanner` interface, `NewScanner`, `Register` | Register new scanner groups in `RegisterDefaults`. Follow existing adapter pattern. |
+| `internal/cleanup` | `Execute` for file deletion | Standard cleanup works for home dir files and project caches. Git cache cleanup needs pseudo-path convention (see below). |
 
 ### Development Tools
 
+No new tools needed. Existing toolchain covers everything.
+
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| GoReleaser | Binary distribution | Automates cross-platform builds, GitHub releases, Homebrew tap updates, checksums. Set CGO_ENABLED=0 for fully static binaries. |
-| go test | Unit testing | Built-in test framework, table-driven tests for file scanning logic. |
-| golangci-lint | Code quality | Aggregates multiple linters. Run in CI/CD pipeline. |
+| `gosec` (existing) | Security analysis | Will flag any unsafe `exec.Command` usage in git scanner |
+| `go vet` (existing) | Static analysis | Standard checks apply |
+| `govulncheck` (existing) | Dependency vuln check | No new deps means no new attack surface |
 
 ## Installation
 
 ```bash
-# Initialize Go module
-go mod init github.com/yourusername/mac-cleaner
-
-# Core dependencies
-go get github.com/spf13/cobra@latest
-go get github.com/spf13/viper@latest
-go get github.com/fatih/color@latest
-go get github.com/mattn/go-isatty@latest
-
-# Development tools
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-go install github.com/goreleaser/goreleaser/v2@latest
+# No new dependencies to install.
+# All features use Go stdlib + existing internal packages.
 ```
 
-## Build & Distribution
+## Key Integration Points
 
-```bash
-# Local development build
-go build -o mac-cleaner
+### 1. Home Directory Scanner (`pkg/homedir/scanner.go`)
 
-# Production release build (via GoReleaser)
-goreleaser release --snapshot --clean  # Test locally first
-goreleaser release  # Create GitHub release with multi-arch binaries
-```
+**Pattern:** New scanner package following `pkg/*/scanner.go` convention.
+
+**Needs from stdlib:**
+- `filepath.WalkDir` to traverse `~/` recursively
+- `fs.DirEntry.Info()` for size and mod time
+- Size threshold (e.g., 100MB) and age threshold (e.g., 180 days) as constants
+- Skip list for directories already covered by other scanners (Library, .npm, .gradle, etc.)
+
+**Integration with existing code:**
+- Output: `[]scan.CategoryResult` with category IDs like `"home-large-files"`, `"home-old-files"`
+- Risk: `risky` -- users may not understand which large/old files are important
+- Register via `engine.NewScanner` in `RegisterDefaults`
+
+### 2. Extended Project Caches Scanner (`pkg/projects/scanner.go`)
+
+**Pattern:** New `pkg/projects/` package. Separate from `pkg/developer/` because developer scanner handles tool-level caches at known fixed paths (npm global, Homebrew). Project caches are per-project build artifacts scattered across `~/` requiring recursive discovery.
+
+**Needs from stdlib:**
+- `filepath.WalkDir` to find directories matching target names
+- `scan.DirSize` to measure each found directory
+- `fs.SkipDir` to avoid descending into already-matched directories
+
+**Target directories to detect:**
+
+| Directory | Ecosystem | Typical Size |
+|-----------|-----------|-------------|
+| `node_modules/` | Node.js | 100MB-1GB per project |
+| `.build/` | Swift Package Manager | 100MB-500MB |
+| `target/` | Rust (Cargo) / Java (Maven) | 500MB-5GB |
+| `build/` | Gradle/CMake/generic | 50MB-2GB |
+| `.gradle/` (project-level) | Gradle wrapper caches | 50MB-500MB |
+| `__pycache__/` | Python | 1-50MB |
+| `.tox/` | Python tox | 100MB-1GB |
+| `.pytest_cache/` | Python pytest | <10MB |
+| `dist/` | Python/JS build output | 10-500MB |
+| `.next/` | Next.js | 50-500MB |
+| `.nuxt/` | Nuxt.js | 50-200MB |
+| `Pods/` | CocoaPods (project-level) | 100MB-1GB |
+| `.angular/` | Angular cache | 50-200MB |
+| `.turbo/` | Turborepo cache | 50-500MB |
+| `vendor/` | Go modules (when vendored) | 50-500MB |
+
+### 3. Git Repository Cache Scanner (`pkg/git/scanner.go`)
+
+**Pattern:** New scanner package. Uses `CmdRunner` pattern from `developer` and `appleftovers` packages.
+
+**Needs from stdlib:**
+- `filepath.WalkDir` to find `.git/` directories under `~/`
+- `os/exec` to run `git` commands: `count-objects -vH`
+- `exec.LookPath("git")` to verify git is available (same pattern as Docker scanner)
+- Context-based timeout (60s for git gc, longer than Docker's 10s because gc on large repos is slow)
+
+**Git commands needed:**
+
+| Command | Purpose | When |
+|---------|---------|------|
+| `git -C <repo> count-objects -vH` | Measure loose objects and pack size | During scan |
+| `git -C <repo> gc --prune=now` | Clean up and compress repo | During cleanup |
+| `git -C <repo> remote prune origin` | Remove stale remote-tracking branches | During cleanup |
+
+**Cleanup is non-standard:** Unlike other scanners where cleanup = `os.RemoveAll(path)`, git cleanup runs commands. Use the **pseudo-path convention** (like `docker:BuildCache`) so `cleanup.Execute` skips them via existing `isPseudoPath`. Then handle git cleanup in a dedicated function. This matches the Docker pattern exactly.
+
+Pseudo-path format: `"git-gc:/path/to/repo"`
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | Why Not Alternative |
-|----------|-------------|-------------|---------------------|
-| Language | **Go** | Rust | Rust has steeper learning curve, slower compilation, more complex ecosystem. Binary sizes comparable (Go: ~2.5MB, Rust: ~2.1MB). Rust's safety guarantees less critical for file scanning tool. Go's simplicity wins for this use case. |
-| Language | **Go** | Swift | Too Apple-centric, requires Xcode toolchain, more complex distribution (need lipo for universal binaries), smaller ecosystem for CLI tools. Native to macOS but worse for general CLI development. |
-| CLI Framework | **Cobra** | urfave/cli | urfave/cli better for simple single-command tools. This project needs subcommands (scan, clean, list) making Cobra's command tree architecture superior. |
-| CLI Framework | **Cobra** | bubbletea | bubbletea is for TUI (terminal user interface) apps with interactive menus/dashboards. Overkill for this tool which needs simple flag-based + interactive prompts. |
-| JSON Library | **stdlib encoding/json** | github.com/goccy/go-json | Third-party JSON libraries offer marginal performance gains. Stdlib is sufficient, zero dependencies, well-tested. encoding/json/v2 (Feb 2026) improved semantic processing. |
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| `filepath.WalkDir` (stdlib) | `github.com/karrick/godirwalk` | Never for this project. godirwalk was valuable pre-Go 1.16. `WalkDir` eliminated the overhead. Adding a dependency for marginal gain is not worth it. |
+| `os/exec` for git commands | `github.com/go-git/go-git` (pure Go git) | Never for this project. go-git is 15+ transitive dependencies, large binary size increase, and we only need 3-4 git CLI commands. The CLI is simpler, well-tested, and matches the existing Docker pattern. |
+| Constants for thresholds | Config file / flags | Later (not for v1.7). Hardcoded thresholds match the 90-day download pattern. Add configurability when users request it. |
+| New `pkg/projects/` package | Extend `pkg/developer/` | If the project cache list is very short (<5 types). With 15+ patterns, a separate package is cleaner. |
+| Pseudo-path cleanup pattern | New cleanup interface with per-scanner hooks | If more scanners need command-based cleanup in the future. For now, only git and Docker need it, and pseudo-paths are proven. |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Python | Requires Python runtime on user's machine, slower execution, harder single-binary distribution | Go with single static binary |
-| Node.js/JavaScript | Requires Node.js runtime, larger distribution size, slower startup time | Go with single static binary |
-| Bash/Shell scripts | Limited error handling, hard to maintain, no structured JSON output, poor cross-platform support | Go for robust CLI with proper error handling |
-| CGO_ENABLED=1 | Creates dynamic binaries requiring C libraries at runtime. Breaks portability. | CGO_ENABLED=0 for fully static binaries |
-| os.Getwd() for home expansion | Doesn't expand ~ in paths like ~/Library/Caches | os.UserHomeDir() + filepath.Join() |
-| filepath.Walk | Less efficient, calls os.Lstat on every file | io/fs.WalkDir (since Go 1.16) |
+| `github.com/go-git/go-git` | 15+ transitive deps, large binary bloat, API complexity for simple operations. We need `count-objects` and `gc`, not programmatic git access. | `os/exec` with `git` CLI via existing `CmdRunner` pattern |
+| `github.com/karrick/godirwalk` | Unnecessary since Go 1.16's `filepath.WalkDir`. Adds a dependency for no measurable benefit on macOS with APFS. | `filepath.WalkDir` (stdlib) |
+| `github.com/djherbis/times` | For accessing birth time (creation time) on macOS. Not needed -- modification time (`ModTime()`) is sufficient for "old file" detection. | `os.FileInfo.ModTime()` |
+| `github.com/shirou/gopsutil` | Disk usage info. Overkill -- we compute sizes by walking directories. | `scan.DirSize` (existing) |
+| Concurrent directory walking | Premature optimization. Parallel `WalkDir` adds goroutine management, channel coordination, error aggregation complexity. Sequential walk is fast enough for home directory on APFS. Profile first if slow. | Sequential `filepath.WalkDir` |
+| `github.com/spf13/viper` | Config management. Not needed for v1.7 -- thresholds are hardcoded constants following existing patterns. | Constants in scanner packages |
 
-## Stack Patterns by Variant
+## Changes to Existing Code
 
-**For basic MVP (Phase 1):**
-- Use Cobra for CLI structure
-- Use stdlib only (no external deps except Cobra/Viper)
-- JSON output via encoding/json
-- Basic colored output via fatih/color
+### New category IDs in `internal/safety/risk.go`
 
-**For production release (Phase 2+):**
-- Add GoReleaser for distribution
-- Homebrew tap for easy installation
-- Code signing with Apple Developer ID (requires $99/year Apple Developer Program)
-- Notarization via xcrun notarytool for distribution trust
+| Category ID | Risk Level | Rationale |
+|-------------|-----------|-----------|
+| `home-large-files` | `risky` | Users may not realize which large files are important |
+| `home-old-files` | `risky` | Old files may still be needed |
+| `project-node-modules` | `safe` | Fully reproducible from package-lock.json |
+| `project-build-artifacts` | `safe` | Fully reproducible from source |
+| `project-python-cache` | `safe` | Bytecode cache, auto-regenerated |
+| `git-repo-caches` | `moderate` | gc is safe but user should understand what it does |
 
-**For AI agent integration (future):**
-- Ensure --json flag outputs structured data
-- Use consistent exit codes (0 = success, 1 = error, 2 = nothing to clean)
-- Provide machine-readable error messages in JSON mode
+### New scanner registrations in `internal/engine/registry.go`
 
-## macOS-Specific Considerations
+Three new `e.Register(NewScanner(...))` calls following the existing pattern.
 
-### Code Signing & Distribution
+### New packages
 
-| Requirement | Solution | Notes |
-|-------------|----------|-------|
-| Code signing | Apple Developer ID certificate + codesign tool | Required for distribution outside App Store. Free with $99/year Apple Developer Program. |
-| Notarization | xcrun notarytool | Required since macOS Catalina. Prevents "unidentified developer" warnings. |
-| Architecture | Universal binary (arm64 + x86_64) | 2026 is last macOS version for Intel. Build both, combine with lipo or use GoReleaser multi-arch. |
-| Distribution | Homebrew tap | Best practice for CLI tools. Users install via `brew install yourusername/tap/mac-cleaner`. |
+| Package | Purpose |
+|---------|---------|
+| `pkg/homedir/` | Home directory large/old file scanner |
+| `pkg/projects/` | Project build cache discovery scanner |
+| `pkg/git/` | Git repository cache management scanner |
 
-### File System Paths
+### Cleanup consideration
 
-Common macOS cache locations to target:
+The `cleanup.Execute` function uses `os.RemoveAll` for all non-pseudo-paths and skips pseudo-paths via `isPseudoPath`. For git cleanup:
+- Git scanner emits `"git-gc:/path/to/repo"` entries (skipped by `isPseudoPath`)
+- A separate git-specific cleanup function in `pkg/git/` handles running `git gc`
+- The engine or server layer calls this function for git categories before/after standard cleanup
 
-```go
-// Use os.UserHomeDir() to get home directory
-home, _ := os.UserHomeDir()
-
-paths := []string{
-    filepath.Join(home, "Library", "Caches"),
-    filepath.Join(home, "Library", "Logs"),
-    "/Library/Caches",
-    "/System/Library/Caches",
-    filepath.Join(home, ".npm"),
-    filepath.Join(home, ".cache"),
-}
-```
+This avoids modifying the shared `cleanup` package or `scan.ScanEntry` type.
 
 ## Version Compatibility
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| Go 1.26+ | Cobra v1.10.2+ | Cobra works with Go 1.15+, but use latest Go for performance |
-| Cobra v1.10.2 | Viper latest | Designed to work together, same maintainer (spf13) |
-| fatih/color v1.18.0 | Go 1.13+ | Supports NO_COLOR env var, Windows compatibility |
-| GoReleaser v2 | Go 1.21+ | Requires recent Go version for build features |
-
-## Performance Characteristics
-
-| Aspect | Go Performance | Notes |
-|--------|---------------|-------|
-| Binary size | 2-8 MB (typical CLI) | Can strip debug symbols to reduce. Stripping reduces to ~8.5 MB for larger apps. |
-| Compilation speed | Sub-second for incremental builds | Much faster than Rust (minutes). Enables rapid development iteration. |
-| Runtime performance | Excellent for I/O-bound tasks | File scanning is I/O-bound. Go's goroutines ideal for concurrent file scanning. |
-| Startup time | Near-instant | No JVM/runtime warmup. Critical for CLI responsiveness. |
-| Memory usage | Minimal for file operations | Efficient garbage collection. Consider streaming for large file lists. |
-
-## Confidence Assessment
-
-| Technology Choice | Confidence | Source Quality |
-|-------------------|-----------|----------------|
-| Go as primary language | **HIGH** | Official Go docs, JetBrains ecosystem analysis 2025, multiple comparison articles, GitHub ecosystem data |
-| Cobra framework | **HIGH** | Official docs, widespread adoption (kubectl, docker, hugo, GitHub CLI), active maintenance (Dec 2024 release) |
-| stdlib for file operations | **HIGH** | Official Go docs, path/filepath and io/fs documented patterns |
-| GoReleaser for distribution | **HIGH** | Official docs, widespread use in Go CLI ecosystem, Homebrew integration patterns |
-| fatih/color for output | **MEDIUM** | GitHub documentation, community adoption, but verified against official Go color handling patterns |
-| Rust/Swift alternatives | **MEDIUM** | Comparison articles from 2025-2026, JetBrains analysis, community discussions |
+| Component | Compatible With | Notes |
+|-----------|-----------------|-------|
+| `filepath.WalkDir` | Go 1.16+ | Project uses Go 1.25, well above minimum |
+| `fs.DirEntry` | Go 1.16+ | Used by WalkDir callback signature |
+| `exec.CommandContext` | Go 1.7+ | Already used in project for Docker/PlistBuddy |
+| Existing `scan` helpers | All new scanners | `ScanTopLevel` for known-path scanning, `DirSize` for measuring directories |
 
 ## Sources
 
-### Language & Ecosystem
-- [Go 1.26 Release Notes](https://go.dev/doc/go1.26) - Official release information (Feb 2026)
-- [Go Ecosystem in 2025: Key Trends](https://blog.jetbrains.com/go/2025/11/10/go-language-trends-ecosystem-2025/) - HIGH confidence
-- [Rust vs Go in 2025](https://blog.jetbrains.com/rust/2025/06/12/rust-vs-go/) - Comparison analysis
-- [Go Solutions: CLIs](https://go.dev/solutions/clis) - Official guidance
-
-### CLI Frameworks
-- [Cobra GitHub](https://github.com/spf13/cobra) - v1.10.2 release (Dec 2024)
-- [Cobra Official Site](https://cobra.dev/) - Framework documentation
-- [Clap (Rust) GitHub](https://github.com/clap-rs/clap) - v4.5.58 release (Feb 2026)
-- [Swift ArgumentParser](https://github.com/apple/swift-argument-parser) - v1.7.0 release (Dec 2024)
-
-### File Operations
-- [path/filepath Go Package](https://pkg.go.dev/path/filepath) - Official stdlib docs
-- [io/fs Go Package](https://pkg.go.dev/io/fs) - Modern filesystem interface
-- [Walking with filesystems: Go's new fs.FS interface](https://bitfieldconsulting.com/posts/filesystems) - WalkDir efficiency analysis
-
-### Distribution
-- [GoReleaser Documentation](https://goreleaser.com/) - Official distribution tool docs
-- [Creating Homebrew Taps Guide](https://kristoffer.dev/blog/guide-to-creating-your-first-homebrew-tap/) - Tap best practices
-- [macOS Code Signing 2026](https://eclecticlight.co/2026/01/17/whats-happening-with-code-signing-and-future-macos/) - Current state of signing
-
-### Supporting Libraries
-- [fatih/color GitHub](https://github.com/fatih/color) - Terminal color library
-- [encoding/json/v2](https://pkg.go.dev/encoding/json/v2) - Published Feb 2026
-
-### Comparisons
-- [Rust vs Go binary sizes](https://www.nicolas-hahn.com/python/go/rust/programming/2019/07/01/program-in-python-go-rust/) - Size comparison
-- [Go Binary Optimization](https://oneuptime.com/blog/post/2026-01-07-go-reduce-binary-size/view) - Size reduction techniques
-- [Swift CLI Distribution](https://www.swifttoolkit.dev/posts/distribute-swift-clis) - macOS distribution patterns
+- Go stdlib documentation (`filepath.WalkDir`, `fs.DirEntry`, `os/exec`) -- HIGH confidence, official stdlib
+- Existing codebase patterns (`pkg/developer/scanner.go`, `pkg/appleftovers/scanner.go`, `internal/cleanup/cleanup.go`) -- HIGH confidence, direct code review
+- `go-git/go-git` dependency assessment -- MEDIUM confidence, based on known dependency tree size
+- `karrick/godirwalk` obsolescence -- HIGH confidence, well-documented that `filepath.WalkDir` (Go 1.16) replaced its primary use case
 
 ---
-*Stack research for: macOS CLI disk cleaning tool*
-*Researched: 2026-02-16*
-*Recommendation: Go 1.26+ with Cobra framework for optimal CLI development experience*
+*Stack research for: macOS disk cleaner v1.7.0 extended scanning*
+*Researched: 2026-03-11*

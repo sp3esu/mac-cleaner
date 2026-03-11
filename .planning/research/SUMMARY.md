@@ -1,330 +1,161 @@
 # Project Research Summary
 
-**Project:** mac-cleaner
-**Domain:** macOS Disk Cleaning CLI Tool
-**Researched:** 2026-02-16
-**Confidence:** MEDIUM-HIGH
+**Project:** mac-cleaner v1.7.0 Extended Scanning
+**Domain:** macOS disk cleaner — home directory scanning, project cache detection, git repository cache management
+**Researched:** 2026-03-11
+**Confidence:** HIGH
 
 ## Executive Summary
 
-Building a macOS disk cleaning CLI tool requires understanding three critical layers: macOS security architecture (SIP, SSV, APFS), safe file classification, and user trust through transparency. The research reveals that Go is the optimal technology choice for this domain, offering single binary distribution, excellent file system operations, and mature CLI ecosystem through Cobra framework. The tool should focus on four cleanable categories (system caches, app leftovers, developer caches, browser data) while explicitly avoiding system-critical paths that could break macOS.
+mac-cleaner v1.7.0 adds three scanning capabilities to an already well-structured Go/Cobra CLI: home directory large/old file detection, project build cache discovery across multiple languages, and git repository cache management. All four research streams converge on the same conclusion: the existing architecture is sound and accommodates all three features with no new external dependencies and no changes to the core engine or scanner interfaces. The implementation path is well-defined — three new packages, one shared internal utility, and one targeted cleanup module extension.
 
-The key insight from competitive analysis is that CLI tools in this space fail when they either request excessive permissions (breaking user trust) or delete indiscriminately (breaking apps/system). Success requires a safety-first architecture with multiple validation layers: SIP protection checks, risk categorization, and transparent preview before any deletion. The recommended approach is layered components (Scanner → Reporter → Cleaner) with rule-based configuration rather than hardcoded paths.
+The recommended build sequence follows a clear dependency chain. A shared depth-limited walk utility (`internal/scan/walk.go`) comes first, then project cache scanning (`pkg/projectcache/`), then home directory scanning (`pkg/homedir/`), then git cache management as an extension of the existing developer scanner with a new cleanup dispatch path. This ordering minimizes risk: each phase is independently shippable, and the architecturally widest change (the cleanup module extension for git gc) is deferred until all other patterns are proven.
 
-Critical risks include deleting SIP-protected directories (system won't boot), misclassifying cache importance (Spotlight re-index, app breakage), and confusing purgeable APFS space with truly reclaimable space (user expectations mismatch). Mitigation requires hardcoded exclusion lists, conservative file classification biased toward NOT deleting, and clear communication separating purgeable vs freed space.
+The primary risks in this milestone are data integrity risks, not technical risks. Home directory scanning can delete irreplaceable user files if the risk model from cache scanning is applied incorrectly. Git gc can corrupt a repository if run without checking for lock files, active worktrees, or submodule type. Project caches can disrupt active development if the scanner does not account for project activity. All three risks have clear, documented mitigations — but they must be addressed as Phase 1 design decisions, not retrofitted later.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Go 1.26+ with Cobra CLI framework provides the best foundation for macOS disk cleaning tools. Go's single static binary distribution (CGO_ENABLED=0) eliminates runtime dependencies, while the stdlib provides robust file operations (io/fs.WalkDir for efficient scanning, path/filepath for cross-platform paths). GoReleaser automates multi-architecture builds and Homebrew tap distribution, essential for easy installation.
+The stack requires zero new external dependencies. All three features build on Go stdlib (`filepath.WalkDir`, `os/exec`, `os.FileInfo`) and existing internal packages (`internal/scan`, `internal/safety`, `internal/engine`, `internal/cleanup`). The codebase already has every pattern required: recursive directory walking, external command execution via `CmdRunner` injection, pseudo-path conventions for non-filesystem cleanup operations, and safety checks via `safety.IsPathBlocked`.
 
 **Core technologies:**
-- **Go 1.26+**: Single binary distribution, fast compilation, excellent stdlib for file operations — industry standard for CLI tools
-- **Cobra v1.10.2+**: Command tree architecture for subcommands (scan, clean, list), automatic help generation, persistent flags — used by kubectl, docker, GitHub CLI
-- **Viper**: Unified config management (files, env vars, flags) — pairs perfectly with Cobra
-- **fatih/color v1.18.0**: Colored terminal output with automatic tty detection and NO_COLOR support — essential for interactive mode UX
-- **GoReleaser**: Automated cross-platform builds, GitHub releases, Homebrew tap updates — critical for distribution
-
-**Critical version requirements:**
-- Go 1.26+ for latest performance and encoding/json/v2 improvements (Feb 2026)
-- Cobra v1.10.2+ (Dec 2024 release) for latest stability
-- Use io/fs.WalkDir (Go 1.16+) instead of filepath.Walk for better efficiency
-
-**What NOT to use:**
-- Python/Node.js (requires runtime, slower, harder single-binary distribution)
-- Rust (steeper learning curve, slower compilation, comparable binary sizes)
-- CGO_ENABLED=1 (creates dynamic binaries, breaks portability)
+- `filepath.WalkDir` (Go 1.25 stdlib): depth-limited home directory traversal — preferred over third-party walkers; `WalkDir` replaced `godirwalk` and similar libraries since Go 1.16
+- `os/exec` with `CmdRunner` injection: git CLI operations for `count-objects -vH` and `gc` — mirrors the established Docker scanner pattern, keeps commands testable
+- `internal/scan.WalkDepthLimited` (new shared utility): shared walk with configurable depth and exclusion list — required by both homedir and projectcache scanners; belongs in `internal/scan/walk.go`
+- Pseudo-path convention (`git-gc:/path`): command-based cleanup dispatch — consistent with existing `docker:BuildCache` pattern; cleanup module dispatches on prefix before `os.RemoveAll`
 
 ### Expected Features
 
-The feature landscape is well-established through competitive analysis of CleanMyMac X, OnyX, Pearcleaner, and DaisyDisk. Users expect basic cache cleaning (system, browser, developer) but value CLI-specific differentiators like JSON output and granular flags.
-
 **Must have (table stakes):**
-- System cache cleaning (~/Library/Caches, /Library/Caches) — every Mac cleaner has this
-- Browser cache cleaning (Safari, Chrome, Firefox) — multi-browser support expected
-- Developer cache cleaning (Xcode DerivedData, npm, yarn, Homebrew) — target audience is developers
-- App leftover removal (preferences, application support) — uninstalled apps leave debris
-- Dry run mode (--dry-run) — users fear data loss, need preview
-- Interactive prompts — users want control over deletions
-- Size reporting — users need to see space savings to justify using tool
-- Safe deletion — never delete system-critical files
-- JSON output (--json) — enables automation and AI agent consumption
-- Granular skip flags (--skip-browser --skip-xcode) — power users want fine control
+- Large file detection (>100MB) in home directory — every disk analyzer competitor provides this (DaisyDisk, CleanMyMac, GrandPerspective)
+- Old file detection (>180 days, >10MB) in home directory — primary user expectation for this scanning category
+- node_modules detection across all projects — npkill's entire market exists for this use case; users commonly accumulate 20-100 instances totaling 50-200GB
+- Swift .build, Rust target/, Python venv/.venv, Java/Kotlin build/ detection — expected coverage for a macOS-native developer tool
+- .git directory size reporting — users expect visibility before any action
+- git gc as cleanup action — the standard mechanism to reclaim git repo space; `git count-objects -vH` shows reclaimable space during scan
 
 **Should have (competitive differentiators):**
-- Path-specific reporting — show exactly which paths cleaned, not just totals (transparency builds trust)
-- Multiple package manager support — npm, yarn, pip, brew caches (high value for developer audience)
-- Smart categorization — group by risk level (safe/moderate/expert) for informed decisions
-- iOS backup cleaning — old iPhone backups consume massive space (~/Library/Application Support/MobileSync/Backup/)
-- Homebrew integration — `brew cleanup` automation for developer workflows
-- CLI-first with scriptability — only CLI tool with JSON output + granular flags
+- Single-pass multi-language project detection — walk once, detect all project types via marker map simultaneously (kondo's approach)
+- Stale project highlighting — surface last-modified date per project so users prioritize deletions rationally
+- Dry-run git gc estimation via `git count-objects -v` during scan — shows potential savings without touching anything; builds trust
+- .git size vs working tree size ratio — identifies repos most likely to benefit from gc
 
 **Defer (v2+):**
-- Universal binary stripping — remove unused architectures (30-50% size reduction, but complex binary manipulation)
-- Language file pruning — remove unused localizations (hundreds of MB, but requires app bundle expertise)
-- Duplicate file detection — CPU intensive file hashing, separate feature class
-- QuickLook cache cleaning — moderate value, privacy angle secondary
-
-**Anti-features (explicitly NOT build):**
-- System file cleaning (/System/Library/Caches) — SIP-protected, breaks macOS
-- Aggressive log deletion (system logs) — breaks diagnostics
-- Automatic daily cleaning — surprise data loss
-- /private/var/folders cleanup — temp files in use, breaks apps
-- Time Machine snapshot deletion — macOS manages automatically, risky
-- GUI wrapper — adds complexity, reduces scriptability
+- Configurable size/age thresholds via CLI flags — hardcoded constants follow existing patterns; add configurability when users request it
+- Duplicate file detection — full-home hashing takes hours, better served by dedicated tools (fdupes, rdfind)
+- `__pycache__` detection — too granular; noise-to-signal ratio is poor at individual directory level
+- Aggregate summary views (e.g., "47 node_modules totaling 28.3 GB") — purely presentational, no architectural changes needed to add later
 
 ### Architecture Approach
 
-The standard architecture for macOS disk cleaning CLI tools follows a layered, component-based design with clear separation between scanning, analysis, user interaction, and cleanup operations. This pattern is validated across mac-cleanup-go, MacCleanCLI, and mac-cleanup-py implementations.
+The architecture maps cleanly onto the existing scanner pattern with no interface changes needed. Two new scanner packages (`pkg/homedir/`, `pkg/projectcache/`), one extension to `pkg/developer/` for git scanning, one new internal utility (`internal/scan/walk.go`), and one targeted extension to `internal/cleanup/cleanup.go` for git-gc pseudo-path dispatch. The `Scanner` interface, `NewScanner` adapter, and `RegisterDefaults` flow are reused without modification. Each new scanner package touches exactly seven integration points (scanner.go, risk.go, registry.go, categories.go, scan.go, root.go, READMEs) — consistent with all existing scanners.
 
 **Major components:**
-1. **CLI Entry Layer** — Parse flags (--all, --dry-run, --skip-*), detect mode (interactive vs flags), route to orchestrator
-2. **Orchestration Controller** — Coordinate workflow (scan → report → clean → summary), handle dry-run logic, manage skip flags
-3. **Scanner Layer** — Discover cleanable files with parallel scanning (Promise.all with p-limit), apply rule matching, perform safety checks (SIP validation, risk assessment)
-4. **Rule Matcher** — Match files against cleaning categories using config-based rules (system-caches, dev-caches, browser-data, app-leftovers), apply exclusion filters
-5. **Safety Checker** — Multi-layer validation: SIP protection check → Risk assessment → Permission check → Path existence
-6. **Reporter Layer** — Calculate sizes (handle APFS clones/hardlinks), format output (human-readable vs JSON), generate summaries
-7. **Confirmation Layer** — Interactive prompts (category selection → item selection) OR auto-confirm based on flags
-8. **Cleaner Layer** — Execute deletions via Trash API (default), direct delete (--force), or external tools (brew cleanup, docker prune)
-9. **Summary Layer** — Aggregate results (scanned/selected/cleaned counts), report errors, show space freed
-
-**Key patterns:**
-- **Rule-based scanning** — Define cleaning targets in config files (JSON/TypeScript), not hardcoded in scanner logic (easier to extend, testable)
-- **Safety-first architecture** — Multiple validation layers before deletion: SIP → Risk → Permission → Existence → User confirmation
-- **Parallel scanning** — Use controlled concurrency (p-limit with limit=8) for 3-10x speedup, essential for good UX
-- **Mode detection** — Detect interactive vs flags early, use adapter pattern for different UI flows
-- **Graceful degradation** — Detect external tool availability (brew, docker), skip gracefully if not installed
-
-**Critical build order:**
-Types (1) → Safety (2) → Rules (3) → Scanner (4) → Reporter (5) + Cleaner (6) + UI (7) → Orchestrator (8) → CLI Entry (9)
+1. `internal/scan/walk.go` (new) — shared `WalkDepthLimited(root, maxDepth, exclude, fn)` utility used by both homedir and projectcache scanners; depth and exclusion-list parameterized; fully testable in isolation
+2. `pkg/projectcache/` (new) — walks `~/` looking for project manifest markers (package.json, Cargo.toml, Package.swift, setup.py/pyproject.toml, build.gradle/pom.xml) then sizes sibling build directories; emits safe/moderate category results
+3. `pkg/homedir/` (new) — depth-limited walk of `~/` detecting files exceeding size/age thresholds; advisory-only or per-file confirmation to prevent batch deletion of personal files
+4. `pkg/developer/` (extended) — adds .git directory discovery (depth-limited walk), `git count-objects -vH` reclaimable space estimation, and `dev-git-repos`/`dev-git-cleanup` categories with `git-gc:` pseudo-path entries
+5. `internal/cleanup/cleanup.go` (extended) — adds `git-gc:` prefix handler that runs `git gc` via `exec.CommandContext` with 60s timeout, dispatching alongside existing `docker:` skip and `os.RemoveAll` paths
 
 ### Critical Pitfalls
 
-Research identified 8 critical pitfalls that break systems or user trust:
+1. **Home directory scanner deletes user files via batch cleanup** — the existing scan-list-delete-category flow is appropriate for regenerable caches but catastrophic for personal files. Home directory entries must either be advisory-only (no cleanup path) or require per-file confirmation. Never allow batch deletion of home directory results. Minimum size threshold (100MB) and explicit exclusion of known application directories are required.
 
-1. **Deleting SIP-protected directories** — Attempting to delete /System, /bin, /sbin, /usr causes "operation not permitted" errors or system breakage. **Prevention:** Hardcode SIP exclusions in Phase 1, never suggest disabling SIP, check extended attribute com.apple.rootless
-2. **Deleting active swap files** — Deleting /private/var/vm/swapfile* causes kernel panic and immediate crash. **Prevention:** Exclude entire /private/var/vm/ from day one
-3. **Deleting caches without understanding impact** — Blindly deleting all caches causes Spotlight re-index (hours), app re-authentication, Xcode breakage. **Prevention:** Categorize caches (safe/risky/forbidden), never delete Spotlight index, auth tokens, keychains; require consent for Xcode/font caches
-4. **Misunderstanding purgeable APFS space** — Tool reports "X GB freed" but users see no change because purgeable space (Time Machine snapshots) is auto-managed by macOS. **Prevention:** Use diskutil apfs list to separate purgeable vs deletable, report separately
-5. **Ignoring Sealed System Volume (SSV)** — Attempting to modify System volume on macOS 11+ fails (signed/sealed, read-only). **Prevention:** Only operate on Data volume, never scan /System on Big Sur+
-6. **Requesting Full Disk Access without justification** — Users distrust tool or grant excessive permissions creating security risk. **Prevention:** Minimize permissions, provide "basic mode" without FDA, document why each permission needed
-7. **False positives (wrong classification)** — Misidentifying important files as junk (app preferences, project files, documents). **Prevention:** Conservative classification biased toward NOT deleting, whitelist approach for known-safe patterns, never delete based on extension/age alone
-8. **Breaking apps via Application Support deletion** — Deleting ~/Library/Application Support/ loses licenses, settings, local databases. **Prevention:** Never delete without per-app knowledge, whitelist known-safe subdirectories, require explicit approval
+2. **Git gc corrupts repository during concurrent operations** — never use `--prune=now`; always use git's default 2-week grace period. Check for `.git/index.lock` before running gc. Skip entries where `.git` is a file rather than a directory (submodules, worktrees). Assign `risky` risk level to ensure user confirmation at cleanup time.
+
+3. **Project cache scanner deletes actively-used build caches** — `node_modules/` in a project modified yesterday is needed. Surface project path and last-active date so users make informed decisions rather than accepting batch deletion. Consider filtering out projects modified within a recency threshold (30 days) by default.
+
+4. **Home directory scan performance causes tool to appear hung** — limit walk depth to 3-4 levels, not full recursion. Skip `~/Library`, `~/Photos Library.photoslibrary`, and `.Trash` immediately on entry. Register the home directory scanner last in the engine so fast scanners report first.
+
+5. **iCloud Desktop and Documents symlinks cause double-counting or cloud deletions** — use `os.Lstat` not `os.Stat` when traversing `~/`. If top-level entries are symlinks into `~/Library/Mobile Documents/`, flag them as iCloud-synced and never offer deletion without an explicit warning.
 
 ## Implications for Roadmap
 
-Based on research, suggested 4-phase structure prioritizing safety foundation before features:
+Based on research, the four suggested phases follow an internal dependency chain. Each phase is independently shippable and testable before the next begins. The cleanup module extension (highest blast radius) is deferred until all other patterns are proven.
 
-### Phase 1: Safe Foundation & Core Scanning
-**Rationale:** Safety validation must exist before any deletion capability. Research shows tools fail catastrophically when they skip safety checks (kernel panics from swap deletion, SIP violations). Building the safety layer first prevents entire classes of pitfalls.
+### Phase 1: Shared Walk Utility
+**Rationale:** Both the project cache scanner and the home directory scanner depend on a depth-limited, exclusion-aware directory walk. This utility has no CLI surface area, is fully testable in isolation with `t.TempDir()`, and unblocks Phases 2 and 3. Building it first prevents divergent walk implementations that would be difficult to tune consistently.
+**Delivers:** `internal/scan/walk.go` implementing `WalkDepthLimited(root string, maxDepth int, exclude map[string]bool, fn func(path string, d fs.DirEntry, depth int) error) error` with full unit test coverage including depth limit enforcement, exclusion behavior, symlink handling, and edge cases.
+**Avoids:** Divergent walk implementations in two scanner packages causing inconsistent depth/exclusion behavior.
 
-**Delivers:** Scanning engine with hardcoded safety exclusions (SIP paths, /private/var/vm/), basic rule system, dry-run reporting
+### Phase 2: Extended Project Cache Scanning
+**Rationale:** Highest ROI feature — node_modules alone commonly represents 20-100GB reclaimable for developers, and all project cache results are fully reproducible (safe to delete). This phase also establishes the end-to-end seven-point registration pattern for the first time in v1.7, validating the approach before more complex features follow. Uses the walk utility from Phase 1.
+**Delivers:** `pkg/projectcache/` scanner with node_modules, Swift .build, Rust target/, Python venv/.venv, Java/Kotlin build/ detection. New CLI flags: `--project-caches`, `--skip-project-caches`, `--node-modules`, `--swift-build`, `--rust-target`, `--python-venv`, `--java-build`. New risk mappings and all six README updates.
+**Addresses:** node_modules, .build, target/, venv, build/ table stakes features from FEATURES.md.
+**Avoids:** Pitfall 7 (false positive pattern matching) by requiring project manifest marker files; Pitfall 3 (active project disruption) by surfacing project path and last-modified date.
 
-**Addresses:**
-- System cache cleaning (must-have from FEATURES.md)
-- Safe deletion (table stakes)
-- Dry run mode (table stakes)
-- Size reporting (table stakes)
+### Phase 3: Home Directory File Scanning
+**Rationale:** Reuses the depth-limited walk proven in Phase 2. Deferred past project caches because the risk model is fundamentally inverted — personal files are not regenerable — and the cleanup path design (advisory-only or per-file confirmation) requires a decision that does not exist in the current codebase. Building after Phase 2 means that decision can be made with a working registration example to reference and a proven walk utility.
+**Delivers:** `pkg/homedir/` scanner with large file (>100MB) and old file (>180 days, >10MB) detection. New CLI flags: `--home-files`, `--skip-home-files`, `--large-files`, `--old-files`. Advisory-only presentation or per-file confirmation flow (design decision must be resolved before coding begins). All six README updates.
+**Addresses:** Large file detection and old file detection table stakes from FEATURES.md.
+**Avoids:** Pitfall 1 (batch deletion of user files), Pitfall 4 (performance), Pitfall 5 (iCloud symlinks).
 
-**Avoids:**
-- Pitfall 1: SIP-protected deletion (hardcoded exclusions)
-- Pitfall 2: Swap file deletion (VM directory exclusion)
-- Pitfall 5: SSV modification (Data volume only)
-
-**Architecture components:**
-- Types & Core Models (phase 1 in build order)
-- Safety Layer (SIP checker, risk assessor, path validator)
-- Rule System (category-based rules for system caches)
-- Scanner (file system scanning, rule matching)
-- Reporter (size calculation, output formatting)
-
-**Research flags:** Standard patterns, skip research-phase. File system operations and safety checks well-documented in Go stdlib and macOS documentation.
-
----
-
-### Phase 2: Multi-Category Cleaning
-**Rationale:** Once safe scanning works, expand to remaining categories (browser, developer, app leftovers). These share the same scanning architecture but require category-specific rules and risk assessment.
-
-**Delivers:** Browser cache rules, developer cache rules (Xcode, npm, yarn), app leftover detection, interactive mode with category selection
-
-**Addresses:**
-- Browser cache cleaning (must-have)
-- Developer cache cleaning (must-have)
-- App leftover removal (must-have)
-- Interactive prompts (must-have)
-- Homebrew integration (differentiator)
-- Smart categorization by risk (differentiator)
-
-**Avoids:**
-- Pitfall 3: Cache misclassification (category-specific risk levels)
-- Pitfall 7: False positives (conservative rules per category)
-
-**Architecture components:**
-- Additional Rule definitions (browser-data, dev-caches, app-leftovers)
-- UI Components (prompts, progress indicators)
-- Cleaner Layer (Trash integration, external tool adapters)
-- Orchestrator (workflow coordination)
-
-**Research flags:** Might need research-phase for browser cache paths (version-specific locations) and Xcode cache safety (which DerivedData is safe to delete). Otherwise standard patterns.
-
----
-
-### Phase 3: CLI Polish & Automation
-**Rationale:** With core cleaning working safely, add CLI-specific differentiators (JSON output, granular flags) that enable automation and AI agent consumption. This is competitive advantage vs GUI tools.
-
-**Delivers:** JSON output format, granular skip flags (--skip-browser, --skip-xcode), flag-based mode (non-interactive), exit codes for scripting
-
-**Addresses:**
-- JSON output (key differentiator from FEATURES.md)
-- Granular skip flags (differentiator)
-- Path-specific reporting (differentiator)
-
-**Uses:**
-- encoding/json/v2 (from STACK.md, Feb 2026 release)
-- go-isatty for terminal detection
-- Cobra's persistent flags for --skip-* options
-
-**Architecture components:**
-- CLI Entry (argument parsing, mode detection)
-- Mode handlers (interactive vs flags)
-- JSON formatters (machine-readable output)
-
-**Research flags:** Standard patterns, skip research-phase. CLI flag handling and JSON serialization well-established in Go ecosystem.
-
----
-
-### Phase 4: Distribution & Trust
-**Rationale:** Defer distribution complexity until core functionality proven. Code signing and Homebrew tap important for user trust but not required for initial validation.
-
-**Delivers:** GoReleaser configuration, Homebrew tap, code signing with Apple Developer ID, notarization via xcrun notarytool, universal binary (arm64 + x86_64)
-
-**Addresses:**
-- Easy installation via Homebrew
-- Distribution trust (no "unidentified developer" warnings)
-- Apple Silicon + Intel support
-
-**Uses:**
-- GoReleaser v2 for multi-arch builds
-- Apple Developer ID certificate ($99/year program)
-- xcrun notarytool for notarization
-
-**Architecture components:**
-- Build configuration
-- Release automation
-- Distribution packaging
-
-**Research flags:** Might need research-phase for code signing/notarization workflow (requires Apple Developer account, certificates, specific tool flags). Otherwise standard GoReleaser patterns.
-
----
+### Phase 4: Git Repository Cache Management
+**Rationale:** Architecturally the most distinct feature — the only v1.7 change that modifies the cleanup module. Extends the developer scanner (established in current codebase) with git-specific discovery logic, and adds a new dispatch branch in `cleanup.Execute` for `git-gc:` pseudo-paths. Deferred last so all other features are proven working before touching cleanup, which has the widest blast radius of any change in this milestone.
+**Delivers:** `pkg/developer/` extension with .git directory discovery, `git count-objects -vH` reclaimable space estimation, and `dev-git-repos`/`dev-git-cleanup` categories. `internal/cleanup/cleanup.go` extended with `git-gc:` handler using `exec.CommandContext` with 60s timeout per repo. New CLI flags: `--git-repos`, `--skip-git-repos`, `--git-cache`, `--git-lfs`. All six README updates.
+**Addresses:** .git size detection, git gc cleanup, git lfs prune table stakes from FEATURES.md.
+**Avoids:** Pitfall 2 (gc corruption from concurrent operations via lock file check), Pitfall 6 (submodule/worktree misidentification via `.git` file vs directory check), Pitfall 8 (exec vs delete abstraction mismatch via pseudo-path pattern).
 
 ### Phase Ordering Rationale
 
-**Why Safety First (Phase 1):**
-- Research shows catastrophic failures (kernel panic, system breakage) happen when safety is afterthought
-- SIP exclusions, swap file protection, SSV awareness must be in foundation
-- Cannot safely test deletion without safety checks in place
-
-**Why Multi-Category Before CLI Polish (Phase 2 before 3):**
-- Validates architecture scales across different rule types
-- Interactive mode user testing informs automation needs
-- Category-specific risks (browser vs developer caches) affect JSON output design
-
-**Why Distribution Last (Phase 4):**
-- Requires Apple Developer account ($99/year) — validate product first
-- Code signing/notarization complex but not needed for local testing
-- Homebrew tap creation straightforward once binary stable
-
-**Dependency Chain:**
-- Phase 1 → Phase 2: Safety layer required before expanding categories
-- Phase 2 → Phase 3: Interactive mode tested before automation flags
-- Phase 3 → Phase 4: Stable CLI required before distribution packaging
-
-**Pitfall Avoidance:**
-- Critical pitfalls (1, 2, 5) addressed in Phase 1 foundation
-- Cache classification pitfalls (3, 7, 8) addressed as rules added in Phase 2
-- Permission pitfall (6) addressed throughout (minimize FDA requests)
-- APFS purgeable space pitfall (4) addressed in Phase 3 reporting
+- Phase 1 is a pure utility with no CLI surface — safe to build in complete isolation, proves the core shared mechanism before any consumer depends on it.
+- Phase 2 before Phase 3 because project caches have a simpler and safer risk model (reproducible artifacts) and establish the seven-point registration pattern the team will repeat in Phase 3.
+- Phase 3 after Phase 2 because it shares the walk utility, reuses the registration pattern, but requires an additional design decision (advisory-only cleanup) that does not exist yet in the codebase.
+- Phase 4 last because it is the only change that modifies the cleanup module. The pseudo-path dispatch pattern is already proven (Docker), but adding actual command execution rather than skipping is the highest-risk change in the milestone.
+- Phases 2 and 3 are technically independent but should be sequential because their registration-point changes overlap in the same files (categories.go, scan.go, root.go), making parallel development error-prone.
 
 ### Research Flags
 
-**Phases likely needing deeper research during planning:**
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (walk utility):** Pure Go stdlib, well-documented. Walk pattern is straightforward; depth and exclusion logic are simple to unit test.
+- **Phase 2 (project caches):** Established patterns from kondo and npkill validate the marker-file approach. Scanner registration is fully documented in existing codebase.
 
-- **Phase 2:** Browser cache paths may be version-specific (Safari 18 vs 17, Chrome updates). Need to verify current macOS 15 Sequoia locations. Xcode DerivedData safety (which subdirectories safe vs risky) needs developer-focused validation.
-
-- **Phase 4:** Code signing workflow (Apple Developer ID certificate setup, codesign flags, notarization process with xcrun notarytool) is procedural but poorly documented for CLI tools. May need research-phase for distribution best practices.
-
-**Phases with standard patterns (skip research-phase):**
-
-- **Phase 1:** File system operations (Go stdlib io/fs well-documented), SIP paths (hardcoded list from official Apple docs), safety checks (established patterns).
-
-- **Phase 3:** CLI flag handling (Cobra framework standard), JSON output (encoding/json/v2 official docs), terminal detection (go-isatty established).
+Phases needing design decisions before implementation begins:
+- **Phase 3 (home directory):** The advisory-only vs. per-file confirmation design for cleanup must be resolved before writing code. This requires deciding whether to add a new risk level above `risky`, add an `Actionable bool` field to `ScanEntry`, or maintain a separate advisory scanner list in the engine. This is a design gap, not a research gap — the right answer is not obvious from existing patterns.
+- **Phase 4 (git management):** The git-gc cleanup dispatch interface design must be resolved before implementation. The pseudo-path string prefix approach (`git-gc:/path`) is recommended by research and consistent with Docker, but the alternative (`CleanupCmd []string` field on `ScanEntry`) is more explicit. Choosing the wrong approach here affects both scanner output and the cleanup module.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | **HIGH** | Go for CLI tools is industry standard (kubectl, docker, hugo use Cobra). Verified through official Go docs, JetBrains ecosystem analysis 2025, multiple comparison sources. GoReleaser for distribution is established pattern. |
-| Features | **MEDIUM** | Feature list validated through competitive analysis (CleanMyMac X, OnyX, Pearcleaner) and user expectations, but specific cache paths may vary by macOS version. Must-have vs differentiator categorization based on multiple cleaner tool comparisons. |
-| Architecture | **MEDIUM-HIGH** | Layered architecture pattern verified across 3 real-world implementations (mac-cleanup-go, MacCleanCLI, mac-cleanup-py). Component boundaries and build order logical, but specific concurrency limits (p-limit=8) may need tuning. |
-| Pitfalls | **MEDIUM** | SIP/SSV/swap file risks verified through official Apple documentation (high confidence). Cache classification risks based on community consensus and CleanMyMac documentation (medium confidence). APFS purgeable space issue documented in DaisyDisk guide. |
+| Stack | HIGH | No new dependencies; all patterns exist in codebase. Direct code analysis confirmed stdlib and internal package sufficiency. |
+| Features | HIGH | Multiple validated tools in this space (npkill, kondo, DaisyDisk). Feature expectations are well-documented and cross-validated. |
+| Architecture | HIGH | Based on direct codebase analysis of existing scanner, engine, cleanup, and safety packages. Component boundaries are explicit. |
+| Pitfalls | HIGH | Critical pitfalls sourced from official git documentation, Apple platform docs, and Go stdlib issue tracker. One MEDIUM item noted below. |
 
-**Overall confidence:** MEDIUM-HIGH
-
-Research is solid for Go stack choice (HIGH), core architecture patterns (MEDIUM-HIGH), and critical safety pitfalls (SIP, swap files). Lower confidence on cache classification nuances and browser path locations which may need validation during Phase 2 implementation.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-**Cache safety classification:** Research identifies general categories (system caches safe, authentication tokens unsafe) but lacks per-app specifics. For example:
-- Which Xcode caches are safe to delete without breaking builds? (DerivedData vs user data)
-- Which browser caches can be deleted while browser is running? (potential corruption)
-- Which Application Support subdirectories contain licenses vs regenerable caches?
-
-**How to handle:** Use conservative classification in Phase 1 (only delete obviously safe caches), gather user feedback in Phase 2 about what breaks, refine rules in iterations.
-
-**APFS space reporting accuracy:** Research identifies purgeable space confusion but doesn't provide exact algorithm for separating purgeable vs truly reclaimable space.
-
-**How to handle:** Use `diskutil apfs list` to query APFS metadata, cross-reference with scan results, report both numbers separately ("X GB will be freed, Y GB already purgeable by macOS").
-
-**macOS version differences:** Research covers macOS 11+ (SSV), but cache paths and system behavior may vary across 11/12/13/14/15.
-
-**How to handle:** Test on multiple macOS versions during Phase 2, document per-version differences if found, use runtime version detection (syscall.Uname) to handle version-specific logic.
-
-**Full Disk Access minimization:** Research recommends minimizing FDA requests but doesn't specify which exact paths require it vs standard permissions.
-
-**How to handle:** Test cleaning without FDA first, identify which specific operations fail, document minimum required permissions, provide graceful degradation (skip FDA-only paths if permission denied).
+- **APFS atime behavior:** Research confirms macOS mounts APFS with `noatime` since High Sierra, meaning modification time (`mtime`) is the correct proxy for "old files." This is well-known community consensus but was not verified against current Apple developer documentation. Validate before finalizing the old-files threshold logic.
+- **git lfs prune scope:** LFS prune behavior (which local cached objects are safe to prune vs. required for uncommitted operations) is documented but context-specific. Recommend either testing against a real LFS repository before finalizing this feature or deferring git lfs prune to v1.8.
+- **Advisory-only cleanup design:** The existing codebase has no precedent for informational-only scan categories that never enter the cleanup path. The mechanism (new risk level, `Actionable bool` on `ScanEntry`, or separate advisory scanner list) must be decided before Phase 3 implementation begins.
+- **Home directory depth vs. coverage tradeoff:** Research recommends 3-4 levels max depth. The correct default requires empirical testing against real home directories to confirm that common large files (DMGs in Documents, ZIPs on Desktop) are captured without excessive scan time. Threshold tuning should be done with real data before the feature ships.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Go 1.26 Release Notes](https://go.dev/doc/go1.26) — Latest Go version features
-- [Cobra GitHub](https://github.com/spf13/cobra) v1.10.2 — CLI framework documentation
-- [Go Solutions: CLIs](https://go.dev/solutions/clis) — Official Go CLI guidance
-- [Apple: System Integrity Protection](https://support.apple.com/en-us/102149) — SIP documentation
-- [Apple: Signed system volume security](https://support.apple.com/guide/security/secd698747c9/web) — SSV architecture
-- [path/filepath Go Package](https://pkg.go.dev/path/filepath) — Stdlib file operations
-- [io/fs Go Package](https://pkg.go.dev/io/fs) — Modern filesystem interface
+- Existing codebase (`internal/engine/`, `internal/scan/`, `internal/safety/`, `internal/cleanup/`, `pkg/developer/`, `cmd/categories.go`) — direct code analysis confirming all integration patterns
+- Go stdlib documentation (`filepath.WalkDir`, `fs.DirEntry`, `os/exec`) — stable stdlib since Go 1.16
+- Git gc documentation (https://git-scm.com/docs/git-gc) — concurrent operation risks, prune grace period, count-objects output
+- Git worktree documentation (https://git-scm.com/docs/git-worktree) — shared object database behavior
+- Go filepath.Walk issue tracker (#16399, #36197) — WalkDir performance and memory considerations
 
 ### Secondary (MEDIUM confidence)
-- [mac-cleanup-go GitHub](https://github.com/2ykwang/mac-cleanup-go) — Real-world TUI cleaner implementation
-- [MacCleanCLI GitHub](https://github.com/QDenka/MacCleanCLI) — Python tool architecture reference
-- [mac-cleanup-py GitHub](https://github.com/mac-cleanup/mac-cleanup-py) — Modular plugin architecture
-- [Best Mac Cleaner Software 2026](https://thesweetbits.com/best-mac-cleaner-software/) — Competitive feature analysis
-- [CleanMyMac X Features](https://cleanmymac.com/) — Commercial leader baseline
-- [Pearcleaner GitHub](https://github.com/alienator88/Pearcleaner) — FOSS alternative features
-- [Library/Caches on Mac](https://iboysoft.com/wiki/library-caches-mac.html) — Cache location documentation
-- [Browser Cache Paths](https://echoone.com/filejuicer/formats/cache) — Safari/Chrome/Firefox locations
-- [Xcode Cache Cleaning](https://macpaw.com/how-to/clear-xcode-cache) — Developer cache paths
-- [DaisyDisk: Local APFS snapshots](https://daisydiskapp.com/guide/4/en/Snapshots/) — Purgeable space explanation
-- [macOS SIP - HackTricks](https://book.hacktricks.wiki/en/macos-hardening/macos-security-and-privilege-escalation/macos-security-protections/macos-sip.html) — SIP protection paths
-- [GoReleaser Documentation](https://goreleaser.com/) — Distribution tool documentation
-- [Command Line Interface Guidelines](https://clig.dev/) — CLI design patterns
+- npkill (https://npkill.js.org/) — validates node_modules cleanup use case and scale of savings
+- kondo (https://github.com/tbillington/kondo) — validates multi-language marker-based project cache detection, 20+ project types
+- DaisyDisk (https://daisydiskapp.com/) — reference for large file discovery UX expectations
+- Atlassian Git GC tutorial (https://www.atlassian.com/git/tutorials/git-gc) — gc/prune relationship and safety practices
+- GitHub Engineering: Scaling Git's GC (https://github.blog/engineering/architecture-optimization/scaling-gits-garbage-collection/) — gc operational considerations
+- DevToolbox: Git index.lock Fix Guide (https://devtoolbox.dedyn.io/blog/git-index-lock-file-exists-fix-guide) — lock file detection patterns
+- Apple Community: iCloud Desktop and Documents (https://discussions.apple.com/thread/250723356) — symlink behavior under iCloud sync
+- macOS storage cleanup for developers (https://flyingharley.dev/posts/storage-optimization-on-mac-os-for-developer/) — developer-specific cache path inventory
 
 ### Tertiary (LOW confidence, needs validation)
-- [Homebrew cleanup documentation](https://docs.brew.sh/Manpage) — External tool integration
-- [Full Disk Access explained](https://macpaw.com/how-to/full-disk-access) — Permission requirements
-- [Rebuild Spotlight index](https://support.apple.com/en-us/102321) — Cache deletion consequences
+- go-git/go-git dependency assessment — based on known dependency tree size, not verified against current release; conclusion (avoid) is robust even if specific count is slightly off
+- godirwalk obsolescence — well-established community consensus that WalkDir replaced it; LOW only because not cross-checked against current godirwalk changelog
 
 ---
-*Research completed: 2026-02-16*
+*Research completed: 2026-03-11*
 *Ready for roadmap: yes*

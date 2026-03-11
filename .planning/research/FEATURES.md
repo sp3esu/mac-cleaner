@@ -1,321 +1,221 @@
-# Feature Landscape: macOS Disk Cleaning Tools
+# Feature Landscape: v1.7.0 Extended Scanning
 
-**Domain:** macOS Disk Cleaning & System Maintenance
-**Researched:** 2026-02-16
-**Confidence:** MEDIUM
+**Domain:** Home directory file scanning, project cache detection, git cache management
+**Researched:** 2026-03-11
+**Confidence:** HIGH (established patterns, well-documented tools in this space)
 
 ## Table Stakes
 
-Features users expect. Missing = product feels incomplete.
+Features users expect when a disk cleaner claims to handle these categories. Missing = product feels incomplete.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| System cache cleaning | Every Mac cleaner has this; users expect GB of space back | Low | ~/Library/Caches and /Library/Caches are standard targets |
-| User cache cleaning | Users download apps expecting their caches to be found | Low | App-specific caches in ~/Library/Caches/[bundle.id] |
-| Browser cache cleaning | Multi-browser support is table stakes (Safari, Chrome, Firefox) | Low | Well-documented paths per browser |
-| Dry run mode | Users fear data loss; need to preview before delete | Low | Show what would be deleted without deleting |
-| Interactive prompts | Users want control over what gets deleted | Low | Ask before deleting each category |
-| Size reporting | Users need to see space savings to justify using tool | Low | Calculate and display sizes before/after |
-| Safe deletion | Never delete system-critical files | Medium | Requires careful path filtering and validation |
-| App leftover removal | Uninstalled apps leave preferences/caches behind | Medium | Search ~/Library/Preferences, ~/Library/Application Support |
-| Developer cache cleaning | Xcode DerivedData is massive and commonly cleaned | Low | ~/Library/Developer/Xcode/DerivedData is well-known |
-| Log file cleaning | System and app logs accumulate over time | Low | ~/Library/Logs and /Library/Logs |
+### Home Directory File Scanning
+
+| Feature | Why Expected | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| Large file detection (configurable threshold, default 100MB+) | Every disk analyzer shows large files (DaisyDisk, CleanMyMac, GrandPerspective). Users expect to find forgotten ISOs, DMGs, ZIPs. | Medium | New scanner in `pkg/`, new category IDs, threshold flag |
+| Old file detection (configurable age, default 180+ days) | Stale files are the primary reason home directories bloat. Users want to see what they forgot about. | Medium | `os.Stat` mod-time checks; mirrors existing `scanOldDownloads` pattern |
+| Size-sorted results | Users want to address biggest wins first. All competitors sort by size descending. | Low | Already the standard pattern in existing scanners |
+| Exclude known directories (~/Library, ~/.Trash, ~/Applications, dotfiles) | Scanning ~/Library duplicates existing scanners. Scanning .Trash is confusing. Users expect smart defaults. | Low | Hardcoded exclusion list in scanner |
+| Exclude paths covered by other scanners | If a file is already reported by old-downloads or another scanner, it should not appear again. ~/Downloads should be excluded since old-downloads already covers it. | Low | Static exclusion list (~/Downloads, ~/Library, etc.) |
+| File type context in description | "backup-2024.dmg (4.2 GB)" is more useful than just a path. | Low | Use `filepath.Ext` + filename in ScanEntry.Description |
+
+### Extended Project Caches
+
+| Feature | Why Expected | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| node_modules detection (recursive under ~/) | node_modules is the single biggest space consumer for JS devs. npkill exists solely for this use case. Commonly 200MB-2GB per project, users accumulate 20-100+ of these. | High | Recursive directory walk with depth limits and exclusions |
+| Swift .build directories | Swift Package Manager creates .build/ in every package root. Xcode/SwiftPM developers accumulate many. Identified by Package.swift marker file. | Medium | Shared walk infrastructure, Package.swift marker detection |
+| Rust target/ directories | Rust target/ dirs commonly reach 1-10GB per project. Well-known pain point in Rust community. Identified by Cargo.toml marker. | Medium | Shared walk infrastructure, Cargo.toml marker detection |
+| Python venv/.venv directories | Virtual environments are 200-500MB each, often forgotten in old projects. Identified by pyvenv.cfg marker file inside the venv dir. | Medium | Shared walk infrastructure, pyvenv.cfg marker detection |
+| Java/Kotlin project build/ directories | Gradle/Maven build outputs in project dirs (distinct from ~/.gradle global cache already scanned by developer scanner). Identified by build.gradle/pom.xml marker. | Medium | Shared walk infrastructure, build.gradle/pom.xml marker detection |
+| Project path in description | Users need project context: "~/code/old-project/node_modules (1.2 GB)". | Low | Already supported by ScanEntry.Path and Description fields |
+
+### Git Repository Cache Management
+
+| Feature | Why Expected | Complexity | Dependencies |
+|---------|-------------|------------|--------------|
+| Detect large .git directories | .git dirs can grow to multiple GB with history, LFS objects, stale refs. Users want visibility into this hidden space. | Medium | Walk for .git dirs, use DirSize |
+| Report reclaimable space per repo | `git count-objects -v` reports size-pack and size-garbage. Users want to know potential savings before acting. | Medium | Shell out to git, parse output. Mirrors Docker scanner CmdRunner pattern. |
+| git gc as cleanup action | The standard way to compact a git repo. Users expect this as the primary reclaim mechanism. | High | **Architectural change**: cleanup module uses os.RemoveAll, but git gc is a command. Needs command-based cleanup support. |
+| git lfs prune (when LFS present) | LFS objects are often the biggest .git consumers. Pruning local cache reclaims significant space. Only relevant when .git/lfs/ exists. | Medium | LFS detection + command execution |
 
 ## Differentiators
 
-Features that set product apart. Not expected, but valued.
+Features that set this apart from basic tools. Not expected, but valued by power users.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| JSON output | Enables automation & AI agent consumption | Low | Machine-readable output for programmatic use |
-| Granular skip flags | Power users want fine control (--skip-browser --skip-xcode) | Low | Flag per category, easy to implement |
-| Path-specific reporting | Show exactly which paths were cleaned, not just totals | Low | Transparency builds trust |
-| Multiple package manager support | Clean npm, yarn, pip, brew caches | Medium | Developer-focused, high value for target audience |
-| Universal binary stripping | Remove unused architectures (Intel/ARM) from apps | High | Reduces app size 30-50%, requires binary manipulation |
-| Language file pruning | Remove unused localizations from apps | High | Can save hundreds of MB, requires app bundle knowledge |
-| Smart categorization | Group findings by risk level (safe/moderate/expert) | Medium | Helps users make informed decisions |
-| iOS backup cleaning | Old iPhone/iPad backups consume massive space | Low | ~/Library/Application Support/MobileSync/Backup/ |
-| Mail attachment cleanup | Mail.app can accumulate GB of attachments | Medium | ~/Library/Mail/V*/MailData/Envelope Index* |
-| QuickLook cache cleaning | Thumbnail caches can grow large, privacy risk | Medium | /private/var/folders/*/C/com.apple.QuickLook.thumbnailcache/ |
-| Homebrew integration | Clean brew cache, outdated downloads | Low | High value for developers using Homebrew |
-| Duplicate file detection | Find and remove duplicate files | High | CPU intensive, requires file hashing |
-| Download folder cleanup | Auto-clean old downloads by age | Low | Users often forget about ~/Downloads |
-| Plugin/extension removal | Find orphaned plugins and services | Medium | ~/Library/Services, ~/Library/Plugins paths |
+| Feature | Value Proposition | Complexity | Dependencies |
+|---------|-------------------|------------|--------------|
+| Single-pass multi-language project detection | Walk once, detect node_modules AND Cargo.toml AND Package.swift simultaneously. Far faster than N separate walks. kondo does this. | Medium | Careful walk design with marker map |
+| Stale project highlighting | Projects not modified in 6+ months with large build caches are prime cleanup targets. Show last-modified date per project. | Medium | Check most recent source file mod-time (exclude build dirs) |
+| Aggregate project cache summary | "47 node_modules totaling 28.3 GB" as category description is more actionable than 47 individual lines. Per-type subtotals. | Low | Presentation-level enhancement in category description |
+| Dry-run git gc estimation | Run `git count-objects -v` in scan phase to show estimated savings without touching anything. Builds user trust. | Medium | Read-only command execution during scan |
+| .git size vs working tree ratio | A 500MB .git on a 10MB working tree signals a repo that would benefit from gc. Ratio helps users prioritize. | Low | Compute both sizes, include ratio in description |
 
 ## Anti-Features
 
-Features to explicitly NOT build.
+Features to explicitly NOT build in this milestone.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| System file cleaning | /System/Library/Caches deletion can break macOS | Only clean user-space files (~/ prefix) |
-| Aggressive log deletion | Deleting system logs can break diagnostics | Only clean app logs, leave system logs alone |
-| Automatic daily cleaning | Can surprise users with data loss | Require explicit user action, never auto-delete |
-| /private/var/folders cleanup | Temp files here may be in use, can break apps | Skip this directory entirely despite size |
-| Time Machine snapshot deletion | macOS manages these automatically, manual deletion risky | Report existence but don't offer to delete |
-| No confirmation mode | Deleting without preview creates support burden | Always show what will be deleted first |
-| GUI wrapper | Adds complexity for CLI tool, reduces scriptability | Stay CLI-focused, let others build GUI if needed |
-| Deep system optimization | "Speed up Mac" claims are snake oil | Focus on disk space only, no performance claims |
-| Cloud storage cleanup | Deleting from Dropbox/iCloud is destructive | Report size but don't delete cloud files |
-| Kernel extension cleanup | Too risky, can break system | Document location but don't touch |
+| Automatic deletion of all node_modules | Too destructive. Active projects need their deps. One wrong delete breaks a developer's workflow. | List and let user select via interactive mode or targeted flags. |
+| Scanning inside ~/Library | Already covered by existing system/browser/developer/creative/messaging/photos/systemdata scanners. Double-counting confuses users and inflates totals. | Explicitly exclude ~/Library from home directory scanner. |
+| Scanning inside .photoslibrary bundles | Already covered by photos scanner. Modifying Photos library structure can corrupt it. | Exclude *.photoslibrary. |
+| Scanning inside .git/objects directly | Users must NOT manually delete git objects. That corrupts repos. | Use git gc/prune commands. Report .git size as opaque blob. |
+| Deep recursive scan without depth limits | Scanning every nested dir under ~/ without limits causes multi-minute scans and high I/O. node_modules inside node_modules is never useful. | Max depth 5-6 levels for project discovery. Skip nested build artifact dirs. |
+| Scanning /Volumes or network mounts | External drives and NAS have different lifecycle. Accidental deletion of network files is catastrophic. | Restrict to home directory on boot volume only. |
+| Git history rewriting (BFG, filter-branch) | Destructive, irreversible, affects remote collaborators. Beyond a cleanup tool's scope. | Only offer gc/prune (safe, local-only operations). |
+| Duplicate file detection | Full-home hashing is extremely slow (hours). Not worth the scan time for a CLI tool. | Defer to dedicated tools (fdupes, rdfind). Out of scope for v1.7. |
+| __pycache__ detection | Too small individually (usually < 1MB per dir). Noise-to-signal ratio is terrible. | Skip or only report when aggregated above a threshold. |
+| Scanning node_modules inside node_modules | Nested deps are managed by the package manager. Only the top-level node_modules matters for deletion. | When a node_modules is found, do not recurse into it. |
 
 ## Feature Dependencies
 
 ```
-Interactive Mode
-    └──requires──> Size Reporting
-    └──requires──> Dry Run Mode
+Recursive Walk Infrastructure (shared utility)
+  |
+  +--> Project Cache Scanner
+  |      +-- node_modules (marker: package.json or package-lock.json nearby)
+  |      +-- .build (marker: Package.swift)
+  |      +-- target/ (marker: Cargo.toml)
+  |      +-- venv/.venv (marker: pyvenv.cfg inside)
+  |      +-- build/ (marker: build.gradle or build.gradle.kts or pom.xml)
+  |
+  +--> Git Cache Scanner
+  |      +-- .git size detection
+  |      +-- git count-objects (CmdRunner pattern)
+  |      +-- git gc cleanup --> REQUIRES command-based cleanup support
+  |      +-- git lfs prune --> REQUIRES .git/lfs detection + command execution
+  |
+  +--> Home Dir File Scanner (does NOT need walk infra -- shallow scan of ~/ only)
+         +-- Large file detection (stat files in ~/, skip dirs)
+         +-- Old file detection (check mod-time, skip dirs handled by other scanners)
 
-JSON Output
-    └──conflicts──> Interactive Mode (mutually exclusive)
-
-Granular Skip Flags
-    └──requires──> Category Detection
-    └──enhances──> Dry Run Mode
-
-Universal Binary Stripping
-    └──requires──> App Bundle Parsing
-    └──requires──> Architecture Detection
-
-Language File Pruning
-    └──requires──> App Bundle Parsing
-    └──enhances──> Universal Binary Stripping (same code paths)
-
-Mail Attachment Cleanup
-    └──requires──> Mail.app Version Detection
-
-Homebrew Integration
-    └──requires──> Homebrew Installation Detection
-    └──enhances──> Developer Cache Cleaning
-
-Safe Deletion
-    └──requires──> Path Validation
-    └──required-by──> ALL cleaning features
+Command-Based Cleanup Extension
+  +-- Needed by: git gc, git lfs prune
+  +-- Pattern: add CleanupCmd field to ScanEntry, or extend cleanup.Execute
+  +-- Existing precedent: Docker uses pseudo-paths, but Docker cleanup is skipped (not executed)
 ```
+
+**Critical dependency chain:**
+1. Recursive directory walk utility (shared by project cache + git scanners)
+2. Command-based cleanup support in engine/cleanup (needed for git gc/prune -- currently only os.RemoveAll exists)
+3. Individual scanner implementations
+4. Category registration (risk.go, categories.go, engine scanners.go)
 
 ## MVP Recommendation
 
-### Launch With (v1.0)
+### Phase 1: Project Cache Scanner (highest ROI, builds shared infrastructure)
 
-Prioritize:
-1. System cache cleaning (~/Library/Caches, /Library/Caches)
-2. User cache cleaning (app-specific)
-3. Browser cache cleaning (Safari, Chrome, Firefox)
-4. Developer cache cleaning (Xcode DerivedData, npm, yarn)
-5. App leftover removal (preferences, application support)
-6. Dry run mode (--dry-run)
-7. Interactive mode (prompt per category)
-8. JSON output (--json)
-9. Granular skip flags (--skip-*)
-10. Safe deletion (path validation)
-11. Size reporting (before/after)
+Build:
+1. Shared recursive walk utility with depth limits, exclusion list, multi-marker detection
+2. node_modules detection -- biggest space savings for most developers (npkill users report 50-200GB reclaimed)
+3. Swift .build detection -- natural for macOS-focused tool
+4. Rust target/ detection -- known huge space consumer (1-10GB each)
+5. Python venv/.venv detection -- common and straightforward
+6. Java/Kotlin build/ detection -- rounds out language coverage
 
-**Rationale:** These features cover the 4 categories mentioned in project context (system caches, app leftovers, developer caches, browser data) with appropriate safety mechanisms.
+**Rationale:** Project caches are the single largest source of reclaimable space for developers (commonly 20-100GB across projects). All entries are safe to delete (regenerated by build tools). The recursive walk infrastructure built here is reused by git scanning in Phase 2.
 
-### Add After Validation (v1.x)
+**Risk classification:** All project caches should be `safe` (regenerable) except Python venv which is `moderate` (may contain custom-installed packages not in requirements.txt).
 
-- Log file cleaning (easy win for space)
-- iOS backup cleaning (high impact, simple implementation)
-- Download folder cleanup (user convenience)
-- Homebrew cache cleaning (developer audience value)
-- Mail attachment cleanup (high space savings for some users)
+### Phase 2: Git Repository Cache Management
 
-**Trigger:** User feedback requesting these specific features.
+Build:
+1. .git directory size detection (reuses walk from Phase 1)
+2. `git count-objects -v` for reclaimable space estimation (read-only, shown during scan)
+3. Command-based cleanup extension to engine/cleanup module
+4. git gc --aggressive as cleanup action
+5. git lfs prune (only when .git/lfs exists)
 
-### Future Consideration (v2+)
+**Rationale:** Requires walk infrastructure from Phase 1. Also requires architectural work for command-based cleanup. Lower ROI than project caches -- git gc typically saves less space than deleting node_modules. But provides unique value (no other CLI cleaner does this well).
 
-- Universal binary stripping (complex, high value)
-- Language file pruning (complex, moderate value)
-- QuickLook cache cleaning (privacy angle, moderate value)
-- Plugin/extension removal (lower priority)
-- Duplicate file detection (CPU intensive, separate feature class)
+**Risk classification:** `moderate` for git-cache (gc/prune are safe but irreversible -- loose objects are gone once packed/pruned).
 
-**Why defer:** These require significant engineering effort (binary manipulation, file hashing) and should be validated separately after core product is proven.
+### Phase 3: Home Directory File Scanning
 
-## Feature Prioritization Matrix
+Build:
+1. Large file detection (configurable threshold, default 100MB)
+2. Old file detection (configurable age, default 180 days)
+3. Exclusion of ~/Library, ~/Applications, ~/.Trash, ~/Downloads, and all dotfile directories
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| System cache cleaning | HIGH | LOW | P1 |
-| Browser cache cleaning | HIGH | LOW | P1 |
-| Developer cache cleaning | HIGH | LOW | P1 |
-| App leftover removal | HIGH | MEDIUM | P1 |
-| Dry run mode | HIGH | LOW | P1 |
-| Interactive mode | HIGH | LOW | P1 |
-| JSON output | HIGH | LOW | P1 |
-| Granular skip flags | HIGH | LOW | P1 |
-| Safe deletion | HIGH | MEDIUM | P1 |
-| Size reporting | HIGH | LOW | P1 |
-| Log file cleaning | MEDIUM | LOW | P2 |
-| iOS backup cleaning | HIGH | LOW | P2 |
-| Download folder cleanup | MEDIUM | LOW | P2 |
-| Homebrew cache cleaning | HIGH | LOW | P2 |
-| Mail attachment cleanup | MEDIUM | MEDIUM | P2 |
-| QuickLook cache cleaning | LOW | MEDIUM | P3 |
-| Plugin/extension removal | LOW | MEDIUM | P3 |
-| Universal binary stripping | MEDIUM | HIGH | P3 |
-| Language file pruning | LOW | HIGH | P3 |
-| Duplicate file detection | MEDIUM | HIGH | P3 |
+**Rationale:** Deferred to last because (a) overlaps with existing old-downloads scanner, (b) results are highly personal and need careful user review, (c) risk classification is harder (every file is unique and potentially irreplaceable), (d) does not need the shared walk infrastructure.
 
-**Priority key:**
-- P1: Must have for launch (MVP)
-- P2: Should have, add when possible (v1.x)
-- P3: Nice to have, future consideration (v2+)
+**Risk classification:** `risky` for both large-files and old-files (user data, not regenerable).
 
-## macOS Paths Reference
+### Defer Entirely
 
-### System Caches
-```
-~/Library/Caches/                          # User app caches
-/Library/Caches/                           # System app caches
-AVOID: /System/Library/Caches/             # System-critical caches
+- Duplicate file detection: High complexity, slow, better served by dedicated tools
+- Aggregate summary views: Purely presentational, can be added later without architectural changes
+- __pycache__ cleanup: Too granular, noise exceeds signal
+
+## Architectural Notes for Roadmap
+
+### Recursive Walk Infrastructure
+- **Single walk, multiple detectors:** Walk ~/[non-excluded dirs] once, checking each directory for marker files (package.json, Cargo.toml, Package.swift, build.gradle, pom.xml, .git). This is orders of magnitude faster than N separate walks.
+- **Max depth:** 5-6 levels sufficient. Projects rarely nested deeper.
+- **Exclusion list:** ~/Library, ~/Applications, ~/.Trash, ~/Pictures/*.photoslibrary, ~/Music/Music, .git (don't recurse into), node_modules (don't recurse into), target (don't recurse into), .build (don't recurse into), build (don't recurse into when it's a detected project build dir)
+- **Walk strategy:** `os.ReadDir` (not `filepath.Walk`) for explicit depth control. Skip symlinks to avoid cycles.
+- **Performance target:** Walk should complete in < 5 seconds for typical home directory.
+
+### Command-Based Cleanup (for git gc/prune)
+Current cleanup module (`internal/cleanup/cleanup.go`) only supports `os.RemoveAll`. Git gc/prune require running shell commands. Recommended approach:
+
+Add an optional `CleanupCmd []string` field to `ScanEntry`. When present, `cleanup.Execute` runs the command (via `exec.CommandContext`) instead of `os.RemoveAll`. Example:
+```go
+ScanEntry{
+    Path:        "/Users/me/code/project/.git",
+    Description: "project (.git 500 MB, ~200 MB reclaimable)",
+    Size:        200_000_000, // estimated reclaimable, not total .git size
+    CleanupCmd:  []string{"git", "-C", "/Users/me/code/project", "gc", "--aggressive"},
+}
 ```
 
-### Browser Data
-```
-# Safari
-~/Library/Caches/com.apple.Safari/
-~/Library/Safari/LocalStorage/
-~/Library/Safari/Databases/
+This is minimally invasive, keeps the existing interface stable, and reuses the CmdRunner/exec.CommandContext patterns already established in the Docker and PlistBuddy scanners.
 
-# Chrome
-~/Library/Caches/Google/Chrome/
-~/Library/Application Support/Google/Chrome/Default/Cache/
+### New Category IDs and Risk Levels
 
-# Firefox
-~/Library/Caches/Firefox/Profiles/
-~/Library/Application Support/Firefox/Profiles/*/cache2/
-```
+| Category ID | Risk Level | Scanner Group | Description |
+|-------------|-----------|---------------|-------------|
+| project-node-modules | safe | project-caches | node_modules directories |
+| project-swift-build | safe | project-caches | Swift .build directories |
+| project-rust-target | safe | project-caches | Rust target directories |
+| project-python-venv | moderate | project-caches | Python virtual environments |
+| project-java-build | safe | project-caches | Java/Kotlin build directories |
+| git-cache | moderate | git-repos | Git repository caches |
+| git-lfs-cache | moderate | git-repos | Git LFS local caches |
+| home-large-files | risky | home-files | Large files in home directory |
+| home-old-files | risky | home-files | Old files in home directory |
 
-### Developer Caches
-```
-# Xcode
-~/Library/Developer/Xcode/DerivedData/
-~/Library/Developer/Xcode/Archives/
-~/Library/Developer/Xcode/iOS DeviceSupport/
-~/Library/Caches/com.apple.dt.Xcode/
+### New CLI Flags Needed
 
-# Node/npm
-~/.npm/
-~/Library/Caches/npm/
+Group-level:
+- `--project-caches` / `--skip-project-caches`
+- `--git-repos` / `--skip-git-repos`
+- `--home-files` / `--skip-home-files`
 
-# Yarn
-~/Library/Caches/Yarn/
+Item-level (scan subcommand):
+- `--node-modules`, `--swift-build`, `--rust-target`, `--python-venv`, `--java-build`
+- `--git-cache`, `--git-lfs`
+- `--large-files`, `--old-files`
 
-# pip
-~/Library/Caches/pip/
-
-# Homebrew
-~/Library/Caches/Homebrew/
-```
-
-### App Leftovers
-```
-~/Library/Preferences/                     # .plist files
-~/Library/Application Support/             # App data
-~/Library/LaunchAgents/                    # User launch agents
-/Library/LaunchDaemons/                    # System launch daemons
-/Library/Receipts/                         # Installation receipts (.pkg)
-```
-
-### Logs
-```
-~/Library/Logs/                            # User app logs
-/Library/Logs/                             # System app logs
-AVOID: /var/log/                           # System logs (expert only)
-```
-
-### Other
-```
-# iOS Backups
-~/Library/Application Support/MobileSync/Backup/
-
-# Mail Attachments
-~/Library/Mail/V*/MailData/
-
-# QuickLook Thumbnails
-/private/var/folders/*/C/com.apple.QuickLook.thumbnailcache/
-
-# Downloads
-~/Downloads/
-
-# Temporary Files
-/private/tmp/                              # Auto-cleared on restart
-/private/var/tmp/                          # Auto-cleared on restart
-AVOID: /private/var/folders/               # In-use temp files, can break apps
-```
-
-### Time Machine (Report Only)
-```
-/.MobileBackups/                           # Local snapshots (older macOS)
-# APFS snapshots on newer macOS are managed differently
-```
-
-## Competitor Feature Analysis
-
-| Feature | CleanMyMac X | OnyX | Pearcleaner | DaisyDisk | Our Approach |
-|---------|--------------|------|-------------|-----------|--------------|
-| System cache cleaning | Yes (automated) | Yes (manual) | No | No (visualization only) | Yes (interactive + flags) |
-| Browser cache cleaning | Yes | Yes | No | No | Yes |
-| Developer cache cleaning | Partial | Yes | Yes (Homebrew) | No | Yes (comprehensive) |
-| App uninstall | Yes | No | Yes | No | Yes (leftovers only) |
-| Dry run mode | No | Preview in UI | Yes | N/A | Yes (--dry-run) |
-| CLI interface | No | No | Partial | No | Yes (primary interface) |
-| JSON output | No | No | No | No | Yes (AI agent friendly) |
-| Granular control | UI checkboxes | Expert mode | Limited | N/A | Flags (--skip-*) |
-| Universal binary stripping | Yes | No | Yes (Lipo tool) | No | Future (v2+) |
-| Language file pruning | Yes | No | Yes | No | Future (v2+) |
-| Malware detection | Yes | No | No | No | No (out of scope) |
-| Storage visualization | Yes | No | No | Yes (primary feature) | No (CLI text only) |
-| Pricing | $39.95/year | Free | Free | $9.99 one-time | Free & open source |
-
-### Competitive Positioning
-
-**vs CleanMyMac X:** We're the CLI/scriptable alternative. No GUI bloat, no subscription, perfect for automation and AI agents.
-
-**vs OnyX:** We're safer and more user-friendly. OnyX gives expert access but can break your Mac if misused. We focus on safe operations only.
-
-**vs Pearcleaner:** We complement it. Pearcleaner excels at app uninstallation, we excel at cache cleaning. Users might use both.
-
-**vs DaisyDisk:** Different problem space. DaisyDisk visualizes, we clean. They help you find what's big, we help you delete the junk.
-
-**Unique value:** Only CLI-first tool with JSON output, granular flags, and developer cache focus. Perfect for automation, AI agents, and power users who script their Mac maintenance.
+Configuration:
+- `--large-file-threshold` (default: 100MB)
+- `--old-file-age` (default: 180 days)
+- `--scan-depth` (default: 5)
 
 ## Sources
 
-### Primary Research
-- [CleanMyMac X Features](https://cleanmymac.com/) - Commercial leader, feature baseline
-- [Best Mac Cleaner Software 2026](https://thesweetbits.com/best-mac-cleaner-software/) - Feature comparison
-- [OnyX Alternative Tools](https://iboysoft.com/howto/onyx-alternative.html) - Free tool landscape
-- [DaisyDisk Alternatives](https://www.drbuho.com/review/daisydisk-alternative) - Market positioning
-
-### macOS Paths Documentation
-- [Library/Caches on Mac](https://iboysoft.com/wiki/library-caches-mac.html) - Cache locations
-- [Browser Cache Paths](https://echoone.com/filejuicer/formats/cache) - Safari, Chrome, Firefox locations
-- [Xcode Cache Cleaning](https://macpaw.com/how-to/clear-xcode-cache) - Developer cache paths
-- [App Leftover Files](https://app-cleaner.com/blog/delete-apps-and-their-leftovers) - Uninstaller paths
-- [System Logs Location](https://iboysoft.com/wiki/mac-system-log-files.html) - Log file paths
-- [iPhone Backups on Mac](https://support.apple.com/en-us/108809) - iOS backup location
-- [Mail Cache Cleanup](https://cleanmymac.com/blog/clear-mail-cache-mac) - Mail.app paths
-- [QuickLook Cache](https://appleinsider.com/inside/macos/tips/how-to-stop-and-disable-quick-look-cache-in-macos) - Thumbnail cache location
-
-### Open Source Alternatives
-- [Pearcleaner GitHub](https://github.com/alienator88/Pearcleaner) - Feature reference
-- [Open Source CCleaner Alternatives](https://openalternative.co/alternatives/ccleaner) - FOSS landscape
-- [AppCleaner vs Pearcleaner](https://www.drbuho.com/review/appcleaner-vs-pearcleaner) - Feature comparison
-
-### Safety & Best Practices
-- [macOS Cleaning Risks](https://macpaw.com/how-to/delete-junk-files-on-mac) - What not to delete
-- [Temporary Files Safety](https://iboysoft.com/wiki/tmp-folder-mac.html) - Safe cleanup practices
-- [Language Files Cleanup](https://macpaw.com/how-to/delete-language-files-from-mac-osx) - Localization removal
-- [Time Machine Snapshots](https://support.apple.com/en-us/102154) - Backup management
-
-### CLI Tools Research
-- [Terminal Cleaning Commands](https://www.ticktechtold.com/clean-mac-terminal-commands/) - Command-line patterns
-- [MacCleanCLI](https://github.com/QDenka/MacCleanCLI) - CLI tool reference
-- [mac-cleanup-sh](https://github.com/mac-cleanup/mac-cleanup-sh) - Shell script approach
+- [npkill -- node_modules cleaner](https://npkill.js.org/) -- established tool, validates the node_modules use case
+- [kondo -- multi-language build artifact cleaner](https://github.com/tbillington/kondo) -- validates multi-language project cache detection approach, supports 20+ project types
+- [Git gc documentation](https://git-scm.com/docs/git-gc) -- official gc behavior and options
+- [Atlassian Git GC tutorial](https://www.atlassian.com/git/tutorials/git-gc) -- gc/prune relationship explained
+- [Git LFS prune documentation](https://www.mankier.com/1/git-lfs-prune) -- LFS cache management
+- [DaisyDisk](https://daisydiskapp.com/) -- reference for large file discovery UX
+- [macOS storage cleanup guide 2025](https://osxhub.com/macos-storage-cleanup-guide-2025/) -- user expectations
+- [Storage Optimization on MacOS for Developer](https://flyingharley.dev/posts/storage-optimization-on-mac-os-for-developer/) -- developer-specific cache paths
+- [How to find large files on Mac](https://macpaw.com/how-to/find-large-files-mac) -- competitor feature reference
 
 ---
-*Feature research for: mac-cleaner*
-*Researched: 2026-02-16*
-*Confidence: MEDIUM (WebSearch-verified, multiple sources, current year)*
+*Feature research for: mac-cleaner v1.7.0 Extended Scanning*
+*Researched: 2026-03-11*
+*Confidence: HIGH (well-established patterns, multiple validated tools in this space)*

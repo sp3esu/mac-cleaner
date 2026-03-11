@@ -68,6 +68,8 @@ var (
 	flagScanRustTarget        bool
 	flagScanPythonVenv        bool
 	flagScanJavaBuild         bool
+	flagScanLargeFiles        bool
+	flagScanOldFiles          bool
 )
 
 // scanGroups is the central registry of all scanner groups and their
@@ -137,6 +139,18 @@ var scanGroups = []groupDef{
 			{FlagName: "rust-target", CategoryID: "proj-rust", Description: "target (Rust) directories", SkipFlag: &flagSkipRustTarget, ScanFlag: &flagScanRustTarget},
 			{FlagName: "python-venv", CategoryID: "proj-python", Description: "venv (Python) directories", SkipFlag: &flagSkipPythonVenv, ScanFlag: &flagScanPythonVenv},
 			{FlagName: "java-build", CategoryID: "proj-java", Description: "build (Java/Kotlin) directories", SkipFlag: &flagSkipJavaBuild, ScanFlag: &flagScanJavaBuild},
+		},
+	},
+	{
+		FlagName:    "home-files",
+		ScannerID:   "homedir",
+		GroupName:   "Home Directory Files",
+		Description: "large and old files in home directory",
+		ScanFlag:    &flagHomeFiles,
+		SkipFlag:    &flagSkipHomeFiles,
+		Items: []categoryDef{
+			{FlagName: "large-files", CategoryID: "home-large-files", Description: "large files (>100 MB)", SkipFlag: &flagSkipLargeFiles, ScanFlag: &flagScanLargeFiles},
+			{FlagName: "old-files", CategoryID: "home-old-files", Description: "old files (>180 days)", SkipFlag: &flagSkipOldFiles, ScanFlag: &flagScanOldFiles},
 		},
 	},
 	{

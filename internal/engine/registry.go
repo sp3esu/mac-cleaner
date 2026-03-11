@@ -6,6 +6,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/browser"
 	"github.com/sp3esu/mac-cleaner/pkg/creative"
 	"github.com/sp3esu/mac-cleaner/pkg/developer"
+	"github.com/sp3esu/mac-cleaner/pkg/homedir"
 	"github.com/sp3esu/mac-cleaner/pkg/messaging"
 	"github.com/sp3esu/mac-cleaner/pkg/photos"
 	"github.com/sp3esu/mac-cleaner/pkg/projects"
@@ -99,6 +100,18 @@ func RegisterDefaults(e *Engine) {
 			{ID: "proj-java", Label: "build (Java/Kotlin)", SkipFlag: "java-build", RiskLevel: safety.RiskForCategory("proj-java")},
 		},
 	}, projects.Scan))
+
+	e.Register(NewScanner(ScannerInfo{
+		ID:          "homedir",
+		Name:        "Home Directory Files",
+		Description: "Large and old files in home directory",
+		CategoryIDs: []string{"home-large-files", "home-old-files"},
+		SkipFlag:    "home-files",
+		SubCategories: []SubCategoryInfo{
+			{ID: "home-large-files", Label: "Large Files (>100 MB)", SkipFlag: "large-files", RiskLevel: safety.RiskForCategory("home-large-files")},
+			{ID: "home-old-files", Label: "Old Files (>180 days)", SkipFlag: "old-files", RiskLevel: safety.RiskForCategory("home-old-files")},
+		},
+	}, homedir.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
 		ID:          "appleftovers",

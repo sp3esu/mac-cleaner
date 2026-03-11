@@ -43,6 +43,7 @@ var (
 	flagUnusedApps      bool
 	flagPhotos          bool
 	flagProjectCaches   bool
+	flagHomeFiles       bool
 	flagSystemData      bool
 	flagAll             bool
 	flagJSON           bool
@@ -62,6 +63,9 @@ var (
 	flagSkipUnusedApps      bool
 	flagSkipPhotos          bool
 	flagSkipProjectCaches   bool
+	flagSkipHomeFiles       bool
+	flagSkipLargeFiles      bool
+	flagSkipOldFiles        bool
 	flagSkipSystemData      bool
 )
 
@@ -152,6 +156,7 @@ Examples:
 			{&flagBrowserData, "browser"},
 			{&flagDevCaches, "developer"},
 			{&flagProjectCaches, "projects"},
+			{&flagHomeFiles, "homedir"},
 			{&flagAppLeftovers, "appleftovers"},
 			{&flagCreativeCaches, "creative"},
 			{&flagMessagingCaches, "messaging"},
@@ -167,7 +172,7 @@ Examples:
 		}
 
 		if flagJSON && !ran {
-			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --project-caches, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
+			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --project-caches, --home-files, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
 			os.Exit(1)
 		}
 
@@ -249,6 +254,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagBrowserData, "browser-data", false, "scan Safari, Chrome, and Firefox caches")
 	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
 	rootCmd.Flags().BoolVar(&flagProjectCaches, "project-caches", false, "scan project build caches (node_modules, .build, target, venv, build)")
+	rootCmd.Flags().BoolVar(&flagHomeFiles, "home-files", false, "scan for large and old files in home directory")
 	rootCmd.Flags().BoolVar(&flagAppLeftovers, "app-leftovers", false, "scan orphaned preferences, iOS backups, and old Downloads")
 	rootCmd.Flags().BoolVar(&flagCreativeCaches, "creative-caches", false, "scan Adobe, Sketch, and Figma caches")
 	rootCmd.Flags().BoolVar(&flagMessagingCaches, "messaging-caches", false, "scan Slack, Discord, Teams, and Zoom caches")
@@ -266,6 +272,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipBrowserData, "skip-browser-data", false, "skip browser data scanning")
 	rootCmd.Flags().BoolVar(&flagSkipDevCaches, "skip-dev-caches", false, "skip developer cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipProjectCaches, "skip-project-caches", false, "skip project cache scanning")
+	rootCmd.Flags().BoolVar(&flagSkipHomeFiles, "skip-home-files", false, "skip home directory file scanning")
 	rootCmd.Flags().BoolVar(&flagSkipAppLeftovers, "skip-app-leftovers", false, "skip app leftover scanning")
 	rootCmd.Flags().BoolVar(&flagSkipCreativeCaches, "skip-creative-caches", false, "skip creative app cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipMessagingCaches, "skip-messaging-caches", false, "skip messaging app cache scanning")
@@ -299,6 +306,8 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipRustTarget, "skip-rust-target", false, "skip target (Rust) directories")
 	rootCmd.Flags().BoolVar(&flagSkipPythonVenv, "skip-python-venv", false, "skip venv (Python) directories")
 	rootCmd.Flags().BoolVar(&flagSkipJavaBuild, "skip-java-build", false, "skip build (Java/Kotlin) directories")
+	rootCmd.Flags().BoolVar(&flagSkipLargeFiles, "skip-large-files", false, "skip large files in home directory")
+	rootCmd.Flags().BoolVar(&flagSkipOldFiles, "skip-old-files", false, "skip old files in home directory")
 	rootCmd.Flags().BoolVar(&flagSkipAdobe, "skip-adobe", false, "skip Adobe caches")
 	rootCmd.Flags().BoolVar(&flagSkipAdobeMedia, "skip-adobe-media", false, "skip Adobe media caches")
 	rootCmd.Flags().BoolVar(&flagSkipSketch, "skip-sketch", false, "skip Sketch cache")
@@ -331,6 +340,7 @@ func init() {
 			flagBrowserData = true
 			flagDevCaches = true
 			flagProjectCaches = true
+			flagHomeFiles = true
 			flagAppLeftovers = true
 			flagCreativeCaches = true
 			flagMessagingCaches = true
@@ -350,6 +360,9 @@ func init() {
 		}
 		if flagSkipProjectCaches {
 			flagProjectCaches = false
+		}
+		if flagSkipHomeFiles {
+			flagHomeFiles = false
 		}
 		if flagSkipAppLeftovers {
 			flagAppLeftovers = false

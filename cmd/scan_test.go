@@ -17,6 +17,7 @@ func TestScanGroups_AllGroupsPresent(t *testing.T) {
 		{"browser-data", "browser"},
 		{"dev-caches", "developer"},
 		{"project-caches", "projects"},
+		{"home-files", "homedir"},
 		{"app-leftovers", "appleftovers"},
 		{"creative-caches", "creative"},
 		{"messaging-caches", "messaging"},
@@ -88,8 +89,8 @@ func TestScanGroups_TargetedFlagsCount(t *testing.T) {
 			}
 		}
 	}
-	if count != 46 {
-		t.Errorf("expected 46 targeted scan flags, got %d", count)
+	if count != 48 {
+		t.Errorf("expected 48 targeted scan flags, got %d", count)
 	}
 }
 
@@ -104,11 +105,11 @@ func TestScanGroups_SkipFlagsCount(t *testing.T) {
 			}
 		}
 	}
-	// 41 item-level skip flags + 1 dual-purpose (unused-apps group skip == item skip)
-	// = 42 unique skip mappings, but unused-apps shares the pointer with the group skip
-	// so unique SkipFlag pointers across items = 42
-	if count != 47 {
-		t.Errorf("expected 47 unique skip flag pointers across items, got %d", count)
+	// 43 item-level skip flags + 1 dual-purpose (unused-apps group skip == item skip)
+	// = 44 unique skip mappings, but unused-apps shares the pointer with the group skip
+	// so unique SkipFlag pointers across items = 44
+	if count != 49 {
+		t.Errorf("expected 49 unique skip flag pointers across items, got %d", count)
 	}
 }
 

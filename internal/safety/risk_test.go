@@ -50,6 +50,9 @@ func TestRiskForCategory(t *testing.T) {
 		{"home-large-files", RiskRisky},
 		{"home-old-files", RiskRisky},
 
+		// Git repository category.
+		{"git-repos", RiskModerate},
+
 		// Unknown and empty default to moderate.
 		{"unknown-category", RiskModerate},
 		{"", RiskModerate},

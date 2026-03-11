@@ -40,6 +40,14 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 
 Projekt-Caches werden durch Durchsuchen Ihres Home-Verzeichnisses erkannt und gegen die jeweilige Manifest-Datei validiert (z.B. `package.json` fuer node_modules, `Cargo.toml` fuer target). Projekte, die seit ueber 6 Monaten inaktiv sind, werden mit einem Inaktivitaetsindikator markiert.
 
+### Home-Verzeichnis-Dateien
+- **Grosse Dateien (>100 MB)** — Dateien groesser als 100 MB in Ihrem Home-Verzeichnis (riskant)
+- **Alte Dateien (>180 Tage)** — Dateien aelter als 180 Tage und groesser als 10 MB in Ihrem Home-Verzeichnis (riskant)
+
+Die Home-Verzeichnis-Suche schliesst `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` und Dotfile-Verzeichnisse (z.B. `~/.config`) aus. Ergebnisse werden als "riskant" markiert, da es sich um persoenliche Dateien handelt, nicht um regenerierbare Caches.
+
+> **Hinweis:** iCloud-Drive-Platzhalterdateien koennen ihre urspruengliche Groesse anzeigen, auch wenn sie nicht lokal gespeichert sind.
+
 ### App-Überbleibsel
 - **Verwaiste Einstellungen** — `.plist`-Dateien in `~/Library/Preferences/` für deinstallierte Apps (riskant)
 - **iOS-Gerätesicherungen** — `~/Library/Application Support/MobileSync/Backup/` (riskant)
@@ -173,6 +181,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --project-caches --dry-run
 ```
 
+**Grosse und alte Dateien im Home-Verzeichnis scannen:**
+```bash
+./mac-cleaner --home-files --dry-run
+```
+
 **Nur node_modules-Verzeichnisse scannen:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -209,6 +222,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--browser-data` | Safari-, Chrome- und Firefox-Caches scannen |
 | `--dev-caches` | Xcode-, npm/yarn-, Homebrew- und Docker-Caches scannen |
 | `--project-caches` | Projekt-Build-Caches scannen (node_modules, .build, target, venv, build) |
+| `--home-files` | Grosse und alte Dateien im Home-Verzeichnis scannen |
 | `--app-leftovers` | Verwaiste Einstellungen, iOS-Backups und alte Downloads scannen |
 | `--creative-caches` | Adobe-, Sketch- und Figma-Caches scannen |
 | `--messaging-caches` | Slack-, Discord-, Teams- und Zoom-Caches scannen |
@@ -234,6 +248,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-browser-data` | Browser-Daten-Scan überspringen |
 | `--skip-dev-caches` | Entwickler-Cache-Scan überspringen |
 | `--skip-project-caches` | Projekt-Cache-Scan überspringen |
+| `--skip-home-files` | Home-Verzeichnis-Dateien-Scan überspringen |
 | `--skip-app-leftovers` | App-Überbleibsel-Scan überspringen |
 | `--skip-creative-caches` | Kreativ-App-Cache-Scan überspringen |
 | `--skip-messaging-caches` | Messaging-App-Cache-Scan überspringen |
@@ -270,6 +285,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-rust-target` | target (Rust)-Verzeichnisse überspringen |
 | `--skip-python-venv` | venv (Python)-Verzeichnisse überspringen |
 | `--skip-java-build` | build (Java/Kotlin)-Verzeichnisse überspringen |
+| `--skip-large-files` | Grosse Dateien im Home-Verzeichnis überspringen |
+| `--skip-old-files` | Alte Dateien im Home-Verzeichnis überspringen |
 | `--skip-adobe` | Adobe-Caches überspringen |
 | `--skip-adobe-media` | Adobe Media Cache überspringen |
 | `--skip-sketch` | Sketch-Cache überspringen |

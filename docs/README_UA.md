@@ -40,6 +40,14 @@
 
 Кеші проєктів виявляються шляхом обходу домашнього каталогу та валідації кожного кандидата за файлом маніфесту (наприклад, `package.json` для node_modules, `Cargo.toml` для target). Проєкти, неактивні понад 6 місяців, позначаються індикатором неактивності.
 
+### Файли домашнього каталогу
+- **Великі файли (>100 МБ)** — файли більші за 100 МБ у домашньому каталозі (ризиковано)
+- **Старі файли (>180 днів)** — файли старші за 180 днів та більші за 10 МБ у домашньому каталозі (ризиковано)
+
+Сканування домашнього каталогу виключає `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` та каталоги з крапкою (наприклад, `~/.config`). Результати позначаються як "ризиковані", оскільки це особисті файли, а не кеші, які можна відновити.
+
+> **Примітка:** Файли-заповнювачі iCloud Drive можуть показувати оригінальний розмір, навіть якщо вони видалені з локального сховища.
+
 ### Залишки додатків
 - **Осиротілі налаштування** — файли `.plist` у `~/Library/Preferences/` для видалених додатків (ризиковано)
 - **Резервні копії пристроїв iOS** — `~/Library/Application Support/MobileSync/Backup/` (ризиковано)
@@ -173,6 +181,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --project-caches --dry-run
 ```
 
+**Сканувати великі та старі файли у домашньому каталозі:**
+```bash
+./mac-cleaner --home-files --dry-run
+```
+
 **Сканувати лише каталоги node_modules:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -209,6 +222,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--browser-data` | Сканувати кеші Safari, Chrome та Firefox |
 | `--dev-caches` | Сканувати кеші Xcode, npm/yarn, Homebrew та Docker |
 | `--project-caches` | Сканувати кеші збірки проєктів (node_modules, .build, target, venv, build) |
+| `--home-files` | Сканувати великі та старі файли у домашньому каталозі |
 | `--app-leftovers` | Сканувати осиротілі налаштування, резервні копії iOS та старі завантаження |
 | `--creative-caches` | Сканувати кеші Adobe, Sketch та Figma |
 | `--messaging-caches` | Сканувати кеші Slack, Discord, Teams та Zoom |
@@ -234,6 +248,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-browser-data` | Пропустити сканування даних браузерів |
 | `--skip-dev-caches` | Пропустити сканування кешів розробника |
 | `--skip-project-caches` | Пропустити сканування кешів проєктів |
+| `--skip-home-files` | Пропустити сканування файлів домашнього каталогу |
 | `--skip-app-leftovers` | Пропустити сканування залишків додатків |
 | `--skip-creative-caches` | Пропустити сканування кешів креативних додатків |
 | `--skip-messaging-caches` | Пропустити сканування кешів месенджерів |
@@ -270,6 +285,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-rust-target` | Пропустити каталоги target (Rust) |
 | `--skip-python-venv` | Пропустити каталоги venv (Python) |
 | `--skip-java-build` | Пропустити каталоги build (Java/Kotlin) |
+| `--skip-large-files` | Пропустити великі файли у домашньому каталозі |
+| `--skip-old-files` | Пропустити старі файли у домашньому каталозі |
 | `--skip-adobe` | Пропустити кеш Adobe |
 | `--skip-adobe-media` | Пропустити медіа-кеш Adobe |
 | `--skip-sketch` | Пропустити кеш Sketch |

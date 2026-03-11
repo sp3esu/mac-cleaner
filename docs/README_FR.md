@@ -40,6 +40,14 @@ Un outil CLI rapide et sûr pour récupérer de l'espace disque sous macOS.
 
 Les caches de projets sont detectes en parcourant votre repertoire personnel et en validant chaque candidat par rapport a son fichier manifeste (par exemple, `package.json` pour node_modules, `Cargo.toml` pour target). Les projets inactifs depuis plus de 6 mois sont signales par un indicateur d'inactivite.
 
+### Fichiers du repertoire personnel
+- **Gros fichiers (>100 Mo)** — fichiers de plus de 100 Mo dans votre repertoire personnel (risque)
+- **Anciens fichiers (>180 jours)** — fichiers de plus de 180 jours et de plus de 10 Mo dans votre repertoire personnel (risque)
+
+L'analyse du repertoire personnel exclut `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` et les repertoires de fichiers caches (par exemple, `~/.config`). Les resultats sont marques comme "risques" car ce sont des fichiers personnels, pas des caches regenerables.
+
+> **Remarque :** Les fichiers de remplacement iCloud Drive peuvent afficher leur taille originale meme lorsqu'ils sont supprimes du stockage local.
+
 ### Restes d'applications
 - **Préférences orphelines** — fichiers `.plist` dans `~/Library/Preferences/` pour les applications désinstallées (risqué)
 - **Sauvegardes d'appareils iOS** — `~/Library/Application Support/MobileSync/Backup/` (risqué)
@@ -173,6 +181,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --project-caches --dry-run
 ```
 
+**Analyser les gros et anciens fichiers du repertoire personnel :**
+```bash
+./mac-cleaner --home-files --dry-run
+```
+
 **Analyser uniquement les repertoires node_modules :**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -209,6 +222,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--browser-data` | Analyser les caches Safari, Chrome et Firefox |
 | `--dev-caches` | Analyser les caches Xcode, npm/yarn, Homebrew et Docker |
 | `--project-caches` | Analyser les caches de build des projets (node_modules, .build, target, venv, build) |
+| `--home-files` | Analyser les gros et anciens fichiers du repertoire personnel |
 | `--app-leftovers` | Analyser les préférences orphelines, les sauvegardes iOS et les anciens téléchargements |
 | `--creative-caches` | Analyser les caches Adobe, Sketch et Figma |
 | `--messaging-caches` | Analyser les caches Slack, Discord, Teams et Zoom |
@@ -234,6 +248,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-browser-data` | Ignorer l'analyse des données des navigateurs |
 | `--skip-dev-caches` | Ignorer l'analyse des caches développeur |
 | `--skip-project-caches` | Ignorer l'analyse des caches de projets |
+| `--skip-home-files` | Ignorer l'analyse des fichiers du repertoire personnel |
 | `--skip-app-leftovers` | Ignorer l'analyse des restes d'applications |
 | `--skip-creative-caches` | Ignorer l'analyse des caches des applications créatives |
 | `--skip-messaging-caches` | Ignorer l'analyse des caches des applications de messagerie |
@@ -270,6 +285,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-rust-target` | Ignorer les repertoires target (Rust) |
 | `--skip-python-venv` | Ignorer les repertoires venv (Python) |
 | `--skip-java-build` | Ignorer les repertoires build (Java/Kotlin) |
+| `--skip-large-files` | Ignorer les gros fichiers du repertoire personnel |
+| `--skip-old-files` | Ignorer les anciens fichiers du repertoire personnel |
 | `--skip-adobe` | Ignorer les caches Adobe |
 | `--skip-adobe-media` | Ignorer le cache média Adobe |
 | `--skip-sketch` | Ignorer le cache Sketch |

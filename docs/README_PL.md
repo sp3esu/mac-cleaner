@@ -40,6 +40,14 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 
 Pamięci podręczne projektów są wykrywane przez przeszukiwanie katalogu domowego i walidację każdego kandydata względem pliku manifestu (np. `package.json` dla node_modules, `Cargo.toml` dla target). Projekty nieaktywne od ponad 6 miesięcy są oznaczane wskaźnikiem nieaktywności.
 
+### Pliki katalogu domowego
+- **Duze pliki (>100 MB)** — pliki wieksze niz 100 MB w katalogu domowym (ryzykowne)
+- **Stare pliki (>180 dni)** — pliki starsze niz 180 dni i wieksze niz 10 MB w katalogu domowym (ryzykowne)
+
+Skanowanie katalogu domowego wyklucza `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` oraz katalogi z kropka (np. `~/.config`). Wyniki sa oznaczane jako "ryzykowne", poniewaz sa to pliki osobiste, a nie regenerowalne pamięci podręczne.
+
+> **Uwaga:** Pliki zastępcze iCloud Drive mogą wyświetlać oryginalny rozmiar, nawet gdy zostały usunięte z lokalnego dysku.
+
 ### Pozostałości aplikacji
 - **Osierocone preferencje** — pliki `.plist` w `~/Library/Preferences/` dla odinstalowanych aplikacji (ryzykowne)
 - **Kopie zapasowe urządzeń iOS** — `~/Library/Application Support/MobileSync/Backup/` (ryzykowne)
@@ -173,6 +181,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --project-caches --dry-run
 ```
 
+**Skanuj duze i stare pliki w katalogu domowym:**
+```bash
+./mac-cleaner --home-files --dry-run
+```
+
 **Skanuj tylko katalogi node_modules:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -209,6 +222,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--browser-data` | Skanuj pamięci podręczne Safari, Chrome i Firefox |
 | `--dev-caches` | Skanuj pamięci podręczne Xcode, npm/yarn, Homebrew i Docker |
 | `--project-caches` | Skanuj pamięci podręczne budowania projektów (node_modules, .build, target, venv, build) |
+| `--home-files` | Skanuj duze i stare pliki w katalogu domowym |
 | `--app-leftovers` | Skanuj osierocone preferencje, kopie zapasowe iOS i stare pobrania |
 | `--creative-caches` | Skanuj pamięci podręczne Adobe, Sketch i Figma |
 | `--messaging-caches` | Skanuj pamięci podręczne Slack, Discord, Teams i Zoom |
@@ -234,6 +248,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-browser-data` | Pomiń skanowanie danych przeglądarek |
 | `--skip-dev-caches` | Pomiń skanowanie pamięci podręcznych deweloperskich |
 | `--skip-project-caches` | Pomiń skanowanie pamięci podręcznych projektów |
+| `--skip-home-files` | Pomiń skanowanie plików katalogu domowego |
 | `--skip-app-leftovers` | Pomiń skanowanie pozostałości aplikacji |
 | `--skip-creative-caches` | Pomiń skanowanie pamięci podręcznych aplikacji kreatywnych |
 | `--skip-messaging-caches` | Pomiń skanowanie pamięci podręcznych komunikatorów |
@@ -270,6 +285,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-rust-target` | Pomiń katalogi target (Rust) |
 | `--skip-python-venv` | Pomiń katalogi venv (Python) |
 | `--skip-java-build` | Pomiń katalogi build (Java/Kotlin) |
+| `--skip-large-files` | Pomiń duze pliki w katalogu domowym |
+| `--skip-old-files` | Pomiń stare pliki w katalogu domowym |
 | `--skip-adobe` | Pomiń pamięć podręczną Adobe |
 | `--skip-adobe-media` | Pomiń pamięć podręczną multimediów Adobe |
 | `--skip-sketch` | Pomiń pamięć podręczną Sketch |

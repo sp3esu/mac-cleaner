@@ -40,6 +40,14 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 
 Project caches are detected by walking your home directory and validating each candidate against its manifest file (e.g., `package.json` for node_modules, `Cargo.toml` for target). This prevents false positives on generic directory names. Projects inactive for 6+ months are flagged with a staleness indicator.
 
+### Home Directory Files
+- **Large Files (>100 MB)** — files larger than 100 MB found in your home directory (risky)
+- **Old Files (>180 days)** — files older than 180 days and larger than 10 MB found in your home directory (risky)
+
+Home directory scanning excludes `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads`, and dotfile directories (e.g., `~/.config`). Results are marked as "risky" because these are personal files, not regenerable caches.
+
+> **Note:** iCloud Drive placeholder files may report their original size even when evicted from local storage.
+
 ### App Leftovers
 - **Orphaned Preferences** — `.plist` files in `~/Library/Preferences/` for uninstalled apps (risky)
 - **iOS Device Backups** — `~/Library/Application Support/MobileSync/Backup/` (risky)
@@ -173,6 +181,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --project-caches --dry-run
 ```
 
+**Scan for large and old files in home directory:**
+```bash
+./mac-cleaner --home-files --dry-run
+```
+
 **Scan only node_modules directories:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -209,6 +222,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--browser-data` | Scan Safari, Chrome, and Firefox caches |
 | `--dev-caches` | Scan Xcode, npm/yarn, Homebrew, and Docker caches |
 | `--project-caches` | Scan project build caches (node_modules, .build, target, venv, build) |
+| `--home-files` | Scan for large and old files in home directory |
 | `--app-leftovers` | Scan orphaned preferences, iOS backups, and old Downloads |
 | `--creative-caches` | Scan Adobe, Sketch, and Figma caches |
 | `--messaging-caches` | Scan Slack, Discord, Teams, and Zoom caches |
@@ -234,6 +248,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-browser-data` | Skip browser data scanning |
 | `--skip-dev-caches` | Skip developer cache scanning |
 | `--skip-project-caches` | Skip project cache scanning |
+| `--skip-home-files` | Skip home directory file scanning |
 | `--skip-app-leftovers` | Skip app leftover scanning |
 | `--skip-creative-caches` | Skip creative app cache scanning |
 | `--skip-messaging-caches` | Skip messaging app cache scanning |
@@ -270,6 +285,8 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-rust-target` | Skip target (Rust) directories |
 | `--skip-python-venv` | Skip venv (Python) directories |
 | `--skip-java-build` | Skip build (Java/Kotlin) directories |
+| `--skip-large-files` | Skip large files in home directory |
+| `--skip-old-files` | Skip old files in home directory |
 | `--skip-adobe` | Skip Adobe caches |
 | `--skip-adobe-media` | Skip Adobe media caches |
 | `--skip-sketch` | Skip Sketch cache |

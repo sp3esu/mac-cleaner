@@ -63,27 +63,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROJ-01 | — | Pending |
-| PROJ-02 | — | Pending |
-| PROJ-03 | — | Pending |
-| PROJ-04 | — | Pending |
-| PROJ-05 | — | Pending |
-| PROJ-06 | — | Pending |
-| PROJ-07 | — | Pending |
-| PROJ-08 | — | Pending |
-| GIT-01 | — | Pending |
-| GIT-02 | — | Pending |
-| GIT-03 | — | Pending |
-| GIT-04 | — | Pending |
-| HOME-01 | — | Pending |
-| HOME-02 | — | Pending |
-| HOME-03 | — | Pending |
+| PROJ-01 | Phase 12 | Pending |
+| PROJ-02 | Phase 12 | Pending |
+| PROJ-03 | Phase 12 | Pending |
+| PROJ-04 | Phase 12 | Pending |
+| PROJ-05 | Phase 12 | Pending |
+| PROJ-06 | Phase 12 | Pending |
+| PROJ-07 | Phase 12 | Pending |
+| PROJ-08 | Phase 12 | Pending |
+| GIT-01 | Phase 14 | Pending |
+| GIT-02 | Phase 14 | Pending |
+| GIT-03 | Phase 14 | Pending |
+| GIT-04 | Phase 14 | Pending |
+| HOME-01 | Phase 13 | Pending |
+| HOME-02 | Phase 13 | Pending |
+| HOME-03 | Phase 13 | Pending |
 
 **Coverage:**
 - v1.7.0 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after initial definition*
+*Last updated: 2026-03-11 (traceability updated during roadmap creation)*

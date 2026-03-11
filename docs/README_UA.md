@@ -48,6 +48,13 @@
 
 > **Примітка:** Файли-заповнювачі iCloud Drive можуть показувати оригінальний розмір, навіть якщо вони видалені з локального сховища.
 
+### Очищення Git-репозиторіїв
+- **Git-репозиторії** — каталоги `.git/`, знайдені у домашньому каталозі (помірний ризик)
+
+Очищення Git-репозиторіїв виявляє каталоги `.git` у вашому домашньому каталозі, показує їх розмір та оцінку простору, який можна повернути, через `git count-objects`, та пропонує очищення `git gc --aggressive`. Для репозиторіїв з Git LFS (виявлених через `.git/lfs`) автоматично запускається `git lfs prune`, якщо `git-lfs` встановлено. Репозиторії з активними операціями (наявність `index.lock`) безпечно пропускаються.
+
+> **Примітка:** Очищення запускає `git gc --aggressive` та `git lfs prune` — файли репозиторію не видаляються. Це безпечно для всіх репозиторіїв.
+
 ### Залишки додатків
 - **Осиротілі налаштування** — файли `.plist` у `~/Library/Preferences/` для видалених додатків (ризиковано)
 - **Резервні копії пристроїв iOS** — `~/Library/Application Support/MobileSync/Backup/` (ризиковано)
@@ -186,6 +193,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --home-files --dry-run
 ```
 
+**Сканувати Git-репозиторії на предмет кешу, який можна звільнити:**
+```bash
+./mac-cleaner --git-repos --dry-run
+```
+
 **Сканувати лише каталоги node_modules:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -223,6 +235,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--dev-caches` | Сканувати кеші Xcode, npm/yarn, Homebrew та Docker |
 | `--project-caches` | Сканувати кеші збірки проєктів (node_modules, .build, target, venv, build) |
 | `--home-files` | Сканувати великі та старі файли у домашньому каталозі |
+| `--git-repos` | Сканувати кеш Git-репозиторіїв |
 | `--app-leftovers` | Сканувати осиротілі налаштування, резервні копії iOS та старі завантаження |
 | `--creative-caches` | Сканувати кеші Adobe, Sketch та Figma |
 | `--messaging-caches` | Сканувати кеші Slack, Discord, Teams та Zoom |
@@ -249,6 +262,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-dev-caches` | Пропустити сканування кешів розробника |
 | `--skip-project-caches` | Пропустити сканування кешів проєктів |
 | `--skip-home-files` | Пропустити сканування файлів домашнього каталогу |
+| `--skip-git-repos` | Пропустити сканування Git-репозиторіїв |
 | `--skip-app-leftovers` | Пропустити сканування залишків додатків |
 | `--skip-creative-caches` | Пропустити сканування кешів креативних додатків |
 | `--skip-messaging-caches` | Пропустити сканування кешів месенджерів |

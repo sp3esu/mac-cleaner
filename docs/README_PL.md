@@ -48,6 +48,13 @@ Skanowanie katalogu domowego wyklucza `~/Library`, `~/Applications`, `~/.Trash`,
 
 > **Uwaga:** Pliki zastępcze iCloud Drive mogą wyświetlać oryginalny rozmiar, nawet gdy zostały usunięte z lokalnego dysku.
 
+### Czyszczenie repozytoriow Git
+- **Repozytoria Git** — katalogi `.git/` znalezione w katalogu domowym (umiarkowane)
+
+Czyszczenie repozytoriow Git wykrywa katalogi `.git` w katalogu domowym, wyswietla ich rozmiar i szacowana mozliwa do odzyskania przestrzen za pomoca `git count-objects` oraz oferuje czyszczenie `git gc --aggressive`. Dla repozytoriow z Git LFS (wykrytych przez `.git/lfs`) automatycznie uruchamiane jest `git lfs prune`, gdy `git-lfs` jest zainstalowany. Repozytoria z aktywnymi operacjami (obecnosc `index.lock`) sa bezpiecznie pomijane.
+
+> **Uwaga:** Czyszczenie uruchamia `git gc --aggressive` i `git lfs prune` — nie usuwa zadnych plikow repozytorium. Jest to bezpieczne dla wszystkich repozytoriow.
+
 ### Pozostałości aplikacji
 - **Osierocone preferencje** — pliki `.plist` w `~/Library/Preferences/` dla odinstalowanych aplikacji (ryzykowne)
 - **Kopie zapasowe urządzeń iOS** — `~/Library/Application Support/MobileSync/Backup/` (ryzykowne)
@@ -186,6 +193,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --home-files --dry-run
 ```
 
+**Skanuj repozytoria Git pod katem odzyskiwalnej przestrzeni cache:**
+```bash
+./mac-cleaner --git-repos --dry-run
+```
+
 **Skanuj tylko katalogi node_modules:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -223,6 +235,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--dev-caches` | Skanuj pamięci podręczne Xcode, npm/yarn, Homebrew i Docker |
 | `--project-caches` | Skanuj pamięci podręczne budowania projektów (node_modules, .build, target, venv, build) |
 | `--home-files` | Skanuj duze i stare pliki w katalogu domowym |
+| `--git-repos` | Skanuj pamiec podreczna repozytoriow Git |
 | `--app-leftovers` | Skanuj osierocone preferencje, kopie zapasowe iOS i stare pobrania |
 | `--creative-caches` | Skanuj pamięci podręczne Adobe, Sketch i Figma |
 | `--messaging-caches` | Skanuj pamięci podręczne Slack, Discord, Teams i Zoom |
@@ -249,6 +262,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-dev-caches` | Pomiń skanowanie pamięci podręcznych deweloperskich |
 | `--skip-project-caches` | Pomiń skanowanie pamięci podręcznych projektów |
 | `--skip-home-files` | Pomiń skanowanie plików katalogu domowego |
+| `--skip-git-repos` | Pomiń skanowanie repozytoriów Git |
 | `--skip-app-leftovers` | Pomiń skanowanie pozostałości aplikacji |
 | `--skip-creative-caches` | Pomiń skanowanie pamięci podręcznych aplikacji kreatywnych |
 | `--skip-messaging-caches` | Pomiń skanowanie pamięci podręcznych komunikatorów |

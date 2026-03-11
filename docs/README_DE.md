@@ -48,6 +48,13 @@ Die Home-Verzeichnis-Suche schliesst `~/Library`, `~/Applications`, `~/.Trash`, 
 
 > **Hinweis:** iCloud-Drive-Platzhalterdateien koennen ihre urspruengliche Groesse anzeigen, auch wenn sie nicht lokal gespeichert sind.
 
+### Git-Repository-Bereinigung
+- **Git-Repositorys** — `.git/`-Verzeichnisse im Home-Verzeichnis gefunden (moderat)
+
+Die Git-Repository-Bereinigung entdeckt `.git`-Verzeichnisse unter Ihrem Home-Ordner, zeigt deren Groesse und geschaetzten rueckgewinnbaren Speicherplatz via `git count-objects` an und bietet `git gc --aggressive`-Bereinigung an. Fuer Repositorys mit Git LFS (erkannt durch `.git/lfs`) wird `git lfs prune` automatisch ausgefuehrt, wenn `git-lfs` installiert ist. Repositorys mit aktiven Operationen (`index.lock` vorhanden) werden sicher uebersprungen.
+
+> **Hinweis:** Die Bereinigung fuehrt `git gc --aggressive` und `git lfs prune` aus — es werden keine Repository-Dateien geloescht. Dies ist fuer alle Repositorys sicher.
+
 ### App-Überbleibsel
 - **Verwaiste Einstellungen** — `.plist`-Dateien in `~/Library/Preferences/` für deinstallierte Apps (riskant)
 - **iOS-Gerätesicherungen** — `~/Library/Application Support/MobileSync/Backup/` (riskant)
@@ -186,6 +193,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --home-files --dry-run
 ```
 
+**Git-Repositorys nach rueckgewinnbarem Cache-Speicherplatz scannen:**
+```bash
+./mac-cleaner --git-repos --dry-run
+```
+
 **Nur node_modules-Verzeichnisse scannen:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -223,6 +235,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--dev-caches` | Xcode-, npm/yarn-, Homebrew- und Docker-Caches scannen |
 | `--project-caches` | Projekt-Build-Caches scannen (node_modules, .build, target, venv, build) |
 | `--home-files` | Grosse und alte Dateien im Home-Verzeichnis scannen |
+| `--git-repos` | Git-Repository-Caches scannen |
 | `--app-leftovers` | Verwaiste Einstellungen, iOS-Backups und alte Downloads scannen |
 | `--creative-caches` | Adobe-, Sketch- und Figma-Caches scannen |
 | `--messaging-caches` | Slack-, Discord-, Teams- und Zoom-Caches scannen |
@@ -249,6 +262,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-dev-caches` | Entwickler-Cache-Scan überspringen |
 | `--skip-project-caches` | Projekt-Cache-Scan überspringen |
 | `--skip-home-files` | Home-Verzeichnis-Dateien-Scan überspringen |
+| `--skip-git-repos` | Git-Repository-Scan überspringen |
 | `--skip-app-leftovers` | App-Überbleibsel-Scan überspringen |
 | `--skip-creative-caches` | Kreativ-App-Cache-Scan überspringen |
 | `--skip-messaging-caches` | Messaging-App-Cache-Scan überspringen |

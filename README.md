@@ -48,6 +48,13 @@ Home directory scanning excludes `~/Library`, `~/Applications`, `~/.Trash`, `~/D
 
 > **Note:** iCloud Drive placeholder files may report their original size even when evicted from local storage.
 
+### Git Repository Cleanup
+- **Git Repositories** — `.git/` directories found via home directory walk (moderate)
+
+Git repository cleanup discovers `.git` directories under your home folder, reports their size and estimated reclaimable space via `git count-objects`, and offers `git gc --aggressive` cleanup. For repositories with Git LFS (detected via `.git/lfs`), `git lfs prune` is run automatically when `git-lfs` is installed. Repositories with active operations (presence of `index.lock`) are safely skipped.
+
+> **Note:** Cleanup runs `git gc --aggressive` and `git lfs prune` — it does not delete any repository files. This is safe for all repositories.
+
 ### App Leftovers
 - **Orphaned Preferences** — `.plist` files in `~/Library/Preferences/` for uninstalled apps (risky)
 - **iOS Device Backups** — `~/Library/Application Support/MobileSync/Backup/` (risky)
@@ -186,6 +193,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --home-files --dry-run
 ```
 
+**Scan git repositories for reclaimable cache space:**
+```bash
+./mac-cleaner --git-repos --dry-run
+```
+
 **Scan only node_modules directories:**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -223,6 +235,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--dev-caches` | Scan Xcode, npm/yarn, Homebrew, and Docker caches |
 | `--project-caches` | Scan project build caches (node_modules, .build, target, venv, build) |
 | `--home-files` | Scan for large and old files in home directory |
+| `--git-repos` | Scan for git repository caches |
 | `--app-leftovers` | Scan orphaned preferences, iOS backups, and old Downloads |
 | `--creative-caches` | Scan Adobe, Sketch, and Figma caches |
 | `--messaging-caches` | Scan Slack, Discord, Teams, and Zoom caches |
@@ -249,6 +262,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-dev-caches` | Skip developer cache scanning |
 | `--skip-project-caches` | Skip project cache scanning |
 | `--skip-home-files` | Skip home directory file scanning |
+| `--skip-git-repos` | Skip git repository scanning |
 | `--skip-app-leftovers` | Skip app leftover scanning |
 | `--skip-creative-caches` | Skip creative app cache scanning |
 | `--skip-messaging-caches` | Skip messaging app cache scanning |

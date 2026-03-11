@@ -48,6 +48,13 @@ L'analyse du repertoire personnel exclut `~/Library`, `~/Applications`, `~/.Tras
 
 > **Remarque :** Les fichiers de remplacement iCloud Drive peuvent afficher leur taille originale meme lorsqu'ils sont supprimes du stockage local.
 
+### Nettoyage des depots Git
+- **Depots Git** — repertoires `.git/` trouves dans le repertoire personnel (modere)
+
+Le nettoyage des depots Git decouvre les repertoires `.git` sous votre dossier personnel, affiche leur taille et l'espace recuperable estime via `git count-objects`, et propose un nettoyage `git gc --aggressive`. Pour les depots avec Git LFS (detectes via `.git/lfs`), `git lfs prune` est execute automatiquement lorsque `git-lfs` est installe. Les depots avec des operations actives (presence de `index.lock`) sont ignores en toute securite.
+
+> **Remarque :** Le nettoyage execute `git gc --aggressive` et `git lfs prune` — aucun fichier de depot n'est supprime. C'est sans danger pour tous les depots.
+
 ### Restes d'applications
 - **Préférences orphelines** — fichiers `.plist` dans `~/Library/Preferences/` pour les applications désinstallées (risqué)
 - **Sauvegardes d'appareils iOS** — `~/Library/Application Support/MobileSync/Backup/` (risqué)
@@ -186,6 +193,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --home-files --dry-run
 ```
 
+**Analyser les depots Git pour l'espace cache recuperable :**
+```bash
+./mac-cleaner --git-repos --dry-run
+```
+
 **Analyser uniquement les repertoires node_modules :**
 ```bash
 ./mac-cleaner scan --node-modules --dry-run
@@ -223,6 +235,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--dev-caches` | Analyser les caches Xcode, npm/yarn, Homebrew et Docker |
 | `--project-caches` | Analyser les caches de build des projets (node_modules, .build, target, venv, build) |
 | `--home-files` | Analyser les gros et anciens fichiers du repertoire personnel |
+| `--git-repos` | Analyser le cache des depots Git |
 | `--app-leftovers` | Analyser les préférences orphelines, les sauvegardes iOS et les anciens téléchargements |
 | `--creative-caches` | Analyser les caches Adobe, Sketch et Figma |
 | `--messaging-caches` | Analyser les caches Slack, Discord, Teams et Zoom |
@@ -249,6 +262,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-dev-caches` | Ignorer l'analyse des caches développeur |
 | `--skip-project-caches` | Ignorer l'analyse des caches de projets |
 | `--skip-home-files` | Ignorer l'analyse des fichiers du repertoire personnel |
+| `--skip-git-repos` | Ignorer l'analyse des depots Git |
 | `--skip-app-leftovers` | Ignorer l'analyse des restes d'applications |
 | `--skip-creative-caches` | Ignorer l'analyse des caches des applications créatives |
 | `--skip-messaging-caches` | Ignorer l'analyse des caches des applications de messagerie |

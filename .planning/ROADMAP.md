@@ -16,7 +16,7 @@
 
 - [x] **Phase 12: Project Cache Scanning** - Detect and report project build caches (node_modules, .build, target/, venv, build/) across home directory (completed 2026-03-11)
 - [x] **Phase 13: Home Directory File Scanning** - Detect large and old files consuming space in user home directory (completed 2026-03-11)
-- [ ] **Phase 14: Git Repository Cache Management** - Detect large git repos and offer git gc/lfs prune as cleanup actions
+- [x] **Phase 14: Git Repository Cache Management** - Detect large git repos and offer git gc/lfs prune as cleanup actions (completed 2026-03-11)
 
 ## Phase Details
 
@@ -59,7 +59,7 @@ Plans:
   2. Each detected repo shows estimated reclaimable space from `git count-objects`
   3. User can clean up git repos via `git gc --aggressive` as the cleanup action
   4. Repos with .git/lfs present offer `git lfs prune` as an additional cleanup action
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 14-01-PLAN.md — Git repo scanner core + cleanup extension (pkg/gitrepos + internal/cleanup git-gc: handler + safety risk)
@@ -76,4 +76,4 @@ Phases execute in numeric order: 12 -> 13 -> 14
 | 8-11 | v1.1 Swift Integration | 5/5 | Complete | 2026-02-17 |
 | 12. Project Cache Scanning | 2/2 | Complete    | 2026-03-11 | - |
 | 13. Home Directory File Scanning | 2/2 | Complete    | 2026-03-11 | - |
-| 14. Git Repository Cache Management | 1/2 | In Progress|  | - |
+| 14. Git Repository Cache Management | 2/2 | Complete   | 2026-03-11 | - |

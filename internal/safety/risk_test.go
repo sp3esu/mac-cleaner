@@ -46,6 +46,10 @@ func TestRiskForCategory(t *testing.T) {
 		{"proj-java", RiskSafe},
 		{"proj-python", RiskModerate},
 
+		// Home directory file categories.
+		{"home-large-files", RiskRisky},
+		{"home-old-files", RiskRisky},
+
 		// Unknown and empty default to moderate.
 		{"unknown-category", RiskModerate},
 		{"", RiskModerate},

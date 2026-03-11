@@ -1,9 +1,9 @@
 ---
 phase: 12
 slug: project-cache-scanning
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-11
 ---
 
@@ -38,20 +38,20 @@ created: 2026-03-11
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 12-01-01 | 01 | 1 | PROJ-01 | unit | `go test ./pkg/projects/... -run TestScanNodeModules` | ❌ W0 | ⬜ pending |
-| 12-01-02 | 01 | 1 | PROJ-02 | unit | `go test ./pkg/projects/... -run TestScanSwiftBuild` | ❌ W0 | ⬜ pending |
-| 12-01-03 | 01 | 1 | PROJ-03 | unit | `go test ./pkg/projects/... -run TestScanRustTarget` | ❌ W0 | ⬜ pending |
-| 12-01-04 | 01 | 1 | PROJ-04 | unit | `go test ./pkg/projects/... -run TestScanPythonVenv` | ❌ W0 | ⬜ pending |
-| 12-01-05 | 01 | 1 | PROJ-05 | unit | `go test ./pkg/projects/... -run TestScanJavaBuild` | ❌ W0 | ⬜ pending |
-| 12-01-06 | 01 | 1 | PROJ-06 | integration | `go test ./pkg/projects/... -run TestScanSinglePass` | ❌ W0 | ⬜ pending |
-| 12-01-07 | 01 | 1 | PROJ-07 | unit | `go test ./pkg/projects/... -run TestStalenessMarker` | ❌ W0 | ⬜ pending |
-| 12-01-08 | 01 | 1 | PROJ-08 | unit | `go test ./pkg/projects/... -run TestAggregateSummary` | ❌ W0 | ⬜ pending |
-| 12-xx-01 | -- | 1 | -- | unit | `go test ./internal/walk/... -run TestMaxDepth` | ❌ W0 | ⬜ pending |
-| 12-xx-02 | -- | 1 | -- | unit | `go test ./internal/walk/... -run TestExclusions` | ❌ W0 | ⬜ pending |
-| 12-xx-03 | -- | 1 | -- | unit | `go test ./internal/walk/... -run TestCacheDirSkip` | ❌ W0 | ⬜ pending |
-| 12-xx-04 | -- | 1 | -- | unit | `go test ./pkg/projects/... -run TestNoFalsePositive` | ❌ W0 | ⬜ pending |
-| 12-xx-05 | -- | 1 | -- | unit | `go test ./pkg/projects/... -run TestProjectName` | ❌ W0 | ⬜ pending |
-| 12-xx-06 | -- | 1 | -- | unit | `go test ./internal/safety/... -run TestRiskForCategory` | ✅ | ⬜ pending |
+| 12-01-01 | 01 | 1 | PROJ-01 | unit | `go test ./pkg/projects/... -run TestScanNodeModules` | ✅ | ✅ green |
+| 12-01-02 | 01 | 1 | PROJ-02 | unit | `go test ./pkg/projects/... -run TestScanSwiftBuild` | ✅ | ✅ green |
+| 12-01-03 | 01 | 1 | PROJ-03 | unit | `go test ./pkg/projects/... -run TestScanRustTarget` | ✅ | ✅ green |
+| 12-01-04 | 01 | 1 | PROJ-04 | unit | `go test ./pkg/projects/... -run TestScanPythonVenv` | ✅ | ✅ green |
+| 12-01-05 | 01 | 1 | PROJ-05 | unit | `go test ./pkg/projects/... -run TestScanJavaBuild` | ✅ | ✅ green |
+| 12-01-06 | 01 | 1 | PROJ-06 | integration | `go test ./pkg/projects/... -run TestSinglePassWalk` | ✅ | ✅ green |
+| 12-01-07 | 01 | 1 | PROJ-07 | unit | `go test ./pkg/projects/... -run TestStalenessMarker` | ✅ | ✅ green |
+| 12-01-08 | 01 | 1 | PROJ-08 | unit | `go test ./pkg/projects/... -run TestAggregateSummary` | ✅ | ✅ green |
+| 12-xx-01 | -- | 1 | -- | unit | `go test ./internal/walk/... -run TestMaxDepth` | ✅ | ✅ green |
+| 12-xx-02 | -- | 1 | -- | unit | `go test ./internal/walk/... -run TestExcludeByName` | ✅ | ✅ green |
+| 12-xx-03 | -- | 1 | -- | unit | `go test ./internal/walk/... -run TestDotfileDirs` | ✅ | ✅ green |
+| 12-xx-04 | -- | 1 | -- | unit | `go test ./pkg/projects/... -run TestNoFalsePositive` | ✅ | ✅ green |
+| 12-xx-05 | -- | 1 | -- | unit | `go test ./pkg/projects/... -run TestProjectNameFromPackageJson` | ✅ | ✅ green |
+| 12-xx-06 | -- | 1 | -- | unit | `go test ./internal/safety/... -run TestRiskForCategory` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -59,10 +59,7 @@ created: 2026-03-11
 
 ## Wave 0 Requirements
 
-- [ ] `internal/walk/walk_test.go` — walker depth, exclusion, callback tests
-- [ ] `pkg/projects/scanner_test.go` — all project type detection, staleness, aggregation tests
-
-*Existing infrastructure covers safety/risk tests.*
+Existing infrastructure covers all phase requirements.
 
 ---
 
@@ -76,11 +73,23 @@ created: 2026-03-11
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-11
+
+---
+
+## Validation Audit 2026-03-11
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+All 8 requirements (PROJ-01 through PROJ-08) have automated test coverage. All 14 scanner tests and 10 walk tests pass green.

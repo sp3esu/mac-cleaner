@@ -14,7 +14,7 @@
 
 ### v1.7.0 Extended Scanning
 
-- [ ] **Phase 12: Project Cache Scanning** - Detect and report project build caches (node_modules, .build, target/, venv, build/) across home directory
+- [x] **Phase 12: Project Cache Scanning** - Detect and report project build caches (node_modules, .build, target/, venv, build/) across home directory (completed 2026-03-11)
 - [ ] **Phase 13: Home Directory File Scanning** - Detect large and old files consuming space in user home directory
 - [ ] **Phase 14: Git Repository Cache Management** - Detect large git repos and offer git gc/lfs prune as cleanup actions
 
@@ -30,7 +30,7 @@
   3. Projects not modified in 6+ months are visually distinguished from recent projects in scan output
   4. Aggregate summaries show total count and combined size per project type (e.g., "47 node_modules totaling 28.3 GB")
   5. Only directories with matching project manifest markers (package.json, Cargo.toml, etc.) are reported -- no false positives from unrelated directories with the same name
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 12-01-PLAN.md — Walk utility and project cache scanner core (internal/walk + pkg/projects + safety risk entries)
@@ -73,6 +73,6 @@ Phases execute in numeric order: 12 -> 13 -> 14
 |-------|-----------|----------------|--------|-----------|
 | 1-7 | v1.0 MVP | 13/13 | Complete | 2026-02-16 |
 | 8-11 | v1.1 Swift Integration | 5/5 | Complete | 2026-02-17 |
-| 12. Project Cache Scanning | v1.7.0 | 1/2 | In progress | - |
+| 12. Project Cache Scanning | 2/2 | Complete   | 2026-03-11 | - |
 | 13. Home Directory File Scanning | v1.7.0 | 0/? | Not started | - |
 | 14. Git Repository Cache Management | v1.7.0 | 0/? | Not started | - |

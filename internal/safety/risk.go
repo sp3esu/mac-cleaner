@@ -58,6 +58,8 @@ var categoryRisk = map[string]string{
 	"proj-rust":                RiskSafe,
 	"proj-java":                RiskSafe,
 	"proj-python":              RiskModerate,
+	"home-large-files":         RiskRisky,
+	"home-old-files":           RiskRisky,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

@@ -23,6 +23,9 @@ type Options struct {
 	// OnDir is called for each directory visited. Return false to skip
 	// descending into the directory.
 	OnDir func(path string, d fs.DirEntry, depth int) bool
+	// OnFile is called for each regular file when set. When nil, files
+	// are skipped (backward compatible with directory-only walks).
+	OnFile func(path string, d fs.DirEntry, depth int)
 }
 
 // Walk recursively traverses directories under opts.Root, respecting depth
@@ -49,8 +52,18 @@ func Walk(opts Options) error {
 			return nil
 		}
 
-		// Only process directories.
+		// Handle regular files via OnFile callback.
 		if !d.IsDir() {
+			if opts.OnFile != nil {
+				depth := 0
+				if len(path) > rootLen {
+					rel := path[rootLen+1:]
+					depth = strings.Count(rel, string(filepath.Separator)) + 1
+				}
+				if opts.MaxDepth == 0 || depth <= opts.MaxDepth {
+					opts.OnFile(path, d, depth)
+				}
+			}
 			return nil
 		}
 

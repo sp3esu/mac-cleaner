@@ -1,8 +1,10 @@
 package cleanup
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
@@ -292,6 +294,162 @@ func TestIsPseudoPath(t *testing.T) {
 				t.Errorf("isPseudoPath(%q) = %v, want %v", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGitGCPseudoPath(t *testing.T) {
+	var calledPath string
+	var calledLFS bool
+	orig := runGitCleanup
+	runGitCleanup = func(repoPath string, hasLFS bool) error {
+		calledPath = repoPath
+		calledLFS = hasLFS
+		return nil
+	}
+	t.Cleanup(func() { runGitCleanup = orig })
+
+	results := []scan.CategoryResult{
+		{
+			Category:    "git-repos",
+			Description: "Git Repositories",
+			Entries: []scan.ScanEntry{
+				{Path: "git-gc:/Users/test/myrepo", Description: "myrepo (.git 50 MB)", Size: 5000},
+			},
+			TotalSize: 5000,
+		},
+	}
+
+	res := Execute(results, nil)
+
+	if res.Removed != 1 {
+		t.Errorf("Removed = %d, want 1", res.Removed)
+	}
+	if res.Failed != 0 {
+		t.Errorf("Failed = %d, want 0", res.Failed)
+	}
+	if res.BytesFreed != 5000 {
+		t.Errorf("BytesFreed = %d, want 5000", res.BytesFreed)
+	}
+	if calledPath != "/Users/test/myrepo" {
+		t.Errorf("runGitCleanup called with path %q, want %q", calledPath, "/Users/test/myrepo")
+	}
+	if calledLFS {
+		t.Errorf("runGitCleanup called with hasLFS=true, want false")
+	}
+}
+
+func TestGitGCPseudoPath_Failure(t *testing.T) {
+	orig := runGitCleanup
+	runGitCleanup = func(repoPath string, hasLFS bool) error {
+		return fmt.Errorf("git gc failed")
+	}
+	t.Cleanup(func() { runGitCleanup = orig })
+
+	results := []scan.CategoryResult{
+		{
+			Category:    "git-repos",
+			Description: "Git Repositories",
+			Entries: []scan.ScanEntry{
+				{Path: "git-gc:/Users/test/broken", Description: "broken", Size: 1000},
+			},
+			TotalSize: 1000,
+		},
+	}
+
+	res := Execute(results, nil)
+
+	if res.Removed != 0 {
+		t.Errorf("Removed = %d, want 0", res.Removed)
+	}
+	if res.Failed != 1 {
+		t.Errorf("Failed = %d, want 1", res.Failed)
+	}
+	if res.BytesFreed != 0 {
+		t.Errorf("BytesFreed = %d, want 0", res.BytesFreed)
+	}
+	if len(res.Errors) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(res.Errors))
+	}
+	if !strings.Contains(res.Errors[0].Error(), "git cleanup") {
+		t.Errorf("error %q should contain 'git cleanup'", res.Errors[0])
+	}
+}
+
+func TestGitGCWithLFS(t *testing.T) {
+	var calledLFS bool
+	orig := runGitCleanup
+	runGitCleanup = func(repoPath string, hasLFS bool) error {
+		calledLFS = hasLFS
+		return nil
+	}
+	t.Cleanup(func() { runGitCleanup = orig })
+
+	results := []scan.CategoryResult{
+		{
+			Category:    "git-repos",
+			Description: "Git Repositories",
+			Entries: []scan.ScanEntry{
+				{Path: "git-gc:/Users/test/lfsrepo", Description: "lfsrepo (.git 100 MB) [LFS]", Size: 10000},
+			},
+			TotalSize: 10000,
+		},
+	}
+
+	res := Execute(results, nil)
+
+	if res.Removed != 1 {
+		t.Errorf("Removed = %d, want 1", res.Removed)
+	}
+	if !calledLFS {
+		t.Errorf("runGitCleanup called with hasLFS=false, want true (description contains [LFS])")
+	}
+}
+
+func TestRegularPathsUnchanged(t *testing.T) {
+	tmp := t.TempDir()
+	f := filepath.Join(tmp, "regular.txt")
+	os.WriteFile(f, []byte("data"), 0644)
+
+	results := []scan.CategoryResult{
+		{
+			Category:    "test",
+			Description: "Test",
+			Entries: []scan.ScanEntry{
+				{Path: f, Description: "regular", Size: 4},
+			},
+			TotalSize: 4,
+		},
+	}
+
+	res := Execute(results, nil)
+
+	if res.Removed != 1 {
+		t.Errorf("Removed = %d, want 1", res.Removed)
+	}
+	if _, err := os.Stat(f); !os.IsNotExist(err) {
+		t.Errorf("file should be deleted via os.RemoveAll")
+	}
+}
+
+func TestDockerPseudoPathStillSkipped(t *testing.T) {
+	results := []scan.CategoryResult{
+		{
+			Category:    "docker",
+			Description: "Docker",
+			Entries: []scan.ScanEntry{
+				{Path: "docker:BuildCache", Description: "Build Cache", Size: 2000},
+			},
+			TotalSize: 2000,
+		},
+	}
+
+	res := Execute(results, nil)
+
+	if res.Removed != 0 {
+		t.Errorf("Removed = %d, want 0 (docker pseudo-path should still be skipped)", res.Removed)
+	}
+	if res.Failed != 1 {
+		t.Errorf("Failed = %d, want 1", res.Failed)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/developer"
 	"github.com/sp3esu/mac-cleaner/pkg/messaging"
 	"github.com/sp3esu/mac-cleaner/pkg/photos"
+	"github.com/sp3esu/mac-cleaner/pkg/projects"
 	"github.com/sp3esu/mac-cleaner/pkg/system"
 	"github.com/sp3esu/mac-cleaner/pkg/systemdata"
 	"github.com/sp3esu/mac-cleaner/pkg/unused"
@@ -83,6 +84,21 @@ func RegisterDefaults(e *Engine) {
 			{ID: "dev-xcode-archives", Label: "Xcode Archives", SkipFlag: "xcode-archives", RiskLevel: safety.RiskForCategory("dev-xcode-archives")},
 		},
 	}, developer.Scan))
+
+	e.Register(NewScanner(ScannerInfo{
+		ID:          "projects",
+		Name:        "Project Caches",
+		Description: "node_modules, .build, target, venv, and build directories",
+		CategoryIDs: []string{"proj-node", "proj-swift", "proj-rust", "proj-python", "proj-java"},
+		SkipFlag:    "project-caches",
+		SubCategories: []SubCategoryInfo{
+			{ID: "proj-node", Label: "node_modules", SkipFlag: "node-modules", RiskLevel: safety.RiskForCategory("proj-node")},
+			{ID: "proj-swift", Label: ".build (Swift)", SkipFlag: "swift-build", RiskLevel: safety.RiskForCategory("proj-swift")},
+			{ID: "proj-rust", Label: "target (Rust)", SkipFlag: "rust-target", RiskLevel: safety.RiskForCategory("proj-rust")},
+			{ID: "proj-python", Label: "venv (Python)", SkipFlag: "python-venv", RiskLevel: safety.RiskForCategory("proj-python")},
+			{ID: "proj-java", Label: "build (Java/Kotlin)", SkipFlag: "java-build", RiskLevel: safety.RiskForCategory("proj-java")},
+		},
+	}, projects.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
 		ID:          "appleftovers",

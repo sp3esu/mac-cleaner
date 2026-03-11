@@ -42,6 +42,7 @@ var (
 	flagMessagingCaches bool
 	flagUnusedApps      bool
 	flagPhotos          bool
+	flagProjectCaches   bool
 	flagSystemData      bool
 	flagAll             bool
 	flagJSON           bool
@@ -60,6 +61,7 @@ var (
 	flagSkipMessagingCaches bool
 	flagSkipUnusedApps      bool
 	flagSkipPhotos          bool
+	flagSkipProjectCaches   bool
 	flagSkipSystemData      bool
 )
 
@@ -85,6 +87,11 @@ var (
 	flagSkipCocoapods         bool
 	flagSkipGradle            bool
 	flagSkipPip               bool
+	flagSkipNodeModules       bool
+	flagSkipSwiftBuild        bool
+	flagSkipRustTarget        bool
+	flagSkipPythonVenv        bool
+	flagSkipJavaBuild         bool
 	flagSkipAdobe             bool
 	flagSkipAdobeMedia        bool
 	flagSkipSketch            bool
@@ -144,6 +151,7 @@ Examples:
 			{&flagSystemCaches, "system"},
 			{&flagBrowserData, "browser"},
 			{&flagDevCaches, "developer"},
+			{&flagProjectCaches, "projects"},
 			{&flagAppLeftovers, "appleftovers"},
 			{&flagCreativeCaches, "creative"},
 			{&flagMessagingCaches, "messaging"},
@@ -159,7 +167,7 @@ Examples:
 		}
 
 		if flagJSON && !ran {
-			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
+			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --project-caches, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
 			os.Exit(1)
 		}
 
@@ -240,6 +248,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSystemCaches, "system-caches", false, "scan user app caches, logs, and QuickLook thumbnails")
 	rootCmd.Flags().BoolVar(&flagBrowserData, "browser-data", false, "scan Safari, Chrome, and Firefox caches")
 	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
+	rootCmd.Flags().BoolVar(&flagProjectCaches, "project-caches", false, "scan project build caches (node_modules, .build, target, venv, build)")
 	rootCmd.Flags().BoolVar(&flagAppLeftovers, "app-leftovers", false, "scan orphaned preferences, iOS backups, and old Downloads")
 	rootCmd.Flags().BoolVar(&flagCreativeCaches, "creative-caches", false, "scan Adobe, Sketch, and Figma caches")
 	rootCmd.Flags().BoolVar(&flagMessagingCaches, "messaging-caches", false, "scan Slack, Discord, Teams, and Zoom caches")
@@ -256,6 +265,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipSystemCaches, "skip-system-caches", false, "skip system cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipBrowserData, "skip-browser-data", false, "skip browser data scanning")
 	rootCmd.Flags().BoolVar(&flagSkipDevCaches, "skip-dev-caches", false, "skip developer cache scanning")
+	rootCmd.Flags().BoolVar(&flagSkipProjectCaches, "skip-project-caches", false, "skip project cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipAppLeftovers, "skip-app-leftovers", false, "skip app leftover scanning")
 	rootCmd.Flags().BoolVar(&flagSkipCreativeCaches, "skip-creative-caches", false, "skip creative app cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipMessagingCaches, "skip-messaging-caches", false, "skip messaging app cache scanning")
@@ -284,6 +294,11 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipCocoapods, "skip-cocoapods", false, "skip CocoaPods cache")
 	rootCmd.Flags().BoolVar(&flagSkipGradle, "skip-gradle", false, "skip Gradle cache")
 	rootCmd.Flags().BoolVar(&flagSkipPip, "skip-pip", false, "skip pip cache")
+	rootCmd.Flags().BoolVar(&flagSkipNodeModules, "skip-node-modules", false, "skip node_modules directories")
+	rootCmd.Flags().BoolVar(&flagSkipSwiftBuild, "skip-swift-build", false, "skip .build (Swift) directories")
+	rootCmd.Flags().BoolVar(&flagSkipRustTarget, "skip-rust-target", false, "skip target (Rust) directories")
+	rootCmd.Flags().BoolVar(&flagSkipPythonVenv, "skip-python-venv", false, "skip venv (Python) directories")
+	rootCmd.Flags().BoolVar(&flagSkipJavaBuild, "skip-java-build", false, "skip build (Java/Kotlin) directories")
 	rootCmd.Flags().BoolVar(&flagSkipAdobe, "skip-adobe", false, "skip Adobe caches")
 	rootCmd.Flags().BoolVar(&flagSkipAdobeMedia, "skip-adobe-media", false, "skip Adobe media caches")
 	rootCmd.Flags().BoolVar(&flagSkipSketch, "skip-sketch", false, "skip Sketch cache")
@@ -315,6 +330,7 @@ func init() {
 			flagSystemCaches = true
 			flagBrowserData = true
 			flagDevCaches = true
+			flagProjectCaches = true
 			flagAppLeftovers = true
 			flagCreativeCaches = true
 			flagMessagingCaches = true
@@ -331,6 +347,9 @@ func init() {
 		}
 		if flagSkipDevCaches {
 			flagDevCaches = false
+		}
+		if flagSkipProjectCaches {
+			flagProjectCaches = false
 		}
 		if flagSkipAppLeftovers {
 			flagAppLeftovers = false

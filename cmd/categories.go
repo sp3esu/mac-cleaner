@@ -63,6 +63,11 @@ var (
 	flagScanVMParallels       bool
 	flagScanVMUTM             bool
 	flagScanVMVMware          bool
+	flagScanNodeModules       bool
+	flagScanSwiftBuild        bool
+	flagScanRustTarget        bool
+	flagScanPythonVenv        bool
+	flagScanJavaBuild         bool
 )
 
 // scanGroups is the central registry of all scanner groups and their
@@ -117,6 +122,21 @@ var scanGroups = []groupDef{
 			{FlagName: "simulator-logs", CategoryID: "dev-simulator-logs", Description: "iOS Simulator logs", SkipFlag: &flagSkipSimulatorLogs, ScanFlag: &flagScanSimulatorLogs},
 			{FlagName: "xcode-device-support", CategoryID: "dev-xcode-device-support", Description: "Xcode Device Support files", SkipFlag: &flagSkipXcodeDevSupport, ScanFlag: &flagScanXcodeDevSupport},
 			{FlagName: "xcode-archives", CategoryID: "dev-xcode-archives", Description: "Xcode Archives", SkipFlag: &flagSkipXcodeArchives, ScanFlag: &flagScanXcodeArchives},
+		},
+	},
+	{
+		FlagName:    "project-caches",
+		ScannerID:   "projects",
+		GroupName:   "Project Caches",
+		Description: "project build caches (node_modules, .build, target, venv, build)",
+		ScanFlag:    &flagProjectCaches,
+		SkipFlag:    &flagSkipProjectCaches,
+		Items: []categoryDef{
+			{FlagName: "node-modules", CategoryID: "proj-node", Description: "node_modules directories", SkipFlag: &flagSkipNodeModules, ScanFlag: &flagScanNodeModules},
+			{FlagName: "swift-build", CategoryID: "proj-swift", Description: ".build (Swift) directories", SkipFlag: &flagSkipSwiftBuild, ScanFlag: &flagScanSwiftBuild},
+			{FlagName: "rust-target", CategoryID: "proj-rust", Description: "target (Rust) directories", SkipFlag: &flagSkipRustTarget, ScanFlag: &flagScanRustTarget},
+			{FlagName: "python-venv", CategoryID: "proj-python", Description: "venv (Python) directories", SkipFlag: &flagSkipPythonVenv, ScanFlag: &flagScanPythonVenv},
+			{FlagName: "java-build", CategoryID: "proj-java", Description: "build (Java/Kotlin) directories", SkipFlag: &flagSkipJavaBuild, ScanFlag: &flagScanJavaBuild},
 		},
 	},
 	{

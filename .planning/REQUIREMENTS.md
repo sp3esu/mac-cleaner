@@ -9,14 +9,14 @@ Requirements for extended scanning milestone. Each maps to roadmap phases.
 
 ### Project Caches
 
-- [ ] **PROJ-01**: User can scan for node_modules directories under home with size reporting
-- [ ] **PROJ-02**: User can scan for Swift .build directories (Package.swift marker) with size reporting
-- [ ] **PROJ-03**: User can scan for Rust target/ directories (Cargo.toml marker) with size reporting
-- [ ] **PROJ-04**: User can scan for Python venv/.venv directories (pyvenv.cfg marker) with size reporting
-- [ ] **PROJ-05**: User can scan for Java/Kotlin build/ directories (build.gradle/pom.xml marker) with size reporting
-- [ ] **PROJ-06**: All project types detected in a single-pass recursive walk of home directory
-- [ ] **PROJ-07**: Stale projects (not modified in 6+ months) are highlighted in scan results
-- [ ] **PROJ-08**: Category descriptions show aggregate summaries (e.g. "47 node_modules totaling 28.3 GB")
+- [x] **PROJ-01**: User can scan for node_modules directories under home with size reporting
+- [x] **PROJ-02**: User can scan for Swift .build directories (Package.swift marker) with size reporting
+- [x] **PROJ-03**: User can scan for Rust target/ directories (Cargo.toml marker) with size reporting
+- [x] **PROJ-04**: User can scan for Python venv/.venv directories (pyvenv.cfg marker) with size reporting
+- [x] **PROJ-05**: User can scan for Java/Kotlin build/ directories (build.gradle/pom.xml marker) with size reporting
+- [x] **PROJ-06**: All project types detected in a single-pass recursive walk of home directory
+- [x] **PROJ-07**: Stale projects (not modified in 6+ months) are highlighted in scan results
+- [x] **PROJ-08**: Category descriptions show aggregate summaries (e.g. "47 node_modules totaling 28.3 GB")
 
 ### Git Repository Caches
 
@@ -63,14 +63,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROJ-01 | Phase 12 | Pending |
-| PROJ-02 | Phase 12 | Pending |
-| PROJ-03 | Phase 12 | Pending |
-| PROJ-04 | Phase 12 | Pending |
-| PROJ-05 | Phase 12 | Pending |
-| PROJ-06 | Phase 12 | Pending |
-| PROJ-07 | Phase 12 | Pending |
-| PROJ-08 | Phase 12 | Pending |
+| PROJ-01 | Phase 12 | Complete |
+| PROJ-02 | Phase 12 | Complete |
+| PROJ-03 | Phase 12 | Complete |
+| PROJ-04 | Phase 12 | Complete |
+| PROJ-05 | Phase 12 | Complete |
+| PROJ-06 | Phase 12 | Complete |
+| PROJ-07 | Phase 12 | Complete |
+| PROJ-08 | Phase 12 | Complete |
 | GIT-01 | Phase 14 | Pending |
 | GIT-02 | Phase 14 | Pending |
 | GIT-03 | Phase 14 | Pending |
@@ -86,4 +86,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 (traceability updated during roadmap creation)*
+*Last updated: 2026-03-11 (PROJ-01 through PROJ-08 complete via 12-01)*

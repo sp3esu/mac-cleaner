@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-11T18:50:04.105Z"
-last_activity: 2026-03-11 — Roadmap created for v1.7.0
+status: executing
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-11T19:18:46Z"
+last_activity: 2026-03-11 — Completed 12-01 walk utility and project scanner
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 80
+  total_plans: 3
+  completed_plans: 1
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-11)
 ## Current Position
 
 Phase: 12 of 14 (Project Cache Scanning)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-11 — Roadmap created for v1.7.0
+Plan: 1 of 3 in current phase
+Status: Executing phase 12
+Last activity: 2026-03-11 — Completed 12-01 walk utility and project scanner
 
-Progress: [==================..] ~80% overall (18/? plans, phases 1-11 complete)
+Progress: [==================..] ~83% overall (19/? plans, phases 1-11 complete)
 
 ## Phase Overview
 
@@ -38,14 +38,14 @@ Progress: [==================..] ~80% overall (18/? plans, phases 1-11 complete)
 |-------|-----------|--------|
 | 1-7 | v1.0 MVP | Complete (13 plans) |
 | 8-11 | v1.1 Swift Integration | Complete (5 plans) |
-| 12 | v1.7.0 Extended Scanning | Not started |
+| 12 | v1.7.0 Extended Scanning | In progress (1/3 plans) |
 | 13 | v1.7.0 Extended Scanning | Not started |
 | 14 | v1.7.0 Extended Scanning | Not started |
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
+- Total plans completed: 19
 - v1.0: 13 plans in ~4.3 hours
 - v1.1: 5 plans in 2 days
 
@@ -58,6 +58,8 @@ See PROJECT.md Key Decisions table for full list.
 Recent decisions affecting current work:
 - v1.7.0: Three new scanning categories (project caches, home files, git repos) with shared walk utility
 - Research recommends building walk utility inside Phase 12, reused by Phases 13-14
+- Walk uses filepath.WalkDir with OnDir callback; dotfile dirs skipped at depth 1 only
+- Python venv: two projectType entries (venv/.venv) sharing proj-python category
 
 ### Research Flags
 
@@ -74,10 +76,10 @@ None. All packages compile and all tests pass.
 
 ## Session Continuity
 
-Last session: 2026-03-11T18:50:04.101Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-project-cache-scanning/12-CONTEXT.md
+Last session: 2026-03-11T19:18:46Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: .planning/phases/12-project-cache-scanning/12-01-SUMMARY.md
 
 ---
 *State initialized: 2026-02-16*
-*Last updated: 2026-03-11 (v1.7.0 roadmap created)*
+*Last updated: 2026-03-11 (12-01 walk utility and project scanner complete)*

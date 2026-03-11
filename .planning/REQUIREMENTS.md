@@ -20,10 +20,10 @@ Requirements for extended scanning milestone. Each maps to roadmap phases.
 
 ### Git Repository Caches
 
-- [ ] **GIT-01**: User can scan for large .git directories with size reporting
-- [ ] **GIT-02**: Scan shows estimated reclaimable space per repo via git count-objects
-- [ ] **GIT-03**: User can run git gc --aggressive as cleanup action for detected repos
-- [ ] **GIT-04**: User can run git lfs prune for repos with .git/lfs present
+- [x] **GIT-01**: User can scan for large .git directories with size reporting
+- [x] **GIT-02**: Scan shows estimated reclaimable space per repo via git count-objects
+- [x] **GIT-03**: User can run git gc --aggressive as cleanup action for detected repos
+- [x] **GIT-04**: User can run git lfs prune for repos with .git/lfs present
 
 ### Home Directory Files
 
@@ -71,10 +71,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROJ-06 | Phase 12 | Complete |
 | PROJ-07 | Phase 12 | Complete |
 | PROJ-08 | Phase 12 | Complete |
-| GIT-01 | Phase 14 | Pending |
-| GIT-02 | Phase 14 | Pending |
-| GIT-03 | Phase 14 | Pending |
-| GIT-04 | Phase 14 | Pending |
+| GIT-01 | Phase 14 | Complete |
+| GIT-02 | Phase 14 | Complete |
+| GIT-03 | Phase 14 | Complete |
+| GIT-04 | Phase 14 | Complete |
 | HOME-01 | Phase 13 | Complete |
 | HOME-02 | Phase 13 | Complete |
 | HOME-03 | Phase 13 | Complete |

@@ -44,7 +44,14 @@ Users can safely and confidently reclaim disk space without worrying about delet
 
 ### Active
 
-(None — next milestone not yet defined)
+## Current Milestone: v1.7.0 Extended Scanning
+
+**Goal:** Expand scanning coverage with home directory file analysis, broader dev/project cache detection, and git repository cache management.
+
+**Target features:**
+- Home directory file scanning — detect large/old files consuming space in ~/
+- Extended project caches — scan .build/, .gradle/, .cache/, and other common project build artifacts under ~/
+- Git repository cache management — detect large git repos and offer to purge git caches (gc, prune, clean)
 
 ### Out of Scope
 
@@ -112,4 +119,4 @@ v1.1: 16 requirements shipped across 4 phases and 5 plans (2 days).
 | Cleanup continues on disconnect | Partially-deleted state worse than completing the operation | ✓ Good |
 
 ---
-*Last updated: 2026-02-17 after v1.1 milestone*
+*Last updated: 2026-03-11 after v1.7.0 milestone start*

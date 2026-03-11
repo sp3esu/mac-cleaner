@@ -39,6 +39,13 @@ func TestRiskForCategory(t *testing.T) {
 		{"sysdata-vm-utm", RiskRisky},
 		{"sysdata-vm-vmware", RiskRisky},
 
+		// Project cache categories.
+		{"proj-node", RiskSafe},
+		{"proj-swift", RiskSafe},
+		{"proj-rust", RiskSafe},
+		{"proj-java", RiskSafe},
+		{"proj-python", RiskModerate},
+
 		// Unknown and empty default to moderate.
 		{"unknown-category", RiskModerate},
 		{"", RiskModerate},

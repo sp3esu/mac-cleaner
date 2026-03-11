@@ -1,9 +1,9 @@
 ---
 phase: 13
 slug: home-directory-file-scanning
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-11
 ---
 
@@ -38,13 +38,13 @@ created: 2026-03-11
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 13-01-01 | 01 | 1 | -- | unit | `go test ./internal/walk/... -run TestOnFile` | ❌ W0 | ⬜ pending |
-| 13-01-02 | 01 | 1 | HOME-01 | unit | `go test ./pkg/homedir/... -run TestLargeFiles` | ❌ W0 | ⬜ pending |
-| 13-01-03 | 01 | 1 | HOME-02 | unit | `go test ./pkg/homedir/... -run TestOldFiles` | ❌ W0 | ⬜ pending |
-| 13-01-04 | 01 | 1 | HOME-03 | unit | `go test ./pkg/homedir/... -run TestExclusions` | ❌ W0 | ⬜ pending |
-| 13-01-05 | 01 | 1 | -- | unit | `go test ./pkg/homedir/... -run TestSymlinkSkip` | ❌ W0 | ⬜ pending |
-| 13-01-06 | 01 | 1 | -- | unit | `go test ./pkg/homedir/... -run TestDualCategory` | ❌ W0 | ⬜ pending |
-| 13-01-07 | 01 | 1 | -- | unit | `go test ./internal/safety/... -run TestRiskForCategory` | ✅ | ⬜ pending |
+| 13-01-01 | 01 | 1 | -- | unit | `go test ./internal/walk/... -run TestOnFileCallback` | ✅ | ✅ green |
+| 13-01-02 | 01 | 1 | HOME-01 | unit | `go test ./pkg/homedir/... -run TestLargeFiles` | ✅ | ✅ green |
+| 13-01-03 | 01 | 1 | HOME-02 | unit | `go test ./pkg/homedir/... -run TestOldFiles` | ✅ | ✅ green |
+| 13-01-04 | 01 | 1 | HOME-03 | unit | `go test ./pkg/homedir/... -run TestExclusions` | ✅ | ✅ green |
+| 13-01-05 | 01 | 1 | -- | unit | `go test ./pkg/homedir/... -run TestSymlinkSkip` | ✅ | ✅ green |
+| 13-01-06 | 01 | 1 | -- | unit | `go test ./pkg/homedir/... -run TestDualCategory` | ✅ | ✅ green |
+| 13-01-07 | 01 | 1 | -- | unit | `go test ./internal/safety/... -run TestRiskForCategory` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -52,11 +52,7 @@ created: 2026-03-11
 
 ## Wave 0 Requirements
 
-- [ ] `internal/walk/walk_test.go` — add OnFile callback tests (file exists, needs new test functions)
-- [ ] `pkg/homedir/scanner_test.go` — all file scanning tests (new file)
-- [ ] `internal/safety/risk.go` — add `home-large-files` and `home-old-files` risk entries
-
-*Existing infrastructure covers framework — Go stdlib `testing` is always available.*
+Existing infrastructure covers all phase requirements.
 
 ---
 
@@ -70,11 +66,23 @@ created: 2026-03-11
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-11
+
+---
+
+## Validation Audit 2026-03-11
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+All 3 requirements (HOME-01 through HOME-03) have automated test coverage. All 8 scanner tests and 4 OnFile walk tests pass green.

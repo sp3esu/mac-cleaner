@@ -59,11 +59,11 @@ Plans:
   2. Each detected repo shows estimated reclaimable space from `git count-objects`
   3. User can clean up git repos via `git gc --aggressive` as the cleanup action
   4. Repos with .git/lfs present offer `git lfs prune` as an additional cleanup action
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 14-01: TBD
-- [ ] 14-02: TBD
+- [ ] 14-01-PLAN.md — Git repo scanner core + cleanup extension (pkg/gitrepos + internal/cleanup git-gc: handler + safety risk)
+- [ ] 14-02-PLAN.md — CLI integration (engine registry + cmd flags + README updates)
 
 ## Progress
 
@@ -76,4 +76,4 @@ Phases execute in numeric order: 12 -> 13 -> 14
 | 8-11 | v1.1 Swift Integration | 5/5 | Complete | 2026-02-17 |
 | 12. Project Cache Scanning | 2/2 | Complete    | 2026-03-11 | - |
 | 13. Home Directory File Scanning | 2/2 | Complete    | 2026-03-11 | - |
-| 14. Git Repository Cache Management | v1.7.0 | 0/? | Not started | - |
+| 14. Git Repository Cache Management | v1.7.0 | 0/2 | Planned | - |

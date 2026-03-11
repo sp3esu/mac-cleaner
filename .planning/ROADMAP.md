@@ -34,7 +34,7 @@
 
 Plans:
 - [x] 12-01-PLAN.md — Walk utility and project cache scanner core (internal/walk + pkg/projects + safety risk entries)
-- [ ] 12-02-PLAN.md — CLI integration (engine registry + cmd flags + README updates)
+- [x] 12-02-PLAN.md — CLI integration (engine registry + cmd flags + README updates)
 
 ### Phase 13: Home Directory File Scanning
 **Goal**: Users can identify large and stale files in their home directory that are consuming space
@@ -44,10 +44,11 @@ Plans:
   1. User can run `mac-cleaner --home-files` and see files larger than 100MB in their home directory
   2. User can see files older than 180 days in their home directory
   3. Results exclude ~/Library, ~/Applications, ~/.Trash, ~/Downloads, and dotfile directories -- no overlap with existing scanners
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — Walk OnFile extension and home directory file scanner (TDD: internal/walk + pkg/homedir + safety risk entries)
+- [ ] 13-02-PLAN.md — CLI integration (engine registry + cmd flags + README updates)
 
 ### Phase 14: Git Repository Cache Management
 **Goal**: Users can reclaim space from git repository caches through git gc and lfs prune operations
@@ -74,5 +75,5 @@ Phases execute in numeric order: 12 -> 13 -> 14
 | 1-7 | v1.0 MVP | 13/13 | Complete | 2026-02-16 |
 | 8-11 | v1.1 Swift Integration | 5/5 | Complete | 2026-02-17 |
 | 12. Project Cache Scanning | 2/2 | Complete    | 2026-03-11 | - |
-| 13. Home Directory File Scanning | v1.7.0 | 0/? | Not started | - |
+| 13. Home Directory File Scanning | v1.7.0 | 0/2 | Not started | - |
 | 14. Git Repository Cache Management | v1.7.0 | 0/? | Not started | - |

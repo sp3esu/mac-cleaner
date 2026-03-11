@@ -30,11 +30,11 @@
   3. Projects not modified in 6+ months are visually distinguished from recent projects in scan output
   4. Aggregate summaries show total count and combined size per project type (e.g., "47 node_modules totaling 28.3 GB")
   5. Only directories with matching project manifest markers (package.json, Cargo.toml, etc.) are reported -- no false positives from unrelated directories with the same name
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 12-01: TBD
-- [ ] 12-02: TBD
+- [ ] 12-01-PLAN.md — Walk utility and project cache scanner core (internal/walk + pkg/projects + safety risk entries)
+- [ ] 12-02-PLAN.md — CLI integration (engine registry + cmd flags + README updates)
 
 ### Phase 13: Home Directory File Scanning
 **Goal**: Users can identify large and stale files in their home directory that are consuming space
@@ -73,6 +73,6 @@ Phases execute in numeric order: 12 -> 13 -> 14
 |-------|-----------|----------------|--------|-----------|
 | 1-7 | v1.0 MVP | 13/13 | Complete | 2026-02-16 |
 | 8-11 | v1.1 Swift Integration | 5/5 | Complete | 2026-02-17 |
-| 12. Project Cache Scanning | v1.7.0 | 0/? | Not started | - |
+| 12. Project Cache Scanning | v1.7.0 | 0/2 | Planning complete | - |
 | 13. Home Directory File Scanning | v1.7.0 | 0/? | Not started | - |
 | 14. Git Repository Cache Management | v1.7.0 | 0/? | Not started | - |

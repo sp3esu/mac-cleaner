@@ -1,7 +1,8 @@
 // Package walk provides a reusable recursive directory walker with depth
-// limits, name-based and absolute-path exclusions, and a per-directory
-// callback. It is designed for scanning home directories for project
-// caches and is reused across multiple scanning phases.
+// limits, name-based and absolute-path exclusions, and per-directory and
+// per-file callbacks. It is designed for scanning home directories for
+// project caches and large/old files, and is reused across multiple
+// scanning phases.
 package walk
 
 import (
@@ -29,9 +30,10 @@ type Options struct {
 }
 
 // Walk recursively traverses directories under opts.Root, respecting depth
-// limits, exclusion lists, and the OnDir callback. Only directories are
-// visited; regular files are ignored. Permission errors are skipped
-// silently. Symlinks are not followed (filepath.WalkDir default).
+// limits, exclusion lists, and the OnDir/OnFile callbacks. When OnFile is
+// set, regular files are reported; when nil, files are ignored (backward
+// compatible). Permission errors are skipped silently. Symlinks are not
+// followed (filepath.WalkDir default).
 func Walk(opts Options) error {
 	// Resolve root to a clean absolute path for reliable depth calculation.
 	root, err := filepath.Abs(opts.Root)

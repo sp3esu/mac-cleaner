@@ -31,6 +31,15 @@
 - **Кэш Gradle** — `~/.gradle/caches/` (умеренный риск)
 - **Кэш pip** — `~/Library/Caches/pip/` (безопасно)
 
+### Кэши проектов
+- **node_modules** — каталоги `node_modules/` в проектах JavaScript/TypeScript (безопасно)
+- **.build (Swift)** — каталоги `.build/` в проектах Swift Package Manager (безопасно)
+- **target (Rust)** — каталоги `target/` в проектах Cargo/Rust (безопасно)
+- **venv (Python)** — каталоги `venv/` и `.venv/` в проектах Python (умеренный риск)
+- **build (Java/Kotlin)** — каталоги `build/` в проектах Gradle/Maven (безопасно)
+
+Кэши проектов обнаруживаются путём обхода домашнего каталога и валидации каждого кандидата по файлу манифеста (например, `package.json` для node_modules, `Cargo.toml` для target). Проекты, неактивные более 6 месяцев, отмечаются индикатором неактивности.
+
 ### Остатки приложений
 - **Осиротевшие настройки** — файлы `.plist` в `~/Library/Preferences/` для удалённых приложений (рискованно)
 - **Резервные копии устройств iOS** — `~/Library/Application Support/MobileSync/Backup/` (рискованно)
@@ -159,6 +168,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Сканировать кэши сборки проектов (node_modules, .build, target, venv, build):**
+```bash
+./mac-cleaner --project-caches --dry-run
+```
+
+**Сканировать только каталоги node_modules:**
+```bash
+./mac-cleaner scan --node-modules --dry-run
+```
+
 **Точечное сканирование — только определённые элементы (через подкоманду `scan`):**
 ```bash
 ./mac-cleaner scan --npm --safari --dry-run
@@ -189,6 +208,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--system-caches` | Сканировать кэш приложений, логи и миниатюры QuickLook |
 | `--browser-data` | Сканировать кэши Safari, Chrome и Firefox |
 | `--dev-caches` | Сканировать кэши Xcode, npm/yarn, Homebrew и Docker |
+| `--project-caches` | Сканировать кэши сборки проектов (node_modules, .build, target, venv, build) |
 | `--app-leftovers` | Сканировать осиротевшие настройки, резервные копии iOS и старые загрузки |
 | `--creative-caches` | Сканировать кэши Adobe, Sketch и Figma |
 | `--messaging-caches` | Сканировать кэши Slack, Discord, Teams и Zoom |
@@ -213,6 +233,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-system-caches` | Пропустить сканирование системных кэшей |
 | `--skip-browser-data` | Пропустить сканирование данных браузеров |
 | `--skip-dev-caches` | Пропустить сканирование кэшей разработчика |
+| `--skip-project-caches` | Пропустить сканирование кэшей проектов |
 | `--skip-app-leftovers` | Пропустить сканирование остатков приложений |
 | `--skip-creative-caches` | Пропустить сканирование кэшей креативных приложений |
 | `--skip-messaging-caches` | Пропустить сканирование кэшей мессенджеров |
@@ -244,6 +265,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-cocoapods` | Пропустить кэш CocoaPods |
 | `--skip-gradle` | Пропустить кэш Gradle |
 | `--skip-pip` | Пропустить кэш pip |
+| `--skip-node-modules` | Пропустить каталоги node_modules |
+| `--skip-swift-build` | Пропустить каталоги .build (Swift) |
+| `--skip-rust-target` | Пропустить каталоги target (Rust) |
+| `--skip-python-venv` | Пропустить каталоги venv (Python) |
+| `--skip-java-build` | Пропустить каталоги build (Java/Kotlin) |
 | `--skip-adobe` | Пропустить кэш Adobe |
 | `--skip-adobe-media` | Пропустить медиа-кэш Adobe |
 | `--skip-sketch` | Пропустить кэш Sketch |

@@ -31,6 +31,15 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 - **Gradle Cache** — `~/.gradle/caches/` (moderate)
 - **pip Cache** — `~/Library/Caches/pip/` (safe)
 
+### Project Caches
+- **node_modules** — `node_modules/` directories in JavaScript/TypeScript projects (safe)
+- **.build (Swift)** — `.build/` directories in Swift Package Manager projects (safe)
+- **target (Rust)** — `target/` directories in Cargo/Rust projects (safe)
+- **venv (Python)** — `venv/` and `.venv/` directories in Python projects (moderate)
+- **build (Java/Kotlin)** — `build/` directories in Gradle/Maven projects (safe)
+
+Project caches are detected by walking your home directory and validating each candidate against its manifest file (e.g., `package.json` for node_modules, `Cargo.toml` for target). This prevents false positives on generic directory names. Projects inactive for 6+ months are flagged with a staleness indicator.
+
 ### App Leftovers
 - **Orphaned Preferences** — `.plist` files in `~/Library/Preferences/` for uninstalled apps (risky)
 - **iOS Device Backups** — `~/Library/Application Support/MobileSync/Backup/` (risky)
@@ -159,6 +168,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Scan project build caches (node_modules, .build, target, venv, build):**
+```bash
+./mac-cleaner --project-caches --dry-run
+```
+
+**Scan only node_modules directories:**
+```bash
+./mac-cleaner scan --node-modules --dry-run
+```
+
 **Targeted scan — specific items only (via `scan` subcommand):**
 ```bash
 ./mac-cleaner scan --npm --safari --dry-run
@@ -189,6 +208,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--system-caches` | Scan user app caches, logs, and QuickLook thumbnails |
 | `--browser-data` | Scan Safari, Chrome, and Firefox caches |
 | `--dev-caches` | Scan Xcode, npm/yarn, Homebrew, and Docker caches |
+| `--project-caches` | Scan project build caches (node_modules, .build, target, venv, build) |
 | `--app-leftovers` | Scan orphaned preferences, iOS backups, and old Downloads |
 | `--creative-caches` | Scan Adobe, Sketch, and Figma caches |
 | `--messaging-caches` | Scan Slack, Discord, Teams, and Zoom caches |
@@ -213,6 +233,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-system-caches` | Skip system cache scanning |
 | `--skip-browser-data` | Skip browser data scanning |
 | `--skip-dev-caches` | Skip developer cache scanning |
+| `--skip-project-caches` | Skip project cache scanning |
 | `--skip-app-leftovers` | Skip app leftover scanning |
 | `--skip-creative-caches` | Skip creative app cache scanning |
 | `--skip-messaging-caches` | Skip messaging app cache scanning |
@@ -244,6 +265,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-cocoapods` | Skip CocoaPods cache |
 | `--skip-gradle` | Skip Gradle cache |
 | `--skip-pip` | Skip pip cache |
+| `--skip-node-modules` | Skip node_modules directories |
+| `--skip-swift-build` | Skip .build (Swift) directories |
+| `--skip-rust-target` | Skip target (Rust) directories |
+| `--skip-python-venv` | Skip venv (Python) directories |
+| `--skip-java-build` | Skip build (Java/Kotlin) directories |
 | `--skip-adobe` | Skip Adobe caches |
 | `--skip-adobe-media` | Skip Adobe media caches |
 | `--skip-sketch` | Skip Sketch cache |

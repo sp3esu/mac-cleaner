@@ -31,6 +31,15 @@ Un outil CLI rapide et sûr pour récupérer de l'espace disque sous macOS.
 - **Cache Gradle** — `~/.gradle/caches/` (modéré)
 - **Cache pip** — `~/Library/Caches/pip/` (sûr)
 
+### Caches de projets
+- **node_modules** — repertoires `node_modules/` dans les projets JavaScript/TypeScript (sur)
+- **.build (Swift)** — repertoires `.build/` dans les projets Swift Package Manager (sur)
+- **target (Rust)** — repertoires `target/` dans les projets Cargo/Rust (sur)
+- **venv (Python)** — repertoires `venv/` et `.venv/` dans les projets Python (modere)
+- **build (Java/Kotlin)** — repertoires `build/` dans les projets Gradle/Maven (sur)
+
+Les caches de projets sont detectes en parcourant votre repertoire personnel et en validant chaque candidat par rapport a son fichier manifeste (par exemple, `package.json` pour node_modules, `Cargo.toml` pour target). Les projets inactifs depuis plus de 6 mois sont signales par un indicateur d'inactivite.
+
 ### Restes d'applications
 - **Préférences orphelines** — fichiers `.plist` dans `~/Library/Preferences/` pour les applications désinstallées (risqué)
 - **Sauvegardes d'appareils iOS** — `~/Library/Application Support/MobileSync/Backup/` (risqué)
@@ -159,6 +168,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Analyser les caches de build des projets (node_modules, .build, target, venv, build) :**
+```bash
+./mac-cleaner --project-caches --dry-run
+```
+
+**Analyser uniquement les repertoires node_modules :**
+```bash
+./mac-cleaner scan --node-modules --dry-run
+```
+
 **Analyse ciblée — éléments spécifiques uniquement (via la sous-commande `scan`) :**
 ```bash
 ./mac-cleaner scan --npm --safari --dry-run
@@ -189,6 +208,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--system-caches` | Analyser les caches des applications, les logs et les miniatures QuickLook |
 | `--browser-data` | Analyser les caches Safari, Chrome et Firefox |
 | `--dev-caches` | Analyser les caches Xcode, npm/yarn, Homebrew et Docker |
+| `--project-caches` | Analyser les caches de build des projets (node_modules, .build, target, venv, build) |
 | `--app-leftovers` | Analyser les préférences orphelines, les sauvegardes iOS et les anciens téléchargements |
 | `--creative-caches` | Analyser les caches Adobe, Sketch et Figma |
 | `--messaging-caches` | Analyser les caches Slack, Discord, Teams et Zoom |
@@ -213,6 +233,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-system-caches` | Ignorer l'analyse des caches système |
 | `--skip-browser-data` | Ignorer l'analyse des données des navigateurs |
 | `--skip-dev-caches` | Ignorer l'analyse des caches développeur |
+| `--skip-project-caches` | Ignorer l'analyse des caches de projets |
 | `--skip-app-leftovers` | Ignorer l'analyse des restes d'applications |
 | `--skip-creative-caches` | Ignorer l'analyse des caches des applications créatives |
 | `--skip-messaging-caches` | Ignorer l'analyse des caches des applications de messagerie |
@@ -244,6 +265,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-cocoapods` | Ignorer le cache CocoaPods |
 | `--skip-gradle` | Ignorer le cache Gradle |
 | `--skip-pip` | Ignorer le cache pip |
+| `--skip-node-modules` | Ignorer les repertoires node_modules |
+| `--skip-swift-build` | Ignorer les repertoires .build (Swift) |
+| `--skip-rust-target` | Ignorer les repertoires target (Rust) |
+| `--skip-python-venv` | Ignorer les repertoires venv (Python) |
+| `--skip-java-build` | Ignorer les repertoires build (Java/Kotlin) |
 | `--skip-adobe` | Ignorer les caches Adobe |
 | `--skip-adobe-media` | Ignorer le cache média Adobe |
 | `--skip-sketch` | Ignorer le cache Sketch |

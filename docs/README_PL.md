@@ -31,6 +31,15 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 - **Pamięć podręczna Gradle** — `~/.gradle/caches/` (umiarkowane)
 - **Pamięć podręczna pip** — `~/Library/Caches/pip/` (bezpieczne)
 
+### Pamięci podręczne projektów
+- **node_modules** — katalogi `node_modules/` w projektach JavaScript/TypeScript (bezpieczne)
+- **.build (Swift)** — katalogi `.build/` w projektach Swift Package Manager (bezpieczne)
+- **target (Rust)** — katalogi `target/` w projektach Cargo/Rust (bezpieczne)
+- **venv (Python)** — katalogi `venv/` i `.venv/` w projektach Python (umiarkowane)
+- **build (Java/Kotlin)** — katalogi `build/` w projektach Gradle/Maven (bezpieczne)
+
+Pamięci podręczne projektów są wykrywane przez przeszukiwanie katalogu domowego i walidację każdego kandydata względem pliku manifestu (np. `package.json` dla node_modules, `Cargo.toml` dla target). Projekty nieaktywne od ponad 6 miesięcy są oznaczane wskaźnikiem nieaktywności.
+
 ### Pozostałości aplikacji
 - **Osierocone preferencje** — pliki `.plist` w `~/Library/Preferences/` dla odinstalowanych aplikacji (ryzykowne)
 - **Kopie zapasowe urządzeń iOS** — `~/Library/Application Support/MobileSync/Backup/` (ryzykowne)
@@ -159,6 +168,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Skanuj pamięci podręczne budowania projektów (node_modules, .build, target, venv, build):**
+```bash
+./mac-cleaner --project-caches --dry-run
+```
+
+**Skanuj tylko katalogi node_modules:**
+```bash
+./mac-cleaner scan --node-modules --dry-run
+```
+
 **Ukierunkowane skanowanie — tylko wybrane elementy (przez podkomendę `scan`):**
 ```bash
 ./mac-cleaner scan --npm --safari --dry-run
@@ -189,6 +208,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--system-caches` | Skanuj pamięć podręczną aplikacji, logi i miniatury QuickLook |
 | `--browser-data` | Skanuj pamięci podręczne Safari, Chrome i Firefox |
 | `--dev-caches` | Skanuj pamięci podręczne Xcode, npm/yarn, Homebrew i Docker |
+| `--project-caches` | Skanuj pamięci podręczne budowania projektów (node_modules, .build, target, venv, build) |
 | `--app-leftovers` | Skanuj osierocone preferencje, kopie zapasowe iOS i stare pobrania |
 | `--creative-caches` | Skanuj pamięci podręczne Adobe, Sketch i Figma |
 | `--messaging-caches` | Skanuj pamięci podręczne Slack, Discord, Teams i Zoom |
@@ -213,6 +233,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-system-caches` | Pomiń skanowanie pamięci podręcznych systemu |
 | `--skip-browser-data` | Pomiń skanowanie danych przeglądarek |
 | `--skip-dev-caches` | Pomiń skanowanie pamięci podręcznych deweloperskich |
+| `--skip-project-caches` | Pomiń skanowanie pamięci podręcznych projektów |
 | `--skip-app-leftovers` | Pomiń skanowanie pozostałości aplikacji |
 | `--skip-creative-caches` | Pomiń skanowanie pamięci podręcznych aplikacji kreatywnych |
 | `--skip-messaging-caches` | Pomiń skanowanie pamięci podręcznych komunikatorów |
@@ -244,6 +265,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-cocoapods` | Pomiń pamięć podręczną CocoaPods |
 | `--skip-gradle` | Pomiń pamięć podręczną Gradle |
 | `--skip-pip` | Pomiń pamięć podręczną pip |
+| `--skip-node-modules` | Pomiń katalogi node_modules |
+| `--skip-swift-build` | Pomiń katalogi .build (Swift) |
+| `--skip-rust-target` | Pomiń katalogi target (Rust) |
+| `--skip-python-venv` | Pomiń katalogi venv (Python) |
+| `--skip-java-build` | Pomiń katalogi build (Java/Kotlin) |
 | `--skip-adobe` | Pomiń pamięć podręczną Adobe |
 | `--skip-adobe-media` | Pomiń pamięć podręczną multimediów Adobe |
 | `--skip-sketch` | Pomiń pamięć podręczną Sketch |

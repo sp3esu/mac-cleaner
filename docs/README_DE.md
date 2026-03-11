@@ -31,6 +31,15 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 - **Gradle-Cache** — `~/.gradle/caches/` (moderat)
 - **pip-Cache** — `~/Library/Caches/pip/` (sicher)
 
+### Projekt-Caches
+- **node_modules** — `node_modules/`-Verzeichnisse in JavaScript/TypeScript-Projekten (sicher)
+- **.build (Swift)** — `.build/`-Verzeichnisse in Swift-Package-Manager-Projekten (sicher)
+- **target (Rust)** — `target/`-Verzeichnisse in Cargo/Rust-Projekten (sicher)
+- **venv (Python)** — `venv/`- und `.venv/`-Verzeichnisse in Python-Projekten (moderat)
+- **build (Java/Kotlin)** — `build/`-Verzeichnisse in Gradle/Maven-Projekten (sicher)
+
+Projekt-Caches werden durch Durchsuchen Ihres Home-Verzeichnisses erkannt und gegen die jeweilige Manifest-Datei validiert (z.B. `package.json` fuer node_modules, `Cargo.toml` fuer target). Projekte, die seit ueber 6 Monaten inaktiv sind, werden mit einem Inaktivitaetsindikator markiert.
+
 ### App-Überbleibsel
 - **Verwaiste Einstellungen** — `.plist`-Dateien in `~/Library/Preferences/` für deinstallierte Apps (riskant)
 - **iOS-Gerätesicherungen** — `~/Library/Application Support/MobileSync/Backup/` (riskant)
@@ -159,6 +168,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 ./mac-cleaner --all --skip-docker --skip-ios-backups
 ```
 
+**Projekt-Build-Caches scannen (node_modules, .build, target, venv, build):**
+```bash
+./mac-cleaner --project-caches --dry-run
+```
+
+**Nur node_modules-Verzeichnisse scannen:**
+```bash
+./mac-cleaner scan --node-modules --dry-run
+```
+
 **Gezielter Scan — nur bestimmte Elemente (über den `scan`-Unterbefehl):**
 ```bash
 ./mac-cleaner scan --npm --safari --dry-run
@@ -189,6 +208,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--system-caches` | App-Caches, Logs und QuickLook-Miniaturbilder scannen |
 | `--browser-data` | Safari-, Chrome- und Firefox-Caches scannen |
 | `--dev-caches` | Xcode-, npm/yarn-, Homebrew- und Docker-Caches scannen |
+| `--project-caches` | Projekt-Build-Caches scannen (node_modules, .build, target, venv, build) |
 | `--app-leftovers` | Verwaiste Einstellungen, iOS-Backups und alte Downloads scannen |
 | `--creative-caches` | Adobe-, Sketch- und Figma-Caches scannen |
 | `--messaging-caches` | Slack-, Discord-, Teams- und Zoom-Caches scannen |
@@ -213,6 +233,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-system-caches` | System-Cache-Scan überspringen |
 | `--skip-browser-data` | Browser-Daten-Scan überspringen |
 | `--skip-dev-caches` | Entwickler-Cache-Scan überspringen |
+| `--skip-project-caches` | Projekt-Cache-Scan überspringen |
 | `--skip-app-leftovers` | App-Überbleibsel-Scan überspringen |
 | `--skip-creative-caches` | Kreativ-App-Cache-Scan überspringen |
 | `--skip-messaging-caches` | Messaging-App-Cache-Scan überspringen |
@@ -244,6 +265,11 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--skip-cocoapods` | CocoaPods-Cache überspringen |
 | `--skip-gradle` | Gradle-Cache überspringen |
 | `--skip-pip` | pip-Cache überspringen |
+| `--skip-node-modules` | node_modules-Verzeichnisse überspringen |
+| `--skip-swift-build` | .build (Swift)-Verzeichnisse überspringen |
+| `--skip-rust-target` | target (Rust)-Verzeichnisse überspringen |
+| `--skip-python-venv` | venv (Python)-Verzeichnisse überspringen |
+| `--skip-java-build` | build (Java/Kotlin)-Verzeichnisse überspringen |
 | `--skip-adobe` | Adobe-Caches überspringen |
 | `--skip-adobe-media` | Adobe Media Cache überspringen |
 | `--skip-sketch` | Sketch-Cache überspringen |

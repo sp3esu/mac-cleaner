@@ -1,12 +1,13 @@
 {
   "mode": "yolo",
-  "depth": "standard",
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "quality",
   "workflow": {
     "research": true,
     "plan_check": false,
-    "verifier": false
-  }
+    "verifier": false,
+    "_auto_chain_active": false
+  },
+  "granularity": "standard"
 }

@@ -1,5 +1,36 @@
 # Milestones: mac-cleaner
 
+## v1.7.0 Extended Scanning (Shipped: 2026-03-11)
+
+**Delivered:** Three new scanning categories — project build caches, home directory file analysis, and git repository cache management — with a shared walk utility, full CLI/IPC integration, and 6-language documentation.
+
+**Phases completed:** 12-14 (6 plans total)
+
+**Key accomplishments:**
+
+- Reusable walk utility (internal/walk) with depth limits, exclusions, OnDir/OnFile callbacks — shared across all 3 phases
+- Project cache scanner detecting 5 types (node_modules, .build, target/, venv, build/) via manifest validation in single-pass walk
+- Home directory file scanner finding large (≥100MB) and old (≥180 days) files with smart exclusions (Library, Apps, Trash, Downloads, dotfiles)
+- Git repository scanner with count-objects reclaimable estimation and git gc --aggressive / git lfs prune cleanup
+- Full CLI integration with scan/skip flags for all new categories, IPC server support, and 6-language README updates
+
+**Stats:**
+
+- 42 files created/modified
+- 16,970 lines of Go (total project, up from 10,572 at v1.1)
+- 3 phases, 6 plans
+- 1 day (2026-03-11)
+
+**Git range:** `feat(12-01)` → `docs(phase-14)`
+
+### Known Gaps
+
+Missing formal VERIFICATION.md for phases 12, 13, 14. All requirements claimed complete by SUMMARY frontmatter, checked in REQUIREMENTS.md, all integration wiring and E2E flows verified by audit. Gap is procedural (missing verification artifact), not functional.
+
+**What's next:** TBD — next milestone defined via `/gsd:new-milestone`
+
+---
+
 ## v1.1 Swift Integration (Shipped: 2026-02-17)
 
 **Delivered:** Unix domain socket IPC server mode with NDJSON streaming protocol, enabling a native Swift macOS app to control scanning and cleanup with real-time progress.

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS CLI tool that scans the system for junk data — caches, temporary files, app leftovers, developer artifacts, and browser data — and helps users reclaim disk space. Offers interactive walkthrough mode and scriptable flag-based mode with dry-run support, granular skip controls, JSON output for AI agents, and risk-aware safety enforcement. Includes a Unix domain socket IPC server mode for native Swift macOS app integration with real-time streaming progress.
+A macOS CLI tool that scans the system for junk data — caches, temporary files, app leftovers, developer artifacts, browser data, project build caches, large/old files, and git repository caches — and helps users reclaim disk space. Offers interactive walkthrough mode and scriptable flag-based mode with dry-run support, granular skip controls, JSON output for AI agents, and risk-aware safety enforcement. Includes a Unix domain socket IPC server mode for native Swift macOS app integration with real-time streaming progress.
 
 ## Core Value
 
@@ -41,17 +41,16 @@ Users can safely and confidently reclaim disk space without worrying about delet
 - ✓ Client disconnect during scan/cleanup handled gracefully — v1.1
 - ✓ Connection timeout and keep-alive — v1.1
 - ✓ Cleanup requests validated against prior scan results (replay protection) — v1.1
+- ✓ Project cache scanning for node_modules, .build, target/, venv, build/ with manifest validation — v1.7.0
+- ✓ Single-pass recursive walk utility with depth limits and exclusions — v1.7.0
+- ✓ Stale project highlighting (6+ months) and aggregate summaries per project type — v1.7.0
+- ✓ Home directory large file (≥100MB) and old file (≥180 days) scanning with smart exclusions — v1.7.0
+- ✓ Git repository scanning with count-objects reclaimable estimation — v1.7.0
+- ✓ Git cleanup via git gc --aggressive and git lfs prune through pseudo-path dispatch — v1.7.0
 
 ### Active
 
-## Current Milestone: v1.7.0 Extended Scanning
-
-**Goal:** Expand scanning coverage with home directory file analysis, broader dev/project cache detection, and git repository cache management.
-
-**Target features:**
-- Home directory file scanning — detect large/old files consuming space in ~/
-- Extended project caches — scan .build/, .gradle/, .cache/, and other common project build artifacts under ~/
-- Git repository cache management — detect large git repos and offer to purge git caches (gc, prune, clean)
+(None — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -64,27 +63,35 @@ Users can safely and confidently reclaim disk space without worrying about delet
 - Automatic scheduled cleaning — can surprise users with data loss
 - Time Machine snapshot deletion — macOS manages automatically
 - Malware detection — different problem domain
+- Scanning inside ~/Library — already covered by existing system/browser/developer scanners
+- Manual .git/objects deletion — corrupts repos; use git gc/prune instead
+- Git history rewriting (BFG, filter-branch) — destructive, irreversible, affects remote collaborators
 
 ## Context
 
-Shipped v1.1 with 10,572 LOC Go (up from 4,442 at v1.0).
+Shipped v1.7.0 with 16,970 LOC Go (up from 10,572 at v1.1, 4,442 at v1.0).
 Tech stack: Go, Cobra CLI, fatih/color for terminal output, tabwriter for formatting.
 Binary name: `mac-cleaner` (project directory is `mac-cleaner`).
 
 v1.0: 13 requirements shipped across 7 phases and 13 plans (~4.3 hours).
 v1.1: 16 requirements shipped across 4 phases and 5 plans (2 days).
+v1.7.0: 15 requirements shipped across 3 phases and 6 plans (1 day).
 
-**Architecture:** Single binary, two modes — CLI (interactive/flag-based) and IPC server via Unix domain socket with NDJSON protocol. Engine layer decouples scan/cleanup orchestration for reuse by both CLI and server.
+**Architecture:** Single binary, two modes — CLI (interactive/flag-based) and IPC server via Unix domain socket with NDJSON protocol. Engine layer decouples scan/cleanup orchestration for reuse by both CLI and server. Shared walk utility (internal/walk) provides recursive directory traversal with callbacks.
 
 **Cleaning categories:**
 - System caches: ~/Library/Caches, ~/Library/Logs, QuickLook thumbnails
 - Browser data: Safari, Chrome (multi-profile), Firefox
 - Developer caches: Xcode DerivedData, npm, yarn, Homebrew, Docker
 - App leftovers: Orphaned preferences, iOS backups, old Downloads (90-day threshold)
+- Project caches: node_modules, .build (Swift), target/ (Rust), venv (Python), build/ (Java/Kotlin)
+- Home directory files: Large files (≥100MB), old files (≥180 days)
+- Git repos: .git directory sizes, reclaimable space, gc/lfs cleanup
 
 **Known tech debt:**
 - Minor doc inaccuracy: swift-integration.md token lifecycle description (low severity)
 - 90-day hardcoded download age threshold (revisit when configurability needed)
+- formatAge duplicated between pkg/projects and pkg/homedir (avoids import cycle)
 
 ## Constraints
 
@@ -117,6 +124,11 @@ v1.1: 16 requirements shipped across 4 phases and 5 plans (2 days).
 | Single-token store | New scan invalidates previous; avoids memory leak | ✓ Good |
 | IdleTimeout as public struct field | Test override flexibility vs constructor param | ✓ Good |
 | Cleanup continues on disconnect | Partially-deleted state worse than completing the operation | ✓ Good |
+| Shared walk utility with callbacks | Single-pass traversal reused by project/homedir/git scanners; avoids re-walking | ✓ Good |
+| Manifest-validated cache detection | Prevents false positives (e.g. random "build/" dirs without build.gradle) | ✓ Good |
+| git-gc pseudo-path dispatch | Extends cleanup.Execute without new interfaces; git commands run in repo directory | ✓ Good |
+| Single-item scanner group for git-repos | Follows unused-apps pattern; avoids cobra flag collision with per-item flags | ✓ Good |
+| formatAge duplication across packages | Avoids import cycle between pkg/projects and pkg/homedir; simple helper | ✓ Good |
 
 ---
-*Last updated: 2026-03-11 after v1.7.0 milestone start*
+*Last updated: 2026-03-11 after v1.7.0 milestone*

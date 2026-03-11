@@ -53,6 +53,11 @@ var categoryRisk = map[string]string{
 	"sysdata-vm-parallels":     RiskRisky,
 	"sysdata-vm-utm":           RiskRisky,
 	"sysdata-vm-vmware":        RiskRisky,
+	"proj-node":                RiskSafe,
+	"proj-swift":               RiskSafe,
+	"proj-rust":                RiskSafe,
+	"proj-java":                RiskSafe,
+	"proj-python":              RiskModerate,
 }
 
 // RiskForCategory returns the risk level for a known category ID.

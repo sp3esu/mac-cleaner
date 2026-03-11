@@ -15,7 +15,7 @@
 ### v1.7.0 Extended Scanning
 
 - [x] **Phase 12: Project Cache Scanning** - Detect and report project build caches (node_modules, .build, target/, venv, build/) across home directory (completed 2026-03-11)
-- [ ] **Phase 13: Home Directory File Scanning** - Detect large and old files consuming space in user home directory
+- [x] **Phase 13: Home Directory File Scanning** - Detect large and old files consuming space in user home directory (completed 2026-03-11)
 - [ ] **Phase 14: Git Repository Cache Management** - Detect large git repos and offer git gc/lfs prune as cleanup actions
 
 ## Phase Details
@@ -44,7 +44,7 @@ Plans:
   1. User can run `mac-cleaner --home-files` and see files larger than 100MB in their home directory
   2. User can see files older than 180 days in their home directory
   3. Results exclude ~/Library, ~/Applications, ~/.Trash, ~/Downloads, and dotfile directories -- no overlap with existing scanners
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 13-01-PLAN.md — Walk OnFile extension and home directory file scanner (TDD: internal/walk + pkg/homedir + safety risk entries)
@@ -75,5 +75,5 @@ Phases execute in numeric order: 12 -> 13 -> 14
 | 1-7 | v1.0 MVP | 13/13 | Complete | 2026-02-16 |
 | 8-11 | v1.1 Swift Integration | 5/5 | Complete | 2026-02-17 |
 | 12. Project Cache Scanning | 2/2 | Complete    | 2026-03-11 | - |
-| 13. Home Directory File Scanning | 1/2 | In Progress|  | - |
+| 13. Home Directory File Scanning | 2/2 | Complete   | 2026-03-11 | - |
 | 14. Git Repository Cache Management | v1.7.0 | 0/? | Not started | - |

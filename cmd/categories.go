@@ -70,6 +70,7 @@ var (
 	flagScanJavaBuild         bool
 	flagScanLargeFiles        bool
 	flagScanOldFiles          bool
+	flagScanGitRepos          bool
 )
 
 // scanGroups is the central registry of all scanner groups and their
@@ -151,6 +152,17 @@ var scanGroups = []groupDef{
 		Items: []categoryDef{
 			{FlagName: "large-files", CategoryID: "home-large-files", Description: "large files (>100 MB)", SkipFlag: &flagSkipLargeFiles, ScanFlag: &flagScanLargeFiles},
 			{FlagName: "old-files", CategoryID: "home-old-files", Description: "old files (>180 days)", SkipFlag: &flagSkipOldFiles, ScanFlag: &flagScanOldFiles},
+		},
+	},
+	{
+		FlagName:    "git-repos",
+		ScannerID:   "gitrepos",
+		GroupName:   "Git Repositories",
+		Description: "git repository cache cleanup (gc, lfs prune)",
+		ScanFlag:    &flagGitRepos,
+		SkipFlag:    &flagSkipGitRepos,
+		Items: []categoryDef{
+			{CategoryID: "git-repos", Description: "git repository caches", SkipFlag: &flagSkipGitRepos},
 		},
 	},
 	{

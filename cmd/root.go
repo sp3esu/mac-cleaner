@@ -44,6 +44,7 @@ var (
 	flagPhotos          bool
 	flagProjectCaches   bool
 	flagHomeFiles       bool
+	flagGitRepos        bool
 	flagSystemData      bool
 	flagAll             bool
 	flagJSON           bool
@@ -64,6 +65,7 @@ var (
 	flagSkipPhotos          bool
 	flagSkipProjectCaches   bool
 	flagSkipHomeFiles       bool
+	flagSkipGitRepos        bool
 	flagSkipLargeFiles      bool
 	flagSkipOldFiles        bool
 	flagSkipSystemData      bool
@@ -157,6 +159,7 @@ Examples:
 			{&flagDevCaches, "developer"},
 			{&flagProjectCaches, "projects"},
 			{&flagHomeFiles, "homedir"},
+			{&flagGitRepos, "gitrepos"},
 			{&flagAppLeftovers, "appleftovers"},
 			{&flagCreativeCaches, "creative"},
 			{&flagMessagingCaches, "messaging"},
@@ -172,7 +175,7 @@ Examples:
 		}
 
 		if flagJSON && !ran {
-			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --project-caches, --home-files, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
+			fmt.Fprintln(os.Stderr, "Error: --json requires --all or a scan flag (--system-caches, --browser-data, --dev-caches, --project-caches, --home-files, --git-repos, --app-leftovers, --creative-caches, --messaging-caches, --unused-apps, --photos, --system-data)")
 			os.Exit(1)
 		}
 
@@ -255,6 +258,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagDevCaches, "dev-caches", false, "scan Xcode, npm/yarn, Homebrew, and Docker caches")
 	rootCmd.Flags().BoolVar(&flagProjectCaches, "project-caches", false, "scan project build caches (node_modules, .build, target, venv, build)")
 	rootCmd.Flags().BoolVar(&flagHomeFiles, "home-files", false, "scan for large and old files in home directory")
+	rootCmd.Flags().BoolVar(&flagGitRepos, "git-repos", false, "scan for git repository caches")
 	rootCmd.Flags().BoolVar(&flagAppLeftovers, "app-leftovers", false, "scan orphaned preferences, iOS backups, and old Downloads")
 	rootCmd.Flags().BoolVar(&flagCreativeCaches, "creative-caches", false, "scan Adobe, Sketch, and Figma caches")
 	rootCmd.Flags().BoolVar(&flagMessagingCaches, "messaging-caches", false, "scan Slack, Discord, Teams, and Zoom caches")
@@ -273,6 +277,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&flagSkipDevCaches, "skip-dev-caches", false, "skip developer cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipProjectCaches, "skip-project-caches", false, "skip project cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipHomeFiles, "skip-home-files", false, "skip home directory file scanning")
+	rootCmd.Flags().BoolVar(&flagSkipGitRepos, "skip-git-repos", false, "skip git repository scanning")
 	rootCmd.Flags().BoolVar(&flagSkipAppLeftovers, "skip-app-leftovers", false, "skip app leftover scanning")
 	rootCmd.Flags().BoolVar(&flagSkipCreativeCaches, "skip-creative-caches", false, "skip creative app cache scanning")
 	rootCmd.Flags().BoolVar(&flagSkipMessagingCaches, "skip-messaging-caches", false, "skip messaging app cache scanning")
@@ -341,6 +346,7 @@ func init() {
 			flagDevCaches = true
 			flagProjectCaches = true
 			flagHomeFiles = true
+			flagGitRepos = true
 			flagAppLeftovers = true
 			flagCreativeCaches = true
 			flagMessagingCaches = true
@@ -363,6 +369,9 @@ func init() {
 		}
 		if flagSkipHomeFiles {
 			flagHomeFiles = false
+		}
+		if flagSkipGitRepos {
+			flagGitRepos = false
 		}
 		if flagSkipAppLeftovers {
 			flagAppLeftovers = false

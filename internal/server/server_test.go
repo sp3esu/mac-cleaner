@@ -682,8 +682,8 @@ func TestServer_CategoriesMethod(t *testing.T) {
 		t.Fatalf("unmarshal categories: %v", err)
 	}
 
-	if len(cats.Scanners) != 11 {
-		t.Errorf("expected 11 scanners, got %d", len(cats.Scanners))
+	if len(cats.Scanners) != 12 {
+		t.Errorf("expected 12 scanners, got %d", len(cats.Scanners))
 	}
 }
 

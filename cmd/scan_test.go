@@ -18,6 +18,7 @@ func TestScanGroups_AllGroupsPresent(t *testing.T) {
 		{"dev-caches", "developer"},
 		{"project-caches", "projects"},
 		{"home-files", "homedir"},
+		{"git-repos", "gitrepos"},
 		{"app-leftovers", "appleftovers"},
 		{"creative-caches", "creative"},
 		{"messaging-caches", "messaging"},
@@ -108,8 +109,8 @@ func TestScanGroups_SkipFlagsCount(t *testing.T) {
 	// 43 item-level skip flags + 1 dual-purpose (unused-apps group skip == item skip)
 	// = 44 unique skip mappings, but unused-apps shares the pointer with the group skip
 	// so unique SkipFlag pointers across items = 44
-	if count != 49 {
-		t.Errorf("expected 49 unique skip flag pointers across items, got %d", count)
+	if count != 50 {
+		t.Errorf("expected 50 unique skip flag pointers across items, got %d", count)
 	}
 }
 

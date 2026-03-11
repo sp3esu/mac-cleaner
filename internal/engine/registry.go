@@ -6,6 +6,7 @@ import (
 	"github.com/sp3esu/mac-cleaner/pkg/browser"
 	"github.com/sp3esu/mac-cleaner/pkg/creative"
 	"github.com/sp3esu/mac-cleaner/pkg/developer"
+	"github.com/sp3esu/mac-cleaner/pkg/gitrepos"
 	"github.com/sp3esu/mac-cleaner/pkg/homedir"
 	"github.com/sp3esu/mac-cleaner/pkg/messaging"
 	"github.com/sp3esu/mac-cleaner/pkg/photos"
@@ -112,6 +113,17 @@ func RegisterDefaults(e *Engine) {
 			{ID: "home-old-files", Label: "Old Files (>180 days)", SkipFlag: "old-files", RiskLevel: safety.RiskForCategory("home-old-files")},
 		},
 	}, homedir.Scan))
+
+	e.Register(NewScanner(ScannerInfo{
+		ID:          "gitrepos",
+		Name:        "Git Repositories",
+		Description: "Git repository caches (gc and LFS cleanup)",
+		CategoryIDs: []string{"git-repos"},
+		SkipFlag:    "git-repos",
+		SubCategories: []SubCategoryInfo{
+			{ID: "git-repos", Label: "Git Repositories", SkipFlag: "git-repos", RiskLevel: safety.RiskForCategory("git-repos")},
+		},
+	}, gitrepos.Scan))
 
 	e.Register(NewScanner(ScannerInfo{
 		ID:          "appleftovers",

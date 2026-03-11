@@ -31,8 +31,8 @@ func TestRegisterDefaults_Count(t *testing.T) {
 	eng := New()
 	RegisterDefaults(eng)
 	cats := eng.Categories()
-	if len(cats) != 11 {
-		t.Errorf("expected 11 default scanners, got %d", len(cats))
+	if len(cats) != 12 {
+		t.Errorf("expected 12 default scanners, got %d", len(cats))
 	}
 }
 

@@ -1,6 +1,9 @@
 version: 2
 project_name: mac-cleaner
 
+release:
+  mode: replace
+
 before:
   hooks:
     - go mod tidy

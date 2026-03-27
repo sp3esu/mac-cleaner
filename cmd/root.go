@@ -190,13 +190,13 @@ Examples:
 				return
 			}
 
-			reader := bufio.NewReader(os.Stdin)
-			marked := interactive.RunWalkthrough(reader, os.Stdout, allResults)
-			if marked == nil {
+			if flagDryRun {
 				return
 			}
 
-			if flagDryRun {
+			reader := bufio.NewReader(os.Stdin)
+			marked := interactive.RunWalkthrough(reader, os.Stdout, allResults)
+			if marked == nil {
 				return
 			}
 
@@ -230,6 +230,7 @@ Examples:
 
 		if flagDryRun && !flagJSON {
 			printDryRunSummary(os.Stdout, allResults)
+			return
 		}
 
 		// Deletion flow: only when not in dry-run mode and there are results.

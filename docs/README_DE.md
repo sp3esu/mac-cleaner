@@ -343,6 +343,38 @@ mac-cleaner scan --npm --json
 
 Führen Sie `mac-cleaner scan --help` aus, um die vollständige Liste der gezielten Flags nach Kategorien gruppiert anzuzeigen.
 
+## Geplante Bereinigung
+
+`mac-cleaner schedule` installiert einen benutzerbezogenen launchd-Agenten (`~/Library/LaunchAgents/com.mac-cleaner.plist`), der Entwickler-Caches automatisch bereinigt — standardmäßig Xcode DerivedData, jede Nacht um 03:00 Uhr. Er läuft unter Ihrem Benutzer, daher ist kein `sudo` erforderlich.
+
+```bash
+# Xcode DerivedData täglich um 03:00 Uhr bereinigen
+mac-cleaner schedule install
+
+# Zusätzlich iOS-Simulator-Caches bereinigen, montags und freitags um 22:30 Uhr
+mac-cleaner schedule install --at 22:30 --weekdays mon,fri --simulator-caches
+
+# Vorschau ohne Installation
+mac-cleaner schedule install --dry-run
+
+mac-cleaner schedule status      # Zeitplan, nächster Lauf, letzter Exit-Code, Log-Pfad
+mac-cleaner schedule run         # Job sofort ausführen
+mac-cleaner schedule uninstall   # Agenten entfernen
+```
+
+| Flag | Beschreibung |
+|------|--------------|
+| `--at HH:MM` | Uhrzeit im 24-Stunden-Format (Standard `03:00`) |
+| `--weekdays` | Kommagetrennte Tage, z. B. `mon,wed,fri` (Standard: jeden Tag) |
+| `--targets` | Zu bereinigende Elemente, als `scan`-Flag-Namen (Standard `derived-data`) |
+| `--simulator-caches` | Zusätzlich iOS-Simulator-Caches bereinigen |
+| `--even-if-running` | Auch bereinigen, während Xcode läuft (standardmäßig wird der Lauf übersprungen) |
+
+Hinweise:
+- Schläft der Mac zur geplanten Zeit, wird der Job beim Aufwachen ausgeführt; ist er ausgeschaltet, entfällt dieser Lauf.
+- Die Ausgabe wird an `~/Library/Logs/mac-cleaner/scheduled.log` angehängt.
+- Ein erneutes `install` ersetzt den bestehenden Zeitplan. Bei Installation über Homebrew wird der stabile Pfad `/opt/homebrew/bin/mac-cleaner` verwendet, damit Upgrades weiter funktionieren.
+
 ## Lizenz
 
 MIT

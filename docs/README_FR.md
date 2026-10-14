@@ -343,6 +343,38 @@ mac-cleaner scan --npm --json
 
 Exécutez `mac-cleaner scan --help` pour la liste complète des drapeaux ciblés regroupés par catégorie.
 
+## Nettoyage planifié
+
+`mac-cleaner schedule` installe un agent launchd propre à l'utilisateur (`~/Library/LaunchAgents/com.mac-cleaner.plist`) qui nettoie automatiquement les caches de développement — par défaut Xcode DerivedData, chaque nuit à 03:00. Il s'exécute sous votre utilisateur, donc `sudo` n'est pas nécessaire.
+
+```bash
+# Nettoyer Xcode DerivedData tous les jours à 03:00
+mac-cleaner schedule install
+
+# Nettoyer aussi les caches du Simulateur iOS, à 22:30 le lundi et le vendredi
+mac-cleaner schedule install --at 22:30 --weekdays mon,fri --simulator-caches
+
+# Aperçu sans installation
+mac-cleaner schedule install --dry-run
+
+mac-cleaner schedule status      # planification, prochaine exécution, dernier code de sortie, journal
+mac-cleaner schedule run         # exécuter la tâche maintenant
+mac-cleaner schedule uninstall   # supprimer l'agent
+```
+
+| Drapeau | Description |
+|---------|-------------|
+| `--at HH:MM` | Heure d'exécution, format 24 h (par défaut `03:00`) |
+| `--weekdays` | Jours séparés par des virgules, p. ex. `mon,wed,fri` (par défaut tous les jours) |
+| `--targets` | Éléments à nettoyer, avec les noms de drapeaux de `scan` (par défaut `derived-data`) |
+| `--simulator-caches` | Nettoyer aussi les caches du Simulateur iOS |
+| `--even-if-running` | Nettoyer même si Xcode est ouvert (par défaut l'exécution est ignorée) |
+
+Remarques :
+- Si le Mac est en veille à l'heure prévue, la tâche s'exécute au réveil ; s'il est éteint, cette exécution est ignorée.
+- La sortie est ajoutée à `~/Library/Logs/mac-cleaner/scheduled.log`.
+- Relancer `install` remplace la planification existante. En cas d'installation via Homebrew, le chemin stable `/opt/homebrew/bin/mac-cleaner` est utilisé afin que les mises à jour continuent de fonctionner.
+
 ## Licence
 
 MIT

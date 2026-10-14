@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -13,7 +14,14 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/confirm"
 	"github.com/sp3esu/mac-cleaner/internal/engine"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/schedule"
 	"github.com/sp3esu/mac-cleaner/internal/spinner"
+)
+
+// Hidden flags used by the scheduled launchd job (see "schedule install").
+var (
+	flagScheduled          bool
+	flagSkipIfXcodeRunning bool
 )
 
 var scanCmd = &cobra.Command{
@@ -72,6 +80,14 @@ Examples:
 
 		if len(groupSet) == 0 && len(itemSet) == 0 {
 			_ = cmd.Help()
+			return
+		}
+
+		if flagScheduled {
+			schedule.PrintHeader(os.Stdout, time.Now())
+		}
+		if flagSkipIfXcodeRunning && schedule.XcodeRunning() {
+			fmt.Println("Xcode is running; skipping cleanup.")
 			return
 		}
 
@@ -207,6 +223,14 @@ func init() {
 	scanCmd.Flags().BoolVar(&flagJSON, "json", false, "output results as JSON")
 	scanCmd.Flags().BoolVar(&flagVerbose, "verbose", false, "show detailed file listing")
 	scanCmd.Flags().BoolVar(&flagForce, "force", false, "bypass confirmation prompt (for automation)")
+
+	// Hidden flags for the scheduled launchd job.
+	scheduledFlag := strings.TrimPrefix(schedule.FlagScheduled, "--")
+	xcodeFlag := strings.TrimPrefix(schedule.FlagSkipIfXcodeRunning, "--")
+	scanCmd.Flags().BoolVar(&flagScheduled, scheduledFlag, false, "print a timestamped header (used by scheduled runs)")
+	scanCmd.Flags().BoolVar(&flagSkipIfXcodeRunning, xcodeFlag, false, "do nothing while Xcode is running (used by scheduled runs)")
+	_ = scanCmd.Flags().MarkHidden(scheduledFlag)
+	_ = scanCmd.Flags().MarkHidden(xcodeFlag)
 
 	scanCmd.SetUsageFunc(scanUsageFunc)
 	rootCmd.AddCommand(scanCmd)

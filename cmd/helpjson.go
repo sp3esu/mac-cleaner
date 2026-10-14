@@ -70,6 +70,11 @@ func buildHelpJSON() helpJSON {
 				Usage:       "mac-cleaner serve --socket <path>",
 				Description: "Start IPC server for Swift app integration",
 			},
+			"schedule": {
+				Usage:       "mac-cleaner schedule install|status|run|uninstall [flags]",
+				Description: "Manage a per-user launchd agent that cleans developer caches on a schedule",
+				Notes:       "install flags: --at HH:MM (default 03:00), --weekdays mon,fri, --targets derived-data (default), --simulator-caches, --even-if-running; skips runs while Xcode is open by default",
+			},
 		},
 		GlobalFlags: []helpFlag{
 			{Flag: "--dry-run", Description: "preview what would be removed without deleting"},
@@ -85,6 +90,7 @@ func buildHelpJSON() helpJSON {
 			{Command: "mac-cleaner scan --dev-caches --safari", Description: "Scan all developer caches plus Safari"},
 			{Command: "mac-cleaner --all --dry-run", Description: "Preview all reclaimable space"},
 			{Command: "mac-cleaner", Description: "Interactive walkthrough mode"},
+			{Command: "mac-cleaner schedule install --at 03:00 --simulator-caches", Description: "Clean Xcode DerivedData and Simulator caches nightly at 03:00"},
 		},
 	}
 

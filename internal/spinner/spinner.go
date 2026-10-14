@@ -18,10 +18,18 @@ type Spinner struct {
 	enabled bool
 }
 
-// New creates a spinner writing to stderr. When enabled is false, all methods
-// are no-ops so JSON output is never corrupted.
+// stderrIsTerminal reports whether stderr is a terminal. It is a
+// package-level variable for test injection.
+var stderrIsTerminal = func() bool {
+	fi, err := os.Stderr.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+// New creates a spinner writing to stderr. When enabled is false, or stderr
+// is not a terminal (e.g. redirected to a log file by launchd), all methods
+// are no-ops so JSON output and logs are never corrupted.
 func New(message string, enabled bool) *Spinner {
-	if !enabled {
+	if !enabled || !stderrIsTerminal() {
 		return &Spinner{enabled: false}
 	}
 	s := spinner.New(frames, 120*time.Millisecond, spinner.WithWriter(os.Stderr))

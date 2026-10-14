@@ -27,7 +27,7 @@ func TestBuildHelpJSON_HasVersion(t *testing.T) {
 
 func TestBuildHelpJSON_HasAllCommands(t *testing.T) {
 	h := buildHelpJSON()
-	for _, name := range []string{"root", "scan", "serve"} {
+	for _, name := range []string{"root", "scan", "serve", "schedule"} {
 		if _, ok := h.Commands[name]; !ok {
 			t.Errorf("expected command %q in help JSON", name)
 		}

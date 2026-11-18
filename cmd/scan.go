@@ -182,7 +182,7 @@ Examples:
 			}
 			sp.UpdateMessage("Cleaning up...")
 			sp.Start()
-			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr))
+			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr, allResults))
 			sp.Stop()
 			printCleanupSummary(os.Stdout, result)
 		}

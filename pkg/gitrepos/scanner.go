@@ -22,6 +22,11 @@ import (
 // It is used for dependency injection so git CLI calls can be mocked in tests.
 type CmdRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
 
+// gitNote explains git-repos entries in the size breakdown: the size is an
+// estimate of loose and garbage objects, and cleanup repacks the repository
+// with git gc rather than deleting files.
+const gitNote = "estimate from 'git count-objects -v' (loose + garbage objects); cleanup runs 'git gc --aggressive', no files are deleted directly"
+
 // lookPathFn wraps exec.LookPath for test injection.
 var lookPathFn = exec.LookPath
 
@@ -105,6 +110,11 @@ func scanFrom(root string, runner CmdRunner) ([]scan.CategoryResult, error) {
 				Path:        "git-gc:" + repoRoot,
 				Description: desc,
 				Size:        reclaimable,
+				Components: []scan.SizeComponent{{
+					Path: filepath.Join(path, "objects"),
+					Size: reclaimable,
+					Note: gitNote,
+				}},
 			})
 
 			return false // don't descend into .git

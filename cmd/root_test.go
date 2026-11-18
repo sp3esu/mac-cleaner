@@ -669,7 +669,7 @@ func TestCleanupProgress_JSON(t *testing.T) {
 	defer func() { flagJSON = oldJSON }()
 
 	var buf bytes.Buffer
-	cb := cleanupProgress(nil, &buf)
+	cb := cleanupProgress(nil, &buf, nil)
 	if cb != nil {
 		t.Error("expected nil callback in JSON mode")
 	}
@@ -683,7 +683,7 @@ func TestCleanupProgress_Verbose(t *testing.T) {
 	defer func() { flagVerbose = oldVerbose; flagJSON = oldJSON }()
 
 	var buf bytes.Buffer
-	cb := cleanupProgress(nil, &buf)
+	cb := cleanupProgress(nil, &buf, nil)
 	if cb == nil {
 		t.Fatal("expected non-nil callback in verbose mode")
 	}
@@ -713,7 +713,7 @@ func TestCleanupProgress_Normal(t *testing.T) {
 	sp := spinner.New("", false)
 
 	var buf bytes.Buffer
-	cb := cleanupProgress(sp, &buf)
+	cb := cleanupProgress(sp, &buf, nil)
 	if cb == nil {
 		t.Fatal("expected non-nil callback in normal mode")
 	}

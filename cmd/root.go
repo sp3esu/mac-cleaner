@@ -208,7 +208,7 @@ Examples:
 			}
 			sp.UpdateMessage("Cleaning up...")
 			sp.Start()
-			result := cleanup.Execute(marked, cleanupProgress(sp, os.Stderr))
+			result := cleanup.Execute(marked, cleanupProgress(sp, os.Stderr, marked))
 			sp.Stop()
 			printCleanupSummary(os.Stdout, result)
 			return
@@ -243,7 +243,7 @@ Examples:
 			}
 			sp.UpdateMessage("Cleaning up...")
 			sp.Start()
-			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr))
+			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr, allResults))
 			sp.Stop()
 			printCleanupSummary(os.Stdout, result)
 		}
@@ -491,17 +491,34 @@ func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 
 // cleanupProgress returns a ProgressFunc that drives the spinner (normal mode)
 // or prints per-entry detail (verbose mode). It returns nil for JSON mode.
-func cleanupProgress(sp *spinner.Spinner, w io.Writer) cleanup.ProgressFunc {
+// In verbose mode, results are used to report, per entry, the counted paths
+// that cleanup does not remove.
+func cleanupProgress(sp *spinner.Spinner, w io.Writer, results []scan.CategoryResult) cleanup.ProgressFunc {
 	if flagJSON {
 		return nil
 	}
 	if flagVerbose {
+		components := map[string][]scan.SizeComponent{}
+		for _, cat := range results {
+			for _, e := range cat.Entries {
+				components[e.Path] = e.Components
+			}
+		}
+		home, _ := os.UserHomeDir()
 		return func(categoryDesc, entryPath string, current, total int) {
 			if entryPath == "" {
 				fmt.Fprintf(w, "Cleaning %s (%d/%d)\n", categoryDesc, current, total)
-			} else {
-				home, _ := os.UserHomeDir()
-				fmt.Fprintf(w, "  removing %s\n", shortenHome(entryPath, home))
+				return
+			}
+			fmt.Fprintf(w, "  removing %s\n", shortenHome(entryPath, home))
+			for _, c := range components[entryPath] {
+				if !c.Removed {
+					fmt.Fprintf(w, "    not removed: %s (%s)", shortenHome(c.Path, home), scan.FormatSize(c.Size))
+					if c.Note != "" {
+						fmt.Fprintf(w, " - %s", c.Note)
+					}
+					fmt.Fprintln(w)
+				}
 			}
 		}
 	}
@@ -619,8 +636,12 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	}
 	fmt.Println()
 	_, _ = bold.Println(header)
+	if flagVerbose && !verboseLegendShown {
+		verboseLegendShown = true
+		_, _ = color.New(color.Faint).Print(verboseLegend)
+	}
 
-	var grandTotal int64
+	var grandTotal, removedTotal int64
 
 	for _, cat := range results {
 		if len(cat.Entries) == 0 {
@@ -650,9 +671,12 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 			}
 			fmt.Fprintf(w, "    %s%s\t  %s\t\n", entry.Description, riskTag, cyan.Sprint(sizeStr))
 			if flagVerbose {
-				path := shortenHome(entry.Path, home)
-				fmt.Fprintf(w, "      %s\t\t\n", path)
+				// Detail lines carry no tabs so long paths do not widen
+				// (and right-align) the description column.
+				fmt.Fprintf(w, "        %s\n", shortenHome(entry.Path, home))
+				printBreakdown(w, entry, home)
 			}
+			removedTotal += entry.RemovedSize()
 		}
 		_ = w.Flush()
 
@@ -662,7 +686,53 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 	// Summary line.
 	fmt.Println()
 	_, _ = greenBold.Printf("  Total: %s reclaimable\n", scan.FormatSize(grandTotal))
+	if flagVerbose && removedTotal != grandTotal {
+		_, _ = yellow.Printf("  cleanup removes %s of %s counted\n",
+			scan.FormatSize(removedTotal), scan.FormatSize(grandTotal))
+	}
 	fmt.Println()
+}
+
+// verboseLegendShown records whether the verbose legend has been printed,
+// so it appears once per run rather than once per scanner.
+var verboseLegendShown bool
+
+// verboseLegend explains how to read the verbose size breakdown.
+const verboseLegend = "  Sizes are apparent file sizes (logical length; may differ from du/Finder disk usage).\n" +
+	"  Under each entry: its path, then (where present) every path counted in its size,\n" +
+	"  largest first, marked when cleanup does not remove it.\n"
+
+// printBreakdown prints, in verbose mode, the paths an entry's size was summed
+// from (largest first), marking those cleanup does not remove, followed by
+// how much of the entry cleanup removes when that differs from its size.
+func printBreakdown(w io.Writer, entry scan.ScanEntry, home string) {
+	if len(entry.Components) == 0 {
+		return
+	}
+	yellow := color.New(color.FgYellow)
+	faint := color.New(color.Faint)
+
+	comps := append([]scan.SizeComponent(nil), entry.Components...)
+	sort.SliceStable(comps, func(i, j int) bool { return comps[i].Size > comps[j].Size })
+
+	for _, c := range comps {
+		var tag string
+		switch {
+		case !c.Removed && c.Size > 0:
+			tag = yellow.Sprint("  (counted, not removed by cleanup)")
+		case !c.Removed:
+			tag = yellow.Sprint("  (not removed by cleanup)")
+		}
+		note := ""
+		if c.Note != "" {
+			note = faint.Sprint("  - " + c.Note)
+		}
+		fmt.Fprintf(w, "          %9s  %s%s%s\n", scan.FormatSize(c.Size), shortenHome(c.Path, home), tag, note)
+	}
+	if removed := entry.RemovedSize(); removed != entry.Size {
+		_, _ = yellow.Fprintf(w, "          cleanup removes %s of %s counted\n",
+			scan.FormatSize(removed), scan.FormatSize(entry.Size))
+	}
 }
 
 // printPermissionIssues collects permission issues from all categories

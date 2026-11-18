@@ -253,6 +253,20 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--force` | Bestätigungsabfrage überspringen |
 | `--help-json` | Strukturierte Hilfe als JSON für KI-Agenten ausgeben |
 
+### Ausführliche Größenaufschlüsselung
+
+Mit `--verbose` zeigt jeder Eintrag seinen Pfad. Besteht die Größe eines Eintrags aus mehr als diesem Pfad oder würde die Bereinigung ihn nicht löschen, listet der Eintrag zusätzlich jeden gezählten Pfad mit seiner Größe auf (größte zuerst). Pfade, die die Bereinigung nicht entfernt, sind mit `(counted, not removed by cleanup)` markiert, und eine Zeile `cleanup removes X of Y counted` erscheint, wenn beide Werte abweichen. Beispiele: unbenutzte Apps (Bundle plus Daten in `~/Library`), Docker (Schätzung aus `docker system df`), Git-Repositories (Schätzung aus `git count-objects`; die Bereinigung führt `git gc` aus), Time-Machine-Snapshots (Größe nicht verfügbar) sowie Home-Dateien, die sowohl unter großen als auch unter alten Dateien erscheinen.
+
+```
+      Docker (last used Dec 2024)  [risky]    71.4 GB
+        /Applications/Docker.app
+            68.8 GB  ~/Library/Containers/com.docker.docker  (counted, not removed by cleanup)  - app data in ~/Library
+             2.6 GB  /Applications/Docker.app  (counted, not removed by cleanup)  - app bundle; cleanup is blocked by safety check: outside home directory
+          cleanup removes 0 B of 71.4 GB counted
+```
+
+Größen sind scheinbare Dateigrößen (logische Länge) und können daher bei Sparse-Dateien wie Disk-Images von `du` oder dem Finder abweichen. In der `--json`-Ausgabe ist dieselbe Aufschlüsselung als optionales Array `components` an jedem Eintrag verfügbar.
+
 ### Kategorie-Skip-Flags
 
 | Flag | Beschreibung |

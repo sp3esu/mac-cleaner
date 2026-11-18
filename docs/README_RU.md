@@ -253,6 +253,20 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--force` | Пропустить запрос подтверждения |
 | `--help-json` | Вывод структурированной справки в формате JSON для AI-агентов |
 
+### Подробная разбивка размеров
+
+С `--verbose` каждая запись показывает свой путь. Если размер записи включает больше, чем этот путь, или очистка не удалит его, запись также перечисляет каждый учтённый путь с его размером (от большего к меньшему). Пути, которые очистка не удаляет, помечены `(counted, not removed by cleanup)`, а строка `cleanup removes X of Y counted` появляется, когда значения различаются. Примеры: неиспользуемые приложения (бандл плюс данные в `~/Library`), Docker (оценка из `docker system df`), git-репозитории (оценка из `git count-objects`; очистка запускает `git gc`), снимки Time Machine (размер недоступен) и файлы домашнего каталога, указанные и среди больших, и среди старых файлов.
+
+```
+      Docker (last used Dec 2024)  [risky]    71.4 GB
+        /Applications/Docker.app
+            68.8 GB  ~/Library/Containers/com.docker.docker  (counted, not removed by cleanup)  - app data in ~/Library
+             2.6 GB  /Applications/Docker.app  (counted, not removed by cleanup)  - app bundle; cleanup is blocked by safety check: outside home directory
+          cleanup removes 0 B of 71.4 GB counted
+```
+
+Размеры — это видимые размеры файлов (логическая длина), поэтому для разреженных файлов, например образов дисков, они могут отличаться от `du` или Finder. В выводе `--json` та же разбивка доступна как необязательный массив `components` у каждой записи.
+
 ### Флаги пропуска категорий
 
 | Флаг | Описание |

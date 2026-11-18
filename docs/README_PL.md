@@ -253,6 +253,20 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--force` | Pomiń monit o potwierdzenie |
 | `--help-json` | Wynik strukturalnej pomocy w formacie JSON dla agentów AI |
 
+### Szczegółowy rozkład rozmiarów
+
+Z `--verbose` każdy wpis pokazuje swoją ścieżkę. Gdy rozmiar wpisu obejmuje więcej niż tę ścieżkę albo czyszczenie by jej nie usunęło, wpis wymienia też każdą zliczoną ścieżkę z jej rozmiarem (od największej). Ścieżki, których czyszczenie nie usuwa, są oznaczone `(counted, not removed by cleanup)`, a gdy wartości się różnią, pojawia się linia `cleanup removes X of Y counted`. Przykłady: nieużywane aplikacje (pakiet plus dane w `~/Library`), Docker (szacunek z `docker system df`), repozytoria git (szacunek z `git count-objects`; czyszczenie uruchamia `git gc`), migawki Time Machine (rozmiar niedostępny) oraz pliki z katalogu domowego wymienione zarówno w dużych, jak i starych plikach.
+
+```
+      Docker (last used Dec 2024)  [risky]    71.4 GB
+        /Applications/Docker.app
+            68.8 GB  ~/Library/Containers/com.docker.docker  (counted, not removed by cleanup)  - app data in ~/Library
+             2.6 GB  /Applications/Docker.app  (counted, not removed by cleanup)  - app bundle; cleanup is blocked by safety check: outside home directory
+          cleanup removes 0 B of 71.4 GB counted
+```
+
+Rozmiary to pozorne rozmiary plików (długość logiczna), więc mogą różnić się od `du` lub Findera dla plików rzadkich, np. obrazów dysków. W wyniku `--json` ten sam rozkład jest dostępny jako opcjonalna tablica `components` przy każdym wpisie.
+
 ### Flagi pomijania kategorii
 
 | Flaga | Opis |

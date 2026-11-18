@@ -253,6 +253,20 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--force` | Ignorer la demande de confirmation |
 | `--help-json` | Sortie de l'aide structurée en JSON pour les agents IA |
 
+### Détail des tailles en mode verbeux
+
+Avec `--verbose`, chaque entrée affiche son chemin. Lorsque la taille d'une entrée couvre plus que ce chemin, ou que le nettoyage ne le supprimerait pas, l'entrée liste aussi chaque chemin compté avec sa taille (le plus grand d'abord). Les chemins que le nettoyage ne supprime pas sont marqués `(counted, not removed by cleanup)`, et une ligne `cleanup removes X of Y counted` apparaît lorsque les deux valeurs diffèrent. Exemples : applications inutilisées (bundle plus données dans `~/Library`), Docker (estimation issue de `docker system df`), dépôts git (estimation issue de `git count-objects` ; le nettoyage exécute `git gc`), instantanés Time Machine (taille indisponible) et fichiers du dossier personnel listés à la fois dans les gros et les vieux fichiers.
+
+```
+      Docker (last used Dec 2024)  [risky]    71.4 GB
+        /Applications/Docker.app
+            68.8 GB  ~/Library/Containers/com.docker.docker  (counted, not removed by cleanup)  - app data in ~/Library
+             2.6 GB  /Applications/Docker.app  (counted, not removed by cleanup)  - app bundle; cleanup is blocked by safety check: outside home directory
+          cleanup removes 0 B of 71.4 GB counted
+```
+
+Les tailles sont des tailles apparentes (longueur logique) et peuvent donc différer de `du` ou du Finder pour les fichiers creux comme les images disque. Dans la sortie `--json`, le même détail est disponible sous forme de tableau optionnel `components` sur chaque entrée.
+
 ### Drapeaux d'exclusion de catégories
 
 | Drapeau | Description |

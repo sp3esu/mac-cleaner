@@ -266,6 +266,26 @@ func TestScanDockerWithData(t *testing.T) {
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}
+
+	// Each entry carries a single not-removed component explaining the size.
+	for _, e := range result.Entries {
+		if len(e.Components) != 1 {
+			t.Fatalf("%s: expected 1 component, got %d", e.Path, len(e.Components))
+		}
+		c := e.Components[0]
+		if c.Path != e.Path || c.Size != e.Size {
+			t.Errorf("%s: component %+v does not match entry", e.Path, c)
+		}
+		if c.Removed {
+			t.Errorf("%s: docker component must not be marked removed", e.Path)
+		}
+		if c.Note != dockerNote {
+			t.Errorf("%s: note = %q, want %q", e.Path, c.Note, dockerNote)
+		}
+		if e.RemovedSize() != 0 {
+			t.Errorf("%s: RemovedSize = %d, want 0", e.Path, e.RemovedSize())
+		}
+	}
 }
 
 func TestScanDockerEmptyOutput(t *testing.T) {

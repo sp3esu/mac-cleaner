@@ -264,3 +264,38 @@ func TestRiskForCategory_GitRepos(t *testing.T) {
 		t.Errorf("RiskForCategory('git-repos') = %q, want %q", got, "moderate")
 	}
 }
+
+func TestEntryComponentsExplainEstimate(t *testing.T) {
+	root := t.TempDir()
+
+	repo := filepath.Join(root, "projects", "est")
+	os.MkdirAll(filepath.Join(repo, ".git", "objects"), 0755)
+	os.WriteFile(filepath.Join(repo, ".git", "objects", "data"), make([]byte, 256), 0644)
+
+	runner := mockRunner("size: 10\nsize-garbage: 5\n", nil)
+
+	results, err := scanFrom(root, runner)
+	if err != nil {
+		t.Fatalf("scanFrom() error: %v", err)
+	}
+	if len(results) != 1 || len(results[0].Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %+v", results)
+	}
+	e := results[0].Entries[0]
+	if len(e.Components) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(e.Components))
+	}
+	c := e.Components[0]
+	if c.Path != filepath.Join(repo, ".git", "objects") {
+		t.Errorf("component path = %q", c.Path)
+	}
+	if c.Size != e.Size || e.Size != 15*1024 {
+		t.Errorf("component size %d, entry size %d, want %d", c.Size, e.Size, 15*1024)
+	}
+	if c.Removed {
+		t.Error("git component must not be marked removed (cleanup runs git gc)")
+	}
+	if c.Note != gitNote {
+		t.Errorf("note = %q, want %q", c.Note, gitNote)
+	}
+}

@@ -475,3 +475,39 @@ func TestExecuteProgressCallbackNil(t *testing.T) {
 		t.Errorf("Removed = %d, want 1", res.Removed)
 	}
 }
+
+// TestExecuteRemovesOnlyEntryPath pins the contract that scanners rely on
+// when they set SizeComponent.Removed: cleanup deletes entry.Path only, and
+// any other counted component paths are left in place.
+func TestExecuteRemovesOnlyEntryPath(t *testing.T) {
+	tmp := t.TempDir()
+	bundle := filepath.Join(tmp, "App.app")
+	lib := filepath.Join(tmp, "Library", "Containers", "com.example.app")
+	os.MkdirAll(bundle, 0755)
+	os.MkdirAll(lib, 0755)
+	os.WriteFile(filepath.Join(bundle, "bin"), make([]byte, 10), 0644)
+	os.WriteFile(filepath.Join(lib, "data"), make([]byte, 20), 0644)
+
+	results := []scan.CategoryResult{{
+		Category: "unused-apps",
+		Entries: []scan.ScanEntry{{
+			Path: bundle,
+			Size: 30,
+			Components: []scan.SizeComponent{
+				{Path: bundle, Size: 10, Removed: true},
+				{Path: lib, Size: 20},
+			},
+		}},
+	}}
+
+	res := Execute(results, nil)
+	if res.Removed != 1 || res.Failed != 0 {
+		t.Fatalf("Removed=%d Failed=%d, want 1/0 (errors: %v)", res.Removed, res.Failed, res.Errors)
+	}
+	if _, err := os.Stat(bundle); !os.IsNotExist(err) {
+		t.Error("entry path (component marked Removed) should be deleted")
+	}
+	if _, err := os.Stat(filepath.Join(lib, "data")); err != nil {
+		t.Errorf("component not marked Removed must be left in place: %v", err)
+	}
+}

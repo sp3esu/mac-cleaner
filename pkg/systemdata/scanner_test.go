@@ -414,6 +414,13 @@ func TestScanTimeMachineWithSnapshots(t *testing.T) {
 		if e.Path[:len("tmutil:snapshot:")] != "tmutil:snapshot:" {
 			t.Errorf("expected pseudo-path prefix 'tmutil:snapshot:', got %q", e.Path)
 		}
+		if len(e.Components) != 1 {
+			t.Fatalf("expected 1 component, got %d", len(e.Components))
+		}
+		c := e.Components[0]
+		if c.Path != e.Path || c.Size != 0 || c.Removed || c.Note != timeMachineNote {
+			t.Errorf("unexpected component %+v", c)
+		}
 	}
 }
 

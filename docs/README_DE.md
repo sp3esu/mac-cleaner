@@ -7,7 +7,7 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 ## Funktionen
 
 ### System-Caches
-- **App-Caches** — `~/Library/Caches/` (sicher)
+- **App-Caches** — `~/Library/Caches/` (sicher). Cache-Ordner, die ein eigenes Flag abdeckt, sind nicht enthalten, sodass Überspringen oder Behalten dieses Eintrags auch seine Daten schützt: `com.apple.Safari` (`--safari`), `Google/Chrome` (`--chrome`), `Firefox` (`--firefox`), `yarn` (`--yarn`), `Homebrew` (`--homebrew`), `CocoaPods` (`--cocoapods`), `pip` (`--pip`), `Adobe` (`--adobe`), `com.bohemiancoding.sketch3` (`--sketch`), `com.microsoft.teams2` (`--teams`).
 - **Benutzer-Logs** — `~/Library/Logs/` (sicher)
 - **QuickLook-Miniaturbilder** — QuickLook-Cache des Benutzers (sicher)
 
@@ -267,7 +267,7 @@ Am Ende eines ausführlichen Laufs listet der Abschnitt `Counted More Than Once`
           cleanup removes 0 B of 71.4 GB counted
 ```
 
-Größen sind scheinbare Dateigrößen (logische Länge) in SI-Einheiten (1 GB = 10^9 Bytes, wie im Finder). `du -h` zeigt die Plattenbelegung in 1024er-Einheiten, daher weichen die Zahlen ab, besonders bei Sparse-Dateien wie Disk-Images. Größen für Docker und Git sind Schätzungen. In der `--json`-Ausgabe ist dieselbe Aufschlüsselung als optionales Array `components` an jedem Eintrag verfügbar.
+Größen sind der auf der Festplatte belegte Speicherplatz (wie ihn `du` meldet), wobei fest verlinkte Dateien (Hardlinks) nur einmal gezählt werden, in SI-Einheiten (1 GB = 10^9 Bytes, wie im Finder). `du -h` verwendet 1024er-Einheiten, daher weichen die Zahlen leicht ab. APFS-Klone werden weiterhin in voller Größe gezählt. Größen für Docker und Git sind Schätzungen. In der `--json`-Ausgabe ist dieselbe Aufschlüsselung als optionales Array `components` an jedem Eintrag verfügbar.
 
 ### Kategorie-Skip-Flags
 

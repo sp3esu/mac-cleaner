@@ -1,9 +1,14 @@
 package scan
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
+
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 func TestFormatSize(t *testing.T) {
@@ -58,8 +63,8 @@ func TestDirSizeSingleFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DirSize(%q) unexpected error: %v", dir, err)
 	}
-	if size != 1024 {
-		t.Errorf("DirSize(single 1024-byte file) = %d, want 1024", size)
+	if want := scantest.OnDisk(t, 1024); size != want {
+		t.Errorf("DirSize(single 1024-byte file) = %d, want %d", size, want)
 	}
 }
 
@@ -90,7 +95,7 @@ func TestDirSizeNestedDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DirSize(%q) unexpected error: %v", dir, err)
 	}
-	want := int64(600) // 100 + 200 + 300
+	want := scantest.OnDisk(t, 100, 200, 300)
 	if size != want {
 		t.Errorf("DirSize(nested) = %d, want %d", size, want)
 	}
@@ -116,8 +121,8 @@ func TestDirSizeSkipsSymlinks(t *testing.T) {
 		t.Fatalf("DirSize(%q) unexpected error: %v", dir, err)
 	}
 	// Only the real file should be counted, not the symlink
-	if size != 500 {
-		t.Errorf("DirSize(with symlink) = %d, want 500 (symlink should be skipped)", size)
+	if want := scantest.OnDisk(t, 500); size != want {
+		t.Errorf("DirSize(with symlink) = %d, want %d (symlink should be skipped)", size, want)
 	}
 }
 
@@ -163,7 +168,223 @@ func TestDirSizePermissionDenied(t *testing.T) {
 		t.Fatalf("DirSize should not return error for permission-denied entries, got: %v", err)
 	}
 	// Only the readable file should be counted
-	if size != 100 {
-		t.Errorf("DirSize(with permission-denied subdir) = %d, want 100", size)
+	if want := scantest.OnDisk(t, 100); size != want {
+		t.Errorf("DirSize(with permission-denied subdir) = %d, want %d", size, want)
+	}
+}
+
+// allocated returns the bytes the filesystem has allocated for path, as du
+// reports them (st_blocks * 512).
+func allocated(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("lstat %s: %v", path, err)
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatalf("lstat %s: no syscall.Stat_t", path)
+	}
+	return st.Blocks * 512
+}
+
+func TestDirSizeSparseFileCountsAllocatedBlocks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sparse.raw")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	const logical = 8 << 30 // 8 GiB
+	if err := f.Truncate(logical); err != nil {
+		f.Close()
+		t.Fatalf("truncate: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	size, err := DirSize(dir)
+	if err != nil {
+		t.Fatalf("DirSize: %v", err)
+	}
+	if size >= logical/2 {
+		t.Errorf("DirSize(sparse 8 GiB) = %d, want much smaller than %d", size, int64(logical))
+	}
+	if want := allocated(t, path); size != want {
+		t.Errorf("DirSize(sparse) = %d, want allocated %d", size, want)
+	}
+}
+
+func TestDirSizeSmallFileRoundsUpToBlock(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "one.txt")
+	if err := os.WriteFile(path, []byte{1}, 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	size, err := DirSize(dir)
+	if err != nil {
+		t.Fatalf("DirSize: %v", err)
+	}
+	want := allocated(t, path)
+	if want < 512 {
+		t.Fatalf("filesystem allocated %d bytes for a 1-byte file; expected at least one block", want)
+	}
+	if size != want {
+		t.Errorf("DirSize(1-byte file) = %d, want %d (allocated blocks)", size, want)
+	}
+}
+
+func TestDirSizeHardLinkCountedOnce(t *testing.T) {
+	dir := t.TempDir()
+	orig := filepath.Join(dir, "blob")
+	if err := os.WriteFile(orig, make([]byte, 10<<20), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.Link(orig, filepath.Join(dir, "record-blob")); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+
+	size, err := DirSize(dir)
+	if err != nil {
+		t.Fatalf("DirSize: %v", err)
+	}
+	if want := allocated(t, orig); size != want {
+		t.Errorf("DirSize(file + hard link) = %d, want %d (counted once)", size, want)
+	}
+}
+
+func TestDirSizeSeparateCopiesCountedTwice(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a")
+	b := filepath.Join(dir, "b")
+	for _, p := range []string{a, b} {
+		if err := os.WriteFile(p, make([]byte, 1<<20), 0644); err != nil {
+			t.Fatalf("write %s: %v", p, err)
+		}
+	}
+
+	size, err := DirSize(dir)
+	if err != nil {
+		t.Fatalf("DirSize: %v", err)
+	}
+	if want := allocated(t, a) + allocated(t, b); size != want {
+		t.Errorf("DirSize(two copies) = %d, want %d", size, want)
+	}
+}
+
+func TestDirSizeRegularFileRoot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file.bin")
+	if err := os.WriteFile(path, make([]byte, 5000), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	size, err := DirSize(path)
+	if err != nil {
+		t.Fatalf("DirSize(file root): %v", err)
+	}
+	if want := allocated(t, path); size != want {
+		t.Errorf("DirSize(file root) = %d, want %d", size, want)
+	}
+}
+
+func TestDirUsageReportsDeniedSubdir(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test requires non-root user")
+	}
+
+	dir := t.TempDir()
+	ok := filepath.Join(dir, "ok.bin")
+	if err := os.WriteFile(ok, make([]byte, 1<<20), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	denied := filepath.Join(dir, "denied")
+	if err := os.MkdirAll(denied, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(denied, "secret.bin"), make([]byte, 1<<20), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.Chmod(denied, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(denied, 0755) }) // #nosec G302 -- test cleanup restores a test dir
+
+	size, deniedPaths, err := DirUsage(dir)
+	if err != nil {
+		t.Fatalf("DirUsage: %v", err)
+	}
+	if want := allocated(t, ok); size != want {
+		t.Errorf("DirUsage size = %d, want partial size %d", size, want)
+	}
+	if len(deniedPaths) != 1 || deniedPaths[0] != denied {
+		t.Errorf("DirUsage denied = %v, want [%s]", deniedPaths, denied)
+	}
+}
+
+func TestDirUsageDeniedRoot(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test requires non-root user")
+	}
+
+	root := filepath.Join(t.TempDir(), "locked")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.Chmod(root, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0755) }) // #nosec G302 -- test cleanup restores a test dir
+
+	size, deniedPaths, err := DirUsage(root)
+	if err != nil {
+		t.Fatalf("DirUsage: %v", err)
+	}
+	if size != 0 {
+		t.Errorf("DirUsage(denied root) size = %d, want 0", size)
+	}
+	if len(deniedPaths) != 1 || deniedPaths[0] != root {
+		t.Errorf("DirUsage(denied root) denied = %v, want [%s]", deniedPaths, root)
+	}
+}
+
+func TestDirUsageNonExistent(t *testing.T) {
+	size, denied, err := DirUsage("/nonexistent/path/that/does/not/exist")
+	if err == nil {
+		t.Error("DirUsage(nonexistent) expected error, got nil")
+	}
+	if size != 0 || len(denied) != 0 {
+		t.Errorf("DirUsage(nonexistent) = (%d, %v), want (0, [])", size, denied)
+	}
+}
+
+// fakeInfo is an fs.FileInfo whose Sys() is not a *syscall.Stat_t.
+type fakeInfo struct{ size int64 }
+
+func (f fakeInfo) Name() string       { return "fake" }
+func (f fakeInfo) Size() int64        { return f.size }
+func (f fakeInfo) Mode() fs.FileMode  { return 0 }
+func (f fakeInfo) ModTime() time.Time { return time.Time{} }
+func (f fakeInfo) IsDir() bool        { return false }
+func (f fakeInfo) Sys() any           { return nil }
+
+func TestFileDiskUsage(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f")
+	if err := os.WriteFile(path, []byte("hello"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("lstat: %v", err)
+	}
+	if got, want := FileDiskUsage(info), allocated(t, path); got != want {
+		t.Errorf("FileDiskUsage = %d, want %d", got, want)
+	}
+
+	if got := FileDiskUsage(fakeInfo{size: 1234}); got != 1234 {
+		t.Errorf("FileDiskUsage(no Stat_t) = %d, want 1234 (falls back to Size)", got)
 	}
 }

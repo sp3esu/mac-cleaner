@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size,
@@ -59,8 +60,8 @@ func TestScanPhotosCachesWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
-	if result.TotalSize != 5000 {
-		t.Errorf("expected total size 5000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 5000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -130,8 +131,8 @@ func TestScanAnalysisCachesWithData(t *testing.T) {
 	if len(result.Entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 12000 {
-		t.Errorf("expected total size 12000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 8000, 4000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -148,8 +149,8 @@ func TestScanAnalysisCachesPartial(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 6000 {
-		t.Errorf("expected total size 6000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 6000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -212,8 +213,8 @@ func TestScanCloudPhotoCachesWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
-	if result.TotalSize != 7000 {
-		t.Errorf("expected total size 7000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 7000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -277,8 +278,8 @@ func TestScanSyndicationLibraryWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
-	if result.TotalSize != 5000 {
-		t.Errorf("expected total size 5000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 3000, 2000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 

@@ -7,7 +7,7 @@ Un outil CLI rapide et sûr pour récupérer de l'espace disque sous macOS.
 ## Fonctionnalités
 
 ### Caches système
-- **Caches des applications** — `~/Library/Caches/` (sûr)
+- **Caches des applications** — `~/Library/Caches/` (sûr). Les dossiers de cache couverts par une option dédiée ne sont pas inclus, si bien qu'ignorer ou conserver cet élément protège aussi ses données : `com.apple.Safari` (`--safari`), `Google/Chrome` (`--chrome`), `Firefox` (`--firefox`), `yarn` (`--yarn`), `Homebrew` (`--homebrew`), `CocoaPods` (`--cocoapods`), `pip` (`--pip`), `Adobe` (`--adobe`), `com.bohemiancoding.sketch3` (`--sketch`), `com.microsoft.teams2` (`--teams`).
 - **Logs utilisateur** — `~/Library/Logs/` (sûr)
 - **Miniatures QuickLook** — cache QuickLook de l'utilisateur (sûr)
 
@@ -267,7 +267,7 @@ Avec `--verbose`, chaque entrée affiche son chemin. Lorsque la taille d'une ent
           cleanup removes 0 B of 71.4 GB counted
 ```
 
-Les tailles sont des tailles apparentes (longueur logique) en unités SI (1 GB = 10^9 octets, comme dans le Finder). `du -h` indique l'occupation disque en unités de 1024, d'où des chiffres différents, surtout pour les fichiers creux comme les images disque. Les tailles de Docker et de git sont des estimations. Dans la sortie `--json`, le même détail est disponible sous forme de tableau optionnel `components` sur chaque entrée.
+Les tailles correspondent à l'espace réellement alloué sur le disque (tel que l'indique `du`), les fichiers liés par des liens physiques étant comptés une seule fois, en unités SI (1 GB = 10^9 octets, comme dans le Finder). `du -h` utilise des unités de 1024, d'où des chiffres légèrement différents. Les clones APFS sont toujours comptés en taille réelle complète. Les tailles de Docker et de git sont des estimations. Dans la sortie `--json`, le même détail est disponible sous forme de tableau optionnel `components` sur chaque entrée.
 
 ### Drapeaux d'exclusion de catégories
 

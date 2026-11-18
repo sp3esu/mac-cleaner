@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size.
@@ -43,8 +45,8 @@ func TestScanTopLevel(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
 
-	// Total: small=100, large=800.
-	expectedTotal := int64(100 + 500 + 300)
+	// Total: allocated size of all three files.
+	expectedTotal := scantest.OnDisk(t, 100, 500, 300)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -55,7 +57,7 @@ func TestScanTopLevel(t *testing.T) {
 			result.Entries[0].Size, result.Entries[1].Size)
 	}
 
-	// First entry should be large-cache (800 bytes).
+	// First entry should be large-cache (two files).
 	if result.Entries[0].Description != "large-cache" {
 		t.Errorf("expected first entry 'large-cache', got %q", result.Entries[0].Description)
 	}
@@ -106,7 +108,7 @@ func TestScanTopLevelHandlesFiles(t *testing.T) {
 	// Create a mix of files and directories at top level.
 	subDir := filepath.Join(dir, "subdir")
 	os.MkdirAll(subDir, 0755)
-	writeFile(t, filepath.Join(subDir, "inner.dat"), 200)
+	writeFile(t, filepath.Join(subDir, "inner.dat"), 5000)
 
 	writeFile(t, filepath.Join(dir, "toplevel.dat"), 150)
 
@@ -122,17 +124,163 @@ func TestScanTopLevelHandlesFiles(t *testing.T) {
 		t.Fatalf("expected 2 entries (1 dir + 1 file), got %d", len(result.Entries))
 	}
 
-	// Total: subdir=200, toplevel.dat=150
-	expectedTotal := int64(200 + 150)
+	// Total: allocated size of subdir/inner.dat plus toplevel.dat.
+	expectedTotal := scantest.OnDisk(t, 5000, 150)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
 	}
 
-	// Sorted by size: subdir (200) first, then toplevel.dat (150).
-	if result.Entries[0].Size != 200 {
-		t.Errorf("expected first entry size 200, got %d", result.Entries[0].Size)
+	// Sorted by size: subdir (5000 bytes) first, then toplevel.dat (150).
+	if want := scantest.OnDisk(t, 5000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
-	if result.Entries[1].Size != 150 {
-		t.Errorf("expected second entry size 150, got %d", result.Entries[1].Size)
+	if want := scantest.OnDisk(t, 150); result.Entries[1].Size != want {
+		t.Errorf("expected second entry size %d, got %d", want, result.Entries[1].Size)
+	}
+}
+
+func TestScanTopLevelReportsDeniedSubdir(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test requires non-root user")
+	}
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "readable", "a.dat"), 100)
+	writeFile(t, filepath.Join(dir, "partial", "ok.dat"), 100)
+	locked := filepath.Join(dir, "partial", "locked")
+	writeFile(t, filepath.Join(locked, "secret.dat"), 100)
+	if err := os.Chmod(locked, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0755) }) // #nosec G302 -- test cleanup restores a test dir
+
+	result, err := ScanTopLevel(dir, "test-cat", "Test Category")
+	if err != nil {
+		t.Fatalf("ScanTopLevel: %v", err)
+	}
+
+	if len(result.PermissionIssues) != 1 {
+		t.Fatalf("expected 1 permission issue, got %+v", result.PermissionIssues)
+	}
+	pi := result.PermissionIssues[0]
+	if pi.Path != locked {
+		t.Errorf("permission issue path = %q, want %q", pi.Path, locked)
+	}
+	if pi.Description != "locked (permission denied)" {
+		t.Errorf("permission issue description = %q, want %q", pi.Description, "locked (permission denied)")
+	}
+
+	// The partially readable entry keeps its partial size.
+	if len(result.Entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
+	}
+	want := scantest.OnDisk(t, 100)
+	for _, e := range result.Entries {
+		if e.Size != want {
+			t.Errorf("entry %s size = %d, want %d", e.Description, e.Size, want)
+		}
+	}
+}
+
+func TestScanTopLevelReportsFullyDeniedSubdir(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test requires non-root user")
+	}
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "readable", "a.dat"), 100)
+	locked := filepath.Join(dir, "locked")
+	writeFile(t, filepath.Join(locked, "secret.dat"), 100)
+	if err := os.Chmod(locked, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0755) }) // #nosec G302 -- test cleanup restores a test dir
+
+	result, err := ScanTopLevel(dir, "test-cat", "Test Category")
+	if err != nil {
+		t.Fatalf("ScanTopLevel: %v", err)
+	}
+	if len(result.PermissionIssues) != 1 || result.PermissionIssues[0].Path != locked {
+		t.Fatalf("expected permission issue for %s, got %+v", locked, result.PermissionIssues)
+	}
+	// The unreadable dir has no measurable size, so it is not an entry.
+	if len(result.Entries) != 1 || result.Entries[0].Description != "readable" {
+		t.Errorf("expected only 'readable' entry, got %+v", result.Entries)
+	}
+}
+
+func TestScanTopLevelExcluding(t *testing.T) {
+	dir := t.TempDir()
+	// Owned names are matched case-insensitively, as APFS does.
+	writeFile(t, filepath.Join(dir, "Yarn", "v6", "pkg.tgz"), 100)
+	writeFile(t, filepath.Join(dir, "GOOGLE", "chrome", "Default", "x"), 100)
+	writeFile(t, filepath.Join(dir, "GOOGLE", "Other", "y"), 100)
+	writeFile(t, filepath.Join(dir, "GOOGLE", "loose.dat"), 100)
+	writeFile(t, filepath.Join(dir, "keep", "z"), 100)
+
+	result, err := ScanTopLevelExcluding(dir, "test-cat", "Test Category", []string{"yarn", "Google/Chrome"})
+	if err != nil {
+		t.Fatalf("ScanTopLevelExcluding: %v", err)
+	}
+
+	got := map[string]string{}
+	for _, e := range result.Entries {
+		got[e.Path] = e.Description
+	}
+	want := map[string]string{
+		filepath.Join(dir, "GOOGLE", "Other"):     filepath.Join("GOOGLE", "Other"),
+		filepath.Join(dir, "GOOGLE", "loose.dat"): filepath.Join("GOOGLE", "loose.dat"),
+		filepath.Join(dir, "keep"):                "keep",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("entries = %v, want %v", got, want)
+	}
+	for p, d := range want {
+		if got[p] != d {
+			t.Errorf("entry %s description = %q, want %q (entries: %v)", p, got[p], d, got)
+		}
+	}
+	if wantTotal := scantest.OnDisk(t, 100, 100, 100); result.TotalSize != wantTotal {
+		t.Errorf("total = %d, want %d", result.TotalSize, wantTotal)
+	}
+}
+
+func TestScanTopLevelExcludingAncestorFileIsNotExpanded(t *testing.T) {
+	dir := t.TempDir()
+	// A regular file named like an owned ancestor cannot contain the owned
+	// path, so it is emitted as a normal entry.
+	writeFile(t, filepath.Join(dir, "Google"), 100)
+
+	result, err := ScanTopLevelExcluding(dir, "test-cat", "Test Category", []string{"Google/Chrome"})
+	if err != nil {
+		t.Fatalf("ScanTopLevelExcluding: %v", err)
+	}
+	if len(result.Entries) != 1 || result.Entries[0].Path != filepath.Join(dir, "Google") {
+		t.Errorf("entries = %+v, want only the Google file", result.Entries)
+	}
+}
+
+func TestScanTopLevelExcludingDeniedAncestor(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test requires non-root user")
+	}
+
+	dir := t.TempDir()
+	ancestor := filepath.Join(dir, "Google")
+	writeFile(t, filepath.Join(ancestor, "Other", "y"), 100)
+	if err := os.Chmod(ancestor, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(ancestor, 0755) }) // #nosec G302 -- test cleanup restores a test dir
+
+	result, err := ScanTopLevelExcluding(dir, "test-cat", "Test Category", []string{"Google/Chrome"})
+	if err != nil {
+		t.Fatalf("ScanTopLevelExcluding: %v", err)
+	}
+	if len(result.Entries) != 0 {
+		t.Errorf("expected no entries, got %+v", result.Entries)
+	}
+	if len(result.PermissionIssues) != 1 || result.PermissionIssues[0].Path != ancestor {
+		t.Errorf("expected permission issue for %s, got %+v", ancestor, result.PermissionIssues)
 	}
 }

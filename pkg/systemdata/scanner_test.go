@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size,
@@ -62,8 +63,8 @@ func TestScanSpotlightWithData(t *testing.T) {
 	if len(result.Entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 8000 {
-		t.Errorf("expected total size 8000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 5000, 3000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -126,8 +127,8 @@ func TestScanMailWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
-	if result.TotalSize != 10000 {
-		t.Errorf("expected total size 10000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 10000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -190,8 +191,8 @@ func TestScanMailDownloadsWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
-	if result.TotalSize != 7000 {
-		t.Errorf("expected total size 7000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 7000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -255,8 +256,8 @@ func TestScanMessagesWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
-	if result.TotalSize != 10000 {
-		t.Errorf("expected total size 10000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 4000, 6000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -325,8 +326,8 @@ func TestScanIOSUpdatesWithData(t *testing.T) {
 	if len(result.Entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 12000 {
-		t.Errorf("expected total size 12000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 8000, 4000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -342,8 +343,8 @@ func TestScanIOSUpdatesPartial(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 6000 {
-		t.Errorf("expected total size 6000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 6000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -527,8 +528,8 @@ func TestScanVMParallelsWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 50000 {
-		t.Errorf("expected total size 50000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 50000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -591,8 +592,8 @@ func TestScanVMUTMWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 30000 {
-		t.Errorf("expected total size 30000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 30000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -655,8 +656,8 @@ func TestScanVMVMwareWithData(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 40000 {
-		t.Errorf("expected total size 40000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 40000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 

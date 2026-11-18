@@ -3,9 +3,12 @@ package system
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size.
@@ -42,8 +45,8 @@ func TestScanTopLevel(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
 
-	// Total: small=100, large=800.
-	expectedTotal := int64(100 + 500 + 300)
+	// Total: allocated size of all three files.
+	expectedTotal := scantest.OnDisk(t, 100, 500, 300)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -54,7 +57,7 @@ func TestScanTopLevel(t *testing.T) {
 			result.Entries[0].Size, result.Entries[1].Size)
 	}
 
-	// First entry should be large-cache (800 bytes).
+	// First entry should be large-cache (two files).
 	if result.Entries[0].Description != "large-cache" {
 		t.Errorf("expected first entry 'large-cache', got %q", result.Entries[0].Description)
 	}
@@ -105,7 +108,7 @@ func TestScanTopLevelHandlesFiles(t *testing.T) {
 	// Create a mix of files and directories at top level.
 	subDir := filepath.Join(dir, "subdir")
 	os.MkdirAll(subDir, 0755)
-	writeFile(t, filepath.Join(subDir, "inner.dat"), 200)
+	writeFile(t, filepath.Join(subDir, "inner.dat"), 5000)
 
 	writeFile(t, filepath.Join(dir, "toplevel.dat"), 150)
 
@@ -121,18 +124,18 @@ func TestScanTopLevelHandlesFiles(t *testing.T) {
 		t.Fatalf("expected 2 entries (1 dir + 1 file), got %d", len(result.Entries))
 	}
 
-	// Total: subdir=200, toplevel.dat=150
-	expectedTotal := int64(200 + 150)
+	// Total: allocated size of subdir/inner.dat plus toplevel.dat.
+	expectedTotal := scantest.OnDisk(t, 5000, 150)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
 	}
 
-	// Sorted by size: subdir (200) first, then toplevel.dat (150).
-	if result.Entries[0].Size != 200 {
-		t.Errorf("expected first entry size 200, got %d", result.Entries[0].Size)
+	// Sorted by size: subdir (5000 bytes) first, then toplevel.dat (150).
+	if want := scantest.OnDisk(t, 5000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
-	if result.Entries[1].Size != 150 {
-		t.Errorf("expected second entry size 150, got %d", result.Entries[1].Size)
+	if want := scantest.OnDisk(t, 150); result.Entries[1].Size != want {
+		t.Errorf("expected second entry size %d, got %d", want, result.Entries[1].Size)
 	}
 }
 
@@ -193,7 +196,7 @@ func TestScanQuickLook_MatchingEntries(t *testing.T) {
 	// Create matching QuickLook entries.
 	qlDir1 := filepath.Join(dir, "com.apple.quicklook.thumbcache")
 	os.MkdirAll(qlDir1, 0755)
-	writeFile(t, filepath.Join(qlDir1, "data.bin"), 500)
+	writeFile(t, filepath.Join(qlDir1, "data.bin"), 5000)
 
 	qlDir2 := filepath.Join(dir, "com.apple.quicklook.other")
 	os.MkdirAll(qlDir2, 0755)
@@ -215,11 +218,11 @@ func TestScanQuickLook_MatchingEntries(t *testing.T) {
 	if result.Entries[0].Size < result.Entries[1].Size {
 		t.Error("entries not sorted by size descending")
 	}
-	if result.Entries[0].Size != 500 {
-		t.Errorf("expected first entry size 500, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 5000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
 
-	expectedTotal := int64(500 + 200)
+	expectedTotal := scantest.OnDisk(t, 5000, 200)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -305,8 +308,8 @@ func TestScanQuickLook_FileEntries(t *testing.T) {
 	if len(result.Entries) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result.Entries))
 	}
-	if result.Entries[0].Size != 128 {
-		t.Errorf("expected size 128, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 128); result.Entries[0].Size != want {
+		t.Errorf("expected size %d, got %d", want, result.Entries[0].Size)
 	}
 }
 
@@ -420,5 +423,128 @@ func TestQuickLookCacheDir_PassesSafetyCheck(t *testing.T) {
 	}
 	if got != cDir {
 		t.Errorf("expected %q, got %q", cDir, got)
+	}
+}
+
+func TestScanQuickLook_ReportsDeniedSubdir(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("test requires non-root user")
+	}
+
+	dir := t.TempDir()
+	ql := filepath.Join(dir, "com.apple.quicklook.thumbcache")
+	os.MkdirAll(ql, 0755)
+	writeFile(t, filepath.Join(ql, "ok.bin"), 100)
+	locked := filepath.Join(ql, "locked")
+	os.MkdirAll(locked, 0755)
+	writeFile(t, filepath.Join(locked, "secret.bin"), 100)
+	if err := os.Chmod(locked, 0000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0755) }) // #nosec G302 -- test cleanup restores a test dir
+
+	result, err := scanQuickLook(dir, "quicklook", "QuickLook Thumbnails")
+	if err != nil {
+		t.Fatalf("scanQuickLook: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if len(result.PermissionIssues) != 1 || result.PermissionIssues[0].Path != locked {
+		t.Fatalf("expected permission issue for %s, got %+v", locked, result.PermissionIssues)
+	}
+	if got := result.PermissionIssues[0].Description; got != "locked (permission denied)" {
+		t.Errorf("permission issue description = %q", got)
+	}
+	if len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry with partial size, got %d", len(result.Entries))
+	}
+	if want := scantest.OnDisk(t, 100); result.Entries[0].Size != want {
+		t.Errorf("partial size = %d, want %d", result.Entries[0].Size, want)
+	}
+}
+
+// --- system-caches must not emit caches owned by dedicated scanners ---
+
+// systemCachesPaths runs Scan with HOME set to home and returns the paths
+// emitted under system-caches.
+func systemCachesPaths(t *testing.T, home string) []string {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("TMPDIR", "/tmp") // skip the QuickLook scan
+	results, err := Scan()
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	var paths []string
+	for _, r := range results {
+		if r.Category != "system-caches" {
+			continue
+		}
+		for _, e := range r.Entries {
+			paths = append(paths, e.Path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func TestScanSystemCachesSkipsOwnedCaches(t *testing.T) {
+	home := t.TempDir()
+	caches := filepath.Join(home, "Library", "Caches")
+	for _, rel := range []string{
+		"Homebrew/a",
+		"pip/b",
+		"Yarn/c", // Yarn v1 casing; owned path is "yarn"
+		"Google/Chrome/Default/x",
+		"Google/Other/y",
+		"com.foo/z",
+	} {
+		p := filepath.Join(caches, filepath.FromSlash(rel))
+		os.MkdirAll(filepath.Dir(p), 0755)
+		writeFile(t, p, 100)
+	}
+
+	got := systemCachesPaths(t, home)
+	want := []string{
+		filepath.Join(caches, "Google", "Other"),
+		filepath.Join(caches, "com.foo"),
+	}
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("system-caches paths = %v, want %v", got, want)
+	}
+}
+
+func TestScanSystemCachesSkipsEveryOwnedCache(t *testing.T) {
+	home := t.TempDir()
+	caches := filepath.Join(home, "Library", "Caches")
+	for _, rel := range ownedCaches {
+		p := filepath.Join(caches, filepath.FromSlash(rel), "data.bin")
+		os.MkdirAll(filepath.Dir(p), 0755)
+		writeFile(t, p, 100)
+	}
+
+	if got := systemCachesPaths(t, home); len(got) != 0 {
+		t.Errorf("system-caches emitted owned caches: %v", got)
+	}
+}
+
+func TestOwnedCachesMatchScannerPaths(t *testing.T) {
+	// Guard against the list drifting from the dedicated scanners.
+	want := []string{
+		"com.apple.Safari",
+		"Google/Chrome",
+		"Firefox",
+		"yarn",
+		"Homebrew",
+		"CocoaPods",
+		"pip",
+		"Adobe",
+		"com.bohemiancoding.sketch3",
+		"com.microsoft.teams2",
+	}
+	if !reflect.DeepEqual(ownedCaches, want) {
+		t.Errorf("ownedCaches = %v, want %v", ownedCaches, want)
 	}
 }

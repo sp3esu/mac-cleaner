@@ -7,7 +7,7 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 ## Funkcje
 
 ### Pamięci podręczne systemu
-- **Pamięć podręczna aplikacji** — `~/Library/Caches/` (bezpieczne)
+- **Pamięć podręczna aplikacji** — `~/Library/Caches/` (bezpieczne). Foldery pamięci podręcznej objęte osobną flagą nie są uwzględniane, więc pominięcie lub zachowanie tej pozycji chroni też jej dane: `com.apple.Safari` (`--safari`), `Google/Chrome` (`--chrome`), `Firefox` (`--firefox`), `yarn` (`--yarn`), `Homebrew` (`--homebrew`), `CocoaPods` (`--cocoapods`), `pip` (`--pip`), `Adobe` (`--adobe`), `com.bohemiancoding.sketch3` (`--sketch`), `com.microsoft.teams2` (`--teams`).
 - **Logi użytkownika** — `~/Library/Logs/` (bezpieczne)
 - **Miniatury QuickLook** — pamięć podręczna QuickLook użytkownika (bezpieczne)
 
@@ -267,7 +267,7 @@ Na końcu przebiegu z `--verbose` sekcja `Counted More Than Once` wymienia każd
           cleanup removes 0 B of 71.4 GB counted
 ```
 
-Rozmiary to pozorne rozmiary plików (długość logiczna) w jednostkach SI (1 GB = 10^9 bajtów, jak w Finderze). `du -h` pokazuje zajętość dysku w jednostkach opartych na 1024, więc liczby się różnią, zwłaszcza dla plików rzadkich, np. obrazów dysków. Rozmiary dla Dockera i gita są szacunkowe. W wyniku `--json` ten sam rozkład jest dostępny jako opcjonalna tablica `components` przy każdym wpisie.
+Rozmiary to miejsce faktycznie zajęte na dysku (tak jak podaje `du`), przy czym pliki z twardymi dowiązaniami są liczone raz, w jednostkach SI (1 GB = 10^9 bajtów, jak w Finderze). `du -h` używa jednostek opartych na 1024, więc liczby nieco się różnią. Klony APFS są nadal liczone w pełnym rozmiarze. Rozmiary dla Dockera i gita są szacunkowe. W wyniku `--json` ten sam rozkład jest dostępny jako opcjonalna tablica `components` przy każdym wpisie.
 
 ### Flagi pomijania kategorii
 

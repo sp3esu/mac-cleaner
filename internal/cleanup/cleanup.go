@@ -5,9 +5,12 @@ package cleanup
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -49,11 +52,20 @@ type ProgressFunc func(categoryDesc, entryPath string, current, total int)
 
 // CleanupResult summarises the outcome of a cleanup operation.
 type CleanupResult struct {
-	// Removed is the number of items successfully removed.
+	// Removed is the number of items successfully removed (or, for git
+	// repositories, successfully repacked).
 	Removed int
-	// Failed is the number of items that failed removal.
+	// Skipped is the number of items deliberately left alone without an
+	// error: non-filesystem entries (docker:, tmutil:), paths that no longer
+	// exist, paths already removed with an earlier entry in the same run,
+	// and git repositories with an operation in progress.
+	Skipped int
+	// Failed is the number of items that failed removal, including paths
+	// blocked by the safety check.
 	Failed int
-	// BytesFreed is the total size in bytes of successfully removed items.
+	// BytesFreed is the number of bytes cleanup actually freed: the removed
+	// size (ScanEntry.RemovedSize) of each deleted path, counted once, plus
+	// the measured shrink of each repacked .git directory.
 	BytesFreed int64
 	// Errors holds individual error details for failed items.
 	Errors []error
@@ -65,7 +77,10 @@ type CleanupResult struct {
 // (and optionally git lfs prune). Other pseudo-paths (e.g. "docker:...")
 // are skipped. Errors on individual items do not abort the overall operation.
 // Only entry.Path is ever removed: paths listed in entry.Components other
-// than entry.Path are counted in Size but left in place.
+// than entry.Path are counted in Size but left in place, and BytesFreed
+// credits entry.RemovedSize() rather than entry.Size. An entry whose path is
+// missing, or equals or lies under a path already removed in this run
+// (compared with scan.PathKey), is skipped and credited 0 bytes.
 func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResult {
 	var res CleanupResult
 
@@ -73,6 +88,10 @@ func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResu
 	for _, cat := range results {
 		total += len(cat.Entries)
 	}
+
+	// removed maps the PathKey of each path removed in this run to the bytes
+	// credited for it.
+	removed := map[string]int64{}
 
 	current := 0
 	for _, cat := range results {
@@ -87,21 +106,22 @@ func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResu
 
 			// Handle git-gc: pseudo-paths by running git gc.
 			if repoPath, ok := strings.CutPrefix(entry.Path, "git-gc:"); ok {
-				hasLFS := strings.Contains(entry.Description, "[LFS]")
-				if err := runGitCleanup(repoPath, hasLFS); err != nil {
-					res.Failed++
-					res.Errors = append(res.Errors, fmt.Errorf("git cleanup %s: %w", repoPath, err))
-				} else {
-					res.Removed++
-					res.BytesFreed += entry.Size
-				}
+				gitCleanup(&res, repoPath, strings.Contains(entry.Description, "[LFS]"))
 				continue
 			}
 
 			// Skip pseudo-paths that are informational only.
 			if isPseudoPath(entry.Path) {
-				res.Failed++
-				res.Errors = append(res.Errors, fmt.Errorf("skip non-filesystem path: %s", entry.Path))
+				res.Skipped++
+				continue
+			}
+
+			// Already deleted with an earlier entry (same path or an
+			// ancestor). Checked before the safety check, which cannot
+			// resolve a path whose parent directories are gone.
+			key := scan.PathKey(entry.Path)
+			if coveredByRemoved(removed, key) {
+				res.Skipped++
 				continue
 			}
 
@@ -112,19 +132,95 @@ func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResu
 				continue
 			}
 
-			err := os.RemoveAll(entry.Path)
-			if err != nil && !os.IsNotExist(err) {
+			if _, err := os.Lstat(entry.Path); errors.Is(err, fs.ErrNotExist) {
+				res.Skipped++
+				continue
+			}
+
+			if err := os.RemoveAll(entry.Path); err != nil {
 				res.Failed++
 				res.Errors = append(res.Errors, fmt.Errorf("remove %s: %w", entry.Path, err))
 				continue
 			}
 
+			freed := entry.RemovedSize() - takeRemovedBelow(removed, key)
+			if freed < 0 {
+				freed = 0
+			}
+			removed[key] = freed
 			res.Removed++
-			res.BytesFreed += entry.Size
+			res.BytesFreed += freed
 		}
 	}
 
 	return res
+}
+
+// gitCleanup runs git gc on repoPath after re-checking it, and records the
+// outcome in res. BytesFreed is credited with the measured shrink of the
+// .git directory, never with the scan's count-objects estimate.
+func gitCleanup(res *CleanupResult, repoPath string, hasLFS bool) {
+	if blocked, reason := safety.IsPathBlocked(repoPath); blocked {
+		res.Failed++
+		res.Errors = append(res.Errors, fmt.Errorf("blocked: %s (%s)", repoPath, reason))
+		return
+	}
+
+	gitDir := filepath.Join(repoPath, ".git")
+	if _, err := os.Lstat(gitDir); errors.Is(err, fs.ErrNotExist) {
+		res.Skipped++ // repository removed since the scan
+		return
+	}
+	// Another git operation (or gc) is running: leave the repository alone.
+	for _, lock := range []string{"index.lock", "gc.pid"} {
+		if _, err := os.Lstat(filepath.Join(gitDir, lock)); err == nil {
+			res.Skipped++
+			return
+		}
+	}
+
+	before, _ := scan.DirSize(gitDir)
+	if err := runGitCleanup(repoPath, hasLFS); err != nil {
+		res.Failed++
+		res.Errors = append(res.Errors, fmt.Errorf("git cleanup %s: %w", repoPath, err))
+		return
+	}
+	after, _ := scan.DirSize(gitDir)
+
+	res.Removed++
+	if before > after {
+		res.BytesFreed += before - after
+	}
+}
+
+// coveredByRemoved reports whether key, or any of its ancestor directories,
+// was removed earlier in this run.
+func coveredByRemoved(removed map[string]int64, key string) bool {
+	for p := key; ; {
+		if _, ok := removed[p]; ok {
+			return true
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return false
+		}
+		p = parent
+	}
+}
+
+// takeRemovedBelow returns the bytes already credited for paths removed
+// inside key earlier in this run, and forgets them: key's own size already
+// includes them, and key now covers them.
+func takeRemovedBelow(removed map[string]int64, key string) int64 {
+	prefix := key + string(filepath.Separator)
+	var n int64
+	for k, size := range removed {
+		if strings.HasPrefix(k, prefix) {
+			n += size
+			delete(removed, k)
+		}
+	}
+	return n
 }
 
 // isPseudoPath returns true for paths that represent non-filesystem entries

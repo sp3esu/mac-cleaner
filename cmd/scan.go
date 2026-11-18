@@ -10,8 +10,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/sp3esu/mac-cleaner/internal/cleanup"
-	"github.com/sp3esu/mac-cleaner/internal/confirm"
 	"github.com/sp3esu/mac-cleaner/internal/engine"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 	"github.com/sp3esu/mac-cleaner/internal/schedule"
@@ -175,20 +173,7 @@ Examples:
 		}
 
 		if !flagDryRun && len(allResults) > 0 {
-			if !flagJSON {
-				printOverlaps(os.Stdout, allResults)
-			}
-			if !flagForce {
-				if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
-					fmt.Println("Aborted.")
-					return
-				}
-			}
-			sp.UpdateMessage("Cleaning up...")
-			sp.Start()
-			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr, allResults))
-			sp.Stop()
-			printCleanupSummary(os.Stdout, result)
+			runDeletion(sp, allResults)
 		}
 	},
 }

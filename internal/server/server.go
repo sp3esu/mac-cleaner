@@ -128,10 +128,12 @@ func (s *Server) Shutdown() {
 
 // handleConnection processes a single client connection. It creates a
 // per-connection context that is cancelled when the client disconnects,
-// allowing long-running handlers (scan, cleanup) to abort cleanly.
+// allowing long-running handlers (scan, cleanup) to abort cleanly. A scan
+// token dies with the connection that obtained it.
 func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 	connCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer s.engine.InvalidateToken()
 
 	s.mu.Lock()
 	s.active = conn

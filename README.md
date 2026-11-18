@@ -51,9 +51,9 @@ Home directory scanning excludes `~/Library`, `~/Applications`, `~/.Trash`, `~/D
 ### Git Repository Cleanup
 - **Git Repositories** — `.git/` directories found via home directory walk (moderate)
 
-Git repository cleanup discovers `.git` directories under your home folder, reports their size and estimated reclaimable space via `git count-objects`, and offers `git gc --aggressive` cleanup. For repositories with Git LFS (detected via `.git/lfs`), `git lfs prune` is run automatically when `git-lfs` is installed. Repositories with active operations (presence of `index.lock`) are safely skipped.
+Git repository cleanup discovers `.git` directories under your home folder, reports their size and estimated reclaimable space via `git count-objects`, and offers `git gc --aggressive` cleanup. For repositories with Git LFS (detected via `.git/lfs`), `git lfs prune` is run automatically when `git-lfs` is installed. Repositories with active operations (presence of `index.lock`) are safely skipped, and so are repositories with nothing to repack (0 B estimated). Cleanup re-checks each repository before running `git gc` and skips it while `index.lock` or `gc.pid` is present.
 
-> **Note:** Cleanup runs `git gc --aggressive` and `git lfs prune` — it does not delete any repository files. This is safe for all repositories.
+> **Note:** Cleanup runs `git gc --aggressive` and `git lfs prune`. It does not delete working-tree files, but `git gc` repacks objects and also prunes unreachable objects older than git's expiry (for example dropped stashes), and `git lfs prune` removes old local LFS copies. The cleanup summary reports the measured shrink of `.git`, not the scan's estimate.
 
 ### App Leftovers
 - **Orphaned Preferences** — `.plist` files in `~/Library/Preferences/` for uninstalled apps (risky)
@@ -177,7 +177,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 
 **Scan everything, JSON output:**
 ```bash
-./mac-cleaner --all --json
+./mac-cleaner --all --dry-run --json
 ```
 
 **Scan all but skip Docker and iOS backups:**
@@ -254,6 +254,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--verbose` | Show detailed file listing |
 | `--force` | Bypass confirmation prompt |
 | `--help-json` | Output structured help as JSON for AI agents |
+
+### Totals and Cleanup Summary
+
+Every `Total: X reclaimable` line shows what cleanup actually deletes, with each path counted once. When that differs from everything the scan counted, the counted total follows, for example `Total: 0 B reclaimable (76.8 GB counted, see --verbose)`. Bytes that are counted but not deleted include unused apps in `/Applications` (blocked by the safety check) and their `~/Library` data, Docker and Time Machine entries, git repositories (cleanup runs `git gc` instead of deleting files), and paths listed by more than one category. The Dry-Run Summary shows, per category, the bytes cleanup deletes, sorted by that size.
+
+Before deleting, the confirmation prompt lists what will be permanently deleted (with the bytes removed), the repositories `git gc` will repack (with the estimate), and what is listed but not deleted (Docker and Time Machine entries, blocked bundles, and data left in place such as an unused app's `~/Library` data). Its total is what will be deleted.
+
+After cleanup, `Cleanup complete: N items removed, X freed` reports the bytes actually freed: each removed path counted once, plus the measured shrink of each `.git` directory. Items with nothing to delete (Docker and Time Machine entries, paths already removed or missing, busy git repositories) are reported as skipped, separately from failures.
+
+With `--json`, the output keeps `total_size` (everything counted) and adds `unique_size` (counted, each path once) and `removable_size` (what cleanup deletes); each category also gets `removable_size`. Combine `--json` with `--dry-run` for scan-only output. Without `--dry-run`, `--json` continues to cleanup, and the confirmation prompt and cleanup summary go to stderr so stdout stays a single JSON document.
 
 ### Verbose Size Breakdown
 
@@ -356,7 +366,7 @@ mac-cleaner scan --dev-caches --safari
 mac-cleaner scan --all --skip-docker
 
 # Output as JSON for automation
-mac-cleaner scan --npm --json
+mac-cleaner scan --npm --json --dry-run
 ```
 
 Run `mac-cleaner scan --help` for the full list of targeted flags grouped by category.

@@ -153,7 +153,6 @@ func TestExecuteAlreadyGone(t *testing.T) {
 	tmp := t.TempDir()
 	gonePath := filepath.Join(tmp, "definitely-does-not-exist-abc123")
 
-	// os.RemoveAll returns nil for nonexistent paths, so this counts as Removed.
 	results := []scan.CategoryResult{
 		{
 			Category:    "test",
@@ -167,11 +166,14 @@ func TestExecuteAlreadyGone(t *testing.T) {
 
 	res := Execute(results, nil)
 
-	if res.Removed != 1 {
-		t.Errorf("Removed = %d, want 1 (already gone counts as removed)", res.Removed)
+	if res.Removed != 0 || res.Skipped != 1 || res.Failed != 0 {
+		t.Errorf("Removed=%d Skipped=%d Failed=%d, want 0/1/0 (missing path is skipped)", res.Removed, res.Skipped, res.Failed)
 	}
-	if res.BytesFreed != 50 {
-		t.Errorf("BytesFreed = %d, want 50", res.BytesFreed)
+	if res.BytesFreed != 0 {
+		t.Errorf("BytesFreed = %d, want 0 (nothing was there to free)", res.BytesFreed)
+	}
+	if len(res.Errors) != 0 {
+		t.Errorf("expected no errors, got %v", res.Errors)
 	}
 }
 
@@ -206,8 +208,11 @@ func TestExecutePseudoPath(t *testing.T) {
 	if res.Removed != 0 {
 		t.Errorf("Removed = %d, want 0 (pseudo-path skipped)", res.Removed)
 	}
-	if res.Failed != 1 {
-		t.Errorf("Failed = %d, want 1 (pseudo-path counted as failed)", res.Failed)
+	if res.Skipped != 1 || res.Failed != 0 || len(res.Errors) != 0 {
+		t.Errorf("Skipped=%d Failed=%d Errors=%v, want 1/0/none (pseudo-path is informational)", res.Skipped, res.Failed, res.Errors)
+	}
+	if res.BytesFreed != 0 {
+		t.Errorf("BytesFreed = %d, want 0", res.BytesFreed)
 	}
 }
 
@@ -297,29 +302,49 @@ func TestIsPseudoPath(t *testing.T) {
 	}
 }
 
+// fakeRepo creates a directory with a .git directory holding size bytes of
+// objects, under a temp dir that passes the safety check.
+func fakeRepo(t *testing.T, size int) string {
+	t.Helper()
+	repo := filepath.Join(t.TempDir(), "myrepo")
+	objects := filepath.Join(repo, ".git", "objects")
+	if err := os.MkdirAll(objects, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(objects, "pack"), make([]byte, size), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return repo
+}
+
+// stubGitCleanup replaces runGitCleanup for the duration of a test.
+func stubGitCleanup(t *testing.T, fn func(repoPath string, hasLFS bool) error) {
+	t.Helper()
+	orig := runGitCleanup
+	runGitCleanup = fn
+	t.Cleanup(func() { runGitCleanup = orig })
+}
+
+func gitResults(repoPath, desc string, size int64) []scan.CategoryResult {
+	return []scan.CategoryResult{{
+		Category:    "git-repos",
+		Description: "Git Repositories",
+		Entries:     []scan.ScanEntry{{Path: "git-gc:" + repoPath, Description: desc, Size: size}},
+		TotalSize:   size,
+	}}
+}
+
 func TestGitGCPseudoPath(t *testing.T) {
+	repo := fakeRepo(t, 100)
 	var calledPath string
 	var calledLFS bool
-	orig := runGitCleanup
-	runGitCleanup = func(repoPath string, hasLFS bool) error {
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
 		calledPath = repoPath
 		calledLFS = hasLFS
 		return nil
-	}
-	t.Cleanup(func() { runGitCleanup = orig })
+	})
 
-	results := []scan.CategoryResult{
-		{
-			Category:    "git-repos",
-			Description: "Git Repositories",
-			Entries: []scan.ScanEntry{
-				{Path: "git-gc:/Users/test/myrepo", Description: "myrepo (.git 50 MB)", Size: 5000},
-			},
-			TotalSize: 5000,
-		},
-	}
-
-	res := Execute(results, nil)
+	res := Execute(gitResults(repo, "myrepo (.git 50 MB)", 5000), nil)
 
 	if res.Removed != 1 {
 		t.Errorf("Removed = %d, want 1", res.Removed)
@@ -327,36 +352,126 @@ func TestGitGCPseudoPath(t *testing.T) {
 	if res.Failed != 0 {
 		t.Errorf("Failed = %d, want 0", res.Failed)
 	}
-	if res.BytesFreed != 5000 {
-		t.Errorf("BytesFreed = %d, want 5000", res.BytesFreed)
+	// The stub changes nothing on disk, so nothing was freed, whatever the
+	// count-objects estimate said.
+	if res.BytesFreed != 0 {
+		t.Errorf("BytesFreed = %d, want 0 (measured, not the 5000 estimate)", res.BytesFreed)
 	}
-	if calledPath != "/Users/test/myrepo" {
-		t.Errorf("runGitCleanup called with path %q, want %q", calledPath, "/Users/test/myrepo")
+	if calledPath != repo {
+		t.Errorf("runGitCleanup called with path %q, want %q", calledPath, repo)
 	}
 	if calledLFS {
 		t.Errorf("runGitCleanup called with hasLFS=true, want false")
 	}
 }
 
+func TestGitGC_BytesFreedIsMeasuredDelta(t *testing.T) {
+	repo := fakeRepo(t, 100)
+	garbage := filepath.Join(repo, ".git", "objects", "garbage")
+	if err := os.WriteFile(garbage, make([]byte, 700), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The expected shrink is whatever scan.DirSize counts for the pruned
+	// file, so the test holds whether sizes are apparent or allocated.
+	want, err := scan.DirSize(garbage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want <= 0 || want == 5000 {
+		t.Fatalf("scan.DirSize(garbage) = %d, need > 0 and != the 5000 estimate", want)
+	}
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
+		// Simulate gc pruning one file inside .git.
+		return os.Remove(filepath.Join(repoPath, ".git", "objects", "garbage"))
+	})
+
+	res := Execute(gitResults(repo, "myrepo", 5000), nil)
+	if res.Removed != 1 || res.Failed != 0 {
+		t.Fatalf("Removed=%d Failed=%d, want 1/0 (errors: %v)", res.Removed, res.Failed, res.Errors)
+	}
+	if res.BytesFreed != want {
+		t.Errorf("BytesFreed = %d, want %d (measured .git shrink)", res.BytesFreed, want)
+	}
+}
+
+func TestGitGC_GrowthClampedAtZero(t *testing.T) {
+	repo := fakeRepo(t, 100)
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
+		return os.WriteFile(filepath.Join(repoPath, ".git", "objects", "new"), make([]byte, 300), 0o600)
+	})
+
+	res := Execute(gitResults(repo, "myrepo", 5000), nil)
+	if res.Removed != 1 || res.BytesFreed != 0 {
+		t.Errorf("Removed=%d BytesFreed=%d, want 1/0 (growth is not negative freed space)", res.Removed, res.BytesFreed)
+	}
+}
+
+func TestGitGC_BlockedPathNeverRunsGit(t *testing.T) {
+	called := false
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
+		called = true
+		return nil
+	})
+
+	res := Execute(gitResults("/System/Library", "system", 5000), nil)
+	if called {
+		t.Error("runGitCleanup invoked on a blocked path")
+	}
+	if res.Failed != 1 || res.Removed != 0 || res.BytesFreed != 0 {
+		t.Errorf("Failed=%d Removed=%d BytesFreed=%d, want 1/0/0", res.Failed, res.Removed, res.BytesFreed)
+	}
+	if len(res.Errors) != 1 || !strings.Contains(res.Errors[0].Error(), "blocked") {
+		t.Errorf("expected a blocked error, got %v", res.Errors)
+	}
+}
+
+func TestGitGC_SkippedWhileGitIsBusy(t *testing.T) {
+	for _, lock := range []string{"index.lock", "gc.pid"} {
+		t.Run(lock, func(t *testing.T) {
+			repo := fakeRepo(t, 100)
+			if err := os.WriteFile(filepath.Join(repo, ".git", lock), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			called := false
+			stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
+				called = true
+				return nil
+			})
+
+			res := Execute(gitResults(repo, "myrepo", 5000), nil)
+			if called {
+				t.Errorf("runGitCleanup invoked while %s exists", lock)
+			}
+			if res.Skipped != 1 || res.Removed != 0 || res.Failed != 0 || res.BytesFreed != 0 {
+				t.Errorf("Skipped=%d Removed=%d Failed=%d BytesFreed=%d, want 1/0/0/0", res.Skipped, res.Removed, res.Failed, res.BytesFreed)
+			}
+		})
+	}
+}
+
+func TestGitGC_MissingRepoSkipped(t *testing.T) {
+	called := false
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
+		called = true
+		return nil
+	})
+
+	res := Execute(gitResults(filepath.Join(t.TempDir(), "gone"), "gone", 5000), nil)
+	if called {
+		t.Error("runGitCleanup invoked on a repository that no longer exists")
+	}
+	if res.Skipped != 1 || res.Failed != 0 {
+		t.Errorf("Skipped=%d Failed=%d, want 1/0", res.Skipped, res.Failed)
+	}
+}
+
 func TestGitGCPseudoPath_Failure(t *testing.T) {
-	orig := runGitCleanup
-	runGitCleanup = func(repoPath string, hasLFS bool) error {
+	repo := fakeRepo(t, 100)
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
 		return fmt.Errorf("git gc failed")
-	}
-	t.Cleanup(func() { runGitCleanup = orig })
+	})
 
-	results := []scan.CategoryResult{
-		{
-			Category:    "git-repos",
-			Description: "Git Repositories",
-			Entries: []scan.ScanEntry{
-				{Path: "git-gc:/Users/test/broken", Description: "broken", Size: 1000},
-			},
-			TotalSize: 1000,
-		},
-	}
-
-	res := Execute(results, nil)
+	res := Execute(gitResults(repo, "broken", 1000), nil)
 
 	if res.Removed != 0 {
 		t.Errorf("Removed = %d, want 0", res.Removed)
@@ -376,26 +491,14 @@ func TestGitGCPseudoPath_Failure(t *testing.T) {
 }
 
 func TestGitGCWithLFS(t *testing.T) {
+	repo := fakeRepo(t, 100)
 	var calledLFS bool
-	orig := runGitCleanup
-	runGitCleanup = func(repoPath string, hasLFS bool) error {
+	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
 		calledLFS = hasLFS
 		return nil
-	}
-	t.Cleanup(func() { runGitCleanup = orig })
+	})
 
-	results := []scan.CategoryResult{
-		{
-			Category:    "git-repos",
-			Description: "Git Repositories",
-			Entries: []scan.ScanEntry{
-				{Path: "git-gc:/Users/test/lfsrepo", Description: "lfsrepo (.git 100 MB) [LFS]", Size: 10000},
-			},
-			TotalSize: 10000,
-		},
-	}
-
-	res := Execute(results, nil)
+	res := Execute(gitResults(repo, "lfsrepo (.git 100 MB) [LFS]", 10000), nil)
 
 	if res.Removed != 1 {
 		t.Errorf("Removed = %d, want 1", res.Removed)
@@ -448,8 +551,8 @@ func TestDockerPseudoPathStillSkipped(t *testing.T) {
 	if res.Removed != 0 {
 		t.Errorf("Removed = %d, want 0 (docker pseudo-path should still be skipped)", res.Removed)
 	}
-	if res.Failed != 1 {
-		t.Errorf("Failed = %d, want 1", res.Failed)
+	if res.Skipped != 1 || res.Failed != 0 {
+		t.Errorf("Skipped=%d Failed=%d, want 1/0", res.Skipped, res.Failed)
 	}
 }
 
@@ -509,5 +612,159 @@ func TestExecuteRemovesOnlyEntryPath(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(lib, "data")); err != nil {
 		t.Errorf("component not marked Removed must be left in place: %v", err)
+	}
+}
+
+// mkFile creates a file of n bytes at path, creating parent directories.
+func mkFile(t *testing.T, path string, n int) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, make([]byte, n), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExecute_NestedEntriesCreditedOnce(t *testing.T) {
+	tmp := t.TempDir()
+	outer := filepath.Join(tmp, "Library", "Caches", "Google")
+	inner := filepath.Join(outer, "Chrome", "Default")
+	mkFile(t, filepath.Join(inner, "data"), 1000)
+
+	results := []scan.CategoryResult{
+		{Category: "system-caches", Entries: []scan.ScanEntry{{Path: outer, Size: 1000}}},
+		{Category: "browser-chrome", Entries: []scan.ScanEntry{{Path: inner, Size: 1000}}},
+	}
+	res := Execute(results, nil)
+	if res.Removed != 1 || res.Skipped != 1 || res.Failed != 0 {
+		t.Errorf("Removed=%d Skipped=%d Failed=%d, want 1/1/0", res.Removed, res.Skipped, res.Failed)
+	}
+	if res.BytesFreed != 1000 {
+		t.Errorf("BytesFreed = %d, want 1000 (outer only)", res.BytesFreed)
+	}
+	if _, err := os.Stat(outer); !os.IsNotExist(err) {
+		t.Error("outer directory should be deleted")
+	}
+}
+
+func TestExecute_InnerFirstThenOuter(t *testing.T) {
+	// When the inner entry comes first both exist and both are removed. The
+	// outer path's size already includes the inner one, so the bytes
+	// credited for the inner are not credited again.
+	tmp := t.TempDir()
+	outer := filepath.Join(tmp, "a")
+	inner := filepath.Join(outer, "b")
+	mkFile(t, filepath.Join(inner, "f"), 10)
+
+	results := []scan.CategoryResult{
+		{Category: "x", Entries: []scan.ScanEntry{{Path: inner, Size: 10}}},
+		{Category: "y", Entries: []scan.ScanEntry{{Path: outer, Size: 10}}},
+	}
+	res := Execute(results, nil)
+	if res.Removed != 2 || res.Failed != 0 {
+		t.Errorf("Removed=%d Failed=%d, want 2/0", res.Removed, res.Failed)
+	}
+	if res.BytesFreed != 10 {
+		t.Errorf("BytesFreed = %d, want 10 (inner bytes credited once)", res.BytesFreed)
+	}
+}
+
+func TestExecute_SamePathInTwoCategoriesCreditedOnce(t *testing.T) {
+	tmp := t.TempDir()
+	f := filepath.Join(tmp, "Movies", "a.mp4")
+	mkFile(t, f, 1000)
+
+	entry := scan.ScanEntry{Path: f, Size: 1000}
+	results := []scan.CategoryResult{
+		{Category: "home-large-files", Entries: []scan.ScanEntry{entry}},
+		{Category: "home-old-files", Entries: []scan.ScanEntry{entry}},
+	}
+	res := Execute(results, nil)
+	if res.Removed != 1 || res.Skipped != 1 || res.Failed != 0 {
+		t.Errorf("Removed=%d Skipped=%d Failed=%d, want 1/1/0", res.Removed, res.Skipped, res.Failed)
+	}
+	if res.BytesFreed != 1000 {
+		t.Errorf("BytesFreed = %d, want 1000", res.BytesFreed)
+	}
+}
+
+func TestExecute_SamePathDifferentCaseCreditedOnce(t *testing.T) {
+	tmp := t.TempDir()
+	dir := filepath.Join(tmp, "Caches", "Yarn")
+	mkFile(t, filepath.Join(dir, "f"), 10)
+
+	results := []scan.CategoryResult{
+		{Category: "system-caches", Entries: []scan.ScanEntry{{Path: dir, Size: 10}}},
+		{Category: "dev-yarn", Entries: []scan.ScanEntry{{Path: filepath.Join(tmp, "Caches", "yarn"), Size: 10}}},
+	}
+	res := Execute(results, nil)
+	if res.Removed != 1 || res.Skipped != 1 || res.BytesFreed != 10 {
+		t.Errorf("Removed=%d Skipped=%d BytesFreed=%d, want 1/1/10", res.Removed, res.Skipped, res.BytesFreed)
+	}
+}
+
+func TestExecute_UnusedAppCreditsRemovedSizeOnly(t *testing.T) {
+	tmp := t.TempDir()
+	bundle := filepath.Join(tmp, "Applications", "X.app")
+	lib := filepath.Join(tmp, "Library", "Application Support", "X")
+	mkFile(t, filepath.Join(bundle, "bin"), 100)
+	mkFile(t, filepath.Join(lib, "data"), 900)
+
+	results := []scan.CategoryResult{{
+		Category: "unused-apps",
+		Entries: []scan.ScanEntry{{
+			Path: bundle,
+			Size: 1000,
+			Components: []scan.SizeComponent{
+				{Path: bundle, Size: 100, Removed: true},
+				{Path: lib, Size: 900, Note: "app data in ~/Library"},
+			},
+		}},
+	}}
+	res := Execute(results, nil)
+	if res.Removed != 1 || res.Failed != 0 {
+		t.Fatalf("Removed=%d Failed=%d, want 1/0 (errors: %v)", res.Removed, res.Failed, res.Errors)
+	}
+	if res.BytesFreed != 100 {
+		t.Errorf("BytesFreed = %d, want 100 (bundle only)", res.BytesFreed)
+	}
+	if _, err := os.Stat(filepath.Join(lib, "data")); err != nil {
+		t.Errorf("Library data must be left in place: %v", err)
+	}
+}
+
+func TestExecute_DockerAndTmutilSkipped(t *testing.T) {
+	results := []scan.CategoryResult{
+		{Category: "dev-docker", Entries: []scan.ScanEntry{{
+			Path: "docker:Images", Size: 20_000_000_000,
+			Components: []scan.SizeComponent{{Path: "docker:Images", Size: 20_000_000_000}},
+		}}},
+		{Category: "sysdata-timemachine", Entries: []scan.ScanEntry{{
+			Path:       "tmutil:snapshot:com.apple.TimeMachine.2026-11-18-000000.local",
+			Components: []scan.SizeComponent{{Path: "tmutil:snapshot:com.apple.TimeMachine.2026-11-18-000000.local"}},
+		}}},
+	}
+	res := Execute(results, nil)
+	if res.Skipped != 2 || res.Failed != 0 || res.Removed != 0 || res.BytesFreed != 0 || len(res.Errors) != 0 {
+		t.Errorf("Skipped=%d Failed=%d Removed=%d BytesFreed=%d Errors=%v, want 2/0/0/0/none",
+			res.Skipped, res.Failed, res.Removed, res.BytesFreed, res.Errors)
+	}
+}
+
+func TestExecute_BlockedBundleStaysFailed(t *testing.T) {
+	results := []scan.CategoryResult{{
+		Category: "unused-apps",
+		Entries: []scan.ScanEntry{{
+			Path: "/Applications/Docker.app", Size: 71_000,
+			Components: []scan.SizeComponent{
+				{Path: "/Applications/Docker.app", Size: 2_000},
+				{Path: "/Users/x/Library/Containers/com.docker.docker", Size: 69_000},
+			},
+		}},
+	}}
+	res := Execute(results, nil)
+	if res.Failed != 1 || res.Removed != 0 || res.Skipped != 0 || res.BytesFreed != 0 {
+		t.Errorf("Failed=%d Removed=%d Skipped=%d BytesFreed=%d, want 1/0/0/0", res.Failed, res.Removed, res.Skipped, res.BytesFreed)
 	}
 }

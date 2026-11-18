@@ -19,8 +19,13 @@ type CleanupProgress struct {
 
 // CleanupResult is the final result of a cleanup operation.
 type CleanupResult struct {
-	Removed    int      `json:"removed"`
-	Failed     int      `json:"failed"`
+	Removed int `json:"removed"`
+	// Skipped counts entries deliberately left alone without an error
+	// (docker:/tmutil: entries, missing or already-removed paths, busy git
+	// repositories).
+	Skipped int `json:"skipped"`
+	Failed  int `json:"failed"`
+	// BytesFreed is what cleanup actually freed (see cleanup.CleanupResult).
 	BytesFreed int64    `json:"bytes_freed"`
 	Errors     []string `json:"errors,omitempty"`
 }
@@ -86,6 +91,7 @@ func (h *Handler) handleCleanup(ctx context.Context, req Request, w *NDJSONWrite
 
 	_ = w.WriteResult(req.ID, CleanupResult{
 		Removed:    result.Result.Removed,
+		Skipped:    result.Result.Skipped,
 		Failed:     result.Result.Failed,
 		BytesFreed: result.Result.BytesFreed,
 		Errors:     errs,

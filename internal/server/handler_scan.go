@@ -19,9 +19,11 @@ type ScanProgress struct {
 
 // ScanResult is the final result of a scan operation.
 type ScanResult struct {
-	Categories []scanResultCategory `json:"categories"`
-	TotalSize  int64                `json:"total_size"`
-	Token      string               `json:"token"`
+	Categories    []scanResultCategory `json:"categories"`
+	TotalSize     int64                `json:"total_size"`
+	RemovableSize int64                `json:"removable_size"`
+	UniqueSize    int64                `json:"unique_size"`
+	Token         string               `json:"token"`
 }
 
 // scanResultCategory mirrors scan.CategoryResult for JSON serialization.
@@ -111,19 +113,23 @@ func (h *Handler) handleScan(ctx context.Context, req Request, w *NDJSONWriter) 
 		}
 	}
 
-	var totalSize int64
-	for _, cat := range result.Results {
-		totalSize += cat.TotalSize
-	}
+	// total_size is what was counted; removable_size is what cleanup
+	// deletes (each path once) and unique_size the counted total with
+	// each path once.
+	summary := scan.Summarize(result.Results)
 
 	_ = w.WriteResult(req.ID, struct {
-		Categories interface{} `json:"categories"`
-		TotalSize  int64       `json:"total_size"`
-		Token      string      `json:"token"`
+		Categories    interface{} `json:"categories"`
+		TotalSize     int64       `json:"total_size"`
+		RemovableSize int64       `json:"removable_size"`
+		UniqueSize    int64       `json:"unique_size"`
+		Token         string      `json:"token"`
 	}{
-		Categories: result.Results,
-		TotalSize:  totalSize,
-		Token:      string(result.Token),
+		Categories:    summary.Categories,
+		TotalSize:     summary.TotalSize,
+		RemovableSize: summary.RemovableSize,
+		UniqueSize:    summary.UniqueSize,
+		Token:         string(result.Token),
 	})
 }
 

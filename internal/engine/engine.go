@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/sp3esu/mac-cleaner/internal/cleanup"
+	"github.com/sp3esu/mac-cleaner/internal/safety"
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
@@ -160,8 +161,10 @@ func (e *Engine) Run(ctx context.Context, scannerID string) ([]scan.CategoryResu
 }
 
 // Cleanup removes files for the given categories from a prior scan.
-// The token must match a prior ScanAll call and is consumed (one-time use).
-// If categoryIDs is empty, all categories from the scan are cleaned.
+// The token must match a prior ScanAll call, be younger than tokenTTL, and
+// is consumed (one-time use). If categoryIDs is empty, every category from
+// the scan is cleaned except risky ones (safety.RiskForCategory returns
+// risky): those are cleaned only when named explicitly in categoryIDs.
 // Returns an events channel for progress and a done channel for the final result.
 func (e *Engine) Cleanup(ctx context.Context, token ScanToken, categoryIDs []string) (<-chan CleanupEvent, <-chan CleanupDone) {
 	events := make(chan CleanupEvent)
@@ -177,9 +180,16 @@ func (e *Engine) Cleanup(ctx context.Context, token ScanToken, categoryIDs []str
 			return
 		}
 
-		// Filter by selected categories if specified.
-		toClean := results
-		if len(categoryIDs) > 0 {
+		// Filter by selected categories if specified. Without a selection,
+		// clean everything but risky categories.
+		var toClean []scan.CategoryResult
+		if len(categoryIDs) == 0 {
+			for _, cat := range results {
+				if safety.RiskForCategory(cat.Category) != safety.RiskRisky {
+					toClean = append(toClean, cat)
+				}
+			}
+		} else {
 			selected := make(map[string]bool, len(categoryIDs))
 			for _, id := range categoryIDs {
 				selected[id] = true

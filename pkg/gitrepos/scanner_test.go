@@ -299,3 +299,36 @@ func TestEntryComponentsExplainEstimate(t *testing.T) {
 		t.Errorf("note = %q, want %q", c.Note, gitNote)
 	}
 }
+
+func TestSkipsReposWithNothingReclaimable(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "projects", "clean")
+	os.MkdirAll(filepath.Join(repo, ".git", "objects"), 0755)
+	os.WriteFile(filepath.Join(repo, ".git", "objects", "pack"), make([]byte, 4096), 0644)
+
+	for name, runner := range map[string]CmdRunner{
+		"zero estimate":       mockRunner("count: 0\nsize: 0\nsize-garbage: 0\nsize-pack: 4\n", nil),
+		"count-objects fails": mockRunner("", os.ErrPermission),
+	} {
+		t.Run(name, func(t *testing.T) {
+			results, err := scanFrom(root, runner)
+			if err != nil {
+				t.Fatalf("scanFrom() error: %v", err)
+			}
+			if len(results) != 0 {
+				t.Errorf("expected no entries for a repo with 0 B reclaimable, got %+v", results)
+			}
+		})
+	}
+}
+
+func TestGitNoteMentionsPruning(t *testing.T) {
+	if strings.Contains(gitNote, "no files are deleted") {
+		t.Errorf("gitNote must not claim nothing is deleted: %q", gitNote)
+	}
+	for _, want := range []string{"repacks", "prunes unreachable objects"} {
+		if !strings.Contains(gitNote, want) {
+			t.Errorf("gitNote %q should mention %q", gitNote, want)
+		}
+	}
+}

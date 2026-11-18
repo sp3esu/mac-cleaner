@@ -1,3 +1,7 @@
+// Package cmd implements the mac-cleaner command-line interface (cobra):
+// the root command (interactive walkthrough and group scan flags), the scan
+// subcommand for targeted scans, the serve subcommand for the IPC server,
+// and the schedule subcommand for launchd-scheduled cleanups.
 package cmd
 
 import (
@@ -180,9 +184,8 @@ Examples:
 		}
 
 		if !ran {
+			// scanAll applies item-level skip filtering before printing.
 			allResults = scanAll(sp)
-			// Apply item-level skip filtering in interactive mode.
-			allResults = engine.FilterSkipped(allResults, buildSkipSet())
 			printPermissionIssues(allResults)
 			printDryRunSummary(os.Stdout, allResults)
 			printOverlaps(os.Stdout, allResults)
@@ -215,9 +218,7 @@ Examples:
 			return
 		}
 
-		// Apply item-level skip filtering.
-		allResults = engine.FilterSkipped(allResults, buildSkipSet())
-
+		// Item-level skip filtering was applied by runScannerByID.
 		if !flagJSON {
 			printPermissionIssues(allResults)
 		}
@@ -237,20 +238,7 @@ Examples:
 
 		// Deletion flow: only when not in dry-run mode and there are results.
 		if !flagDryRun && len(allResults) > 0 {
-			if !flagJSON {
-				printOverlaps(os.Stdout, allResults)
-			}
-			if !flagForce {
-				if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
-					fmt.Println("Aborted.")
-					return
-				}
-			}
-			sp.UpdateMessage("Cleaning up...")
-			sp.Start()
-			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr, allResults))
-			sp.Stop()
-			printCleanupSummary(os.Stdout, result)
+			runDeletion(sp, allResults)
 		}
 	},
 }
@@ -421,7 +409,8 @@ func findScannerInfo(scannerID string) engine.ScannerInfo {
 	return engine.ScannerInfo{ID: scannerID, Name: scannerID}
 }
 
-// runScannerByID runs a single scanner by ID using the engine and prints results.
+// runScannerByID runs a single scanner by ID using the engine, drops
+// categories excluded by item-level skip flags, and prints the results.
 func runScannerByID(scannerID string, sp *spinner.Spinner) []scan.CategoryResult {
 	info := findScannerInfo(scannerID)
 	sp.UpdateMessage("Scanning " + strings.ToLower(info.Name) + "...")
@@ -432,6 +421,7 @@ func runScannerByID(scannerID string, sp *spinner.Spinner) []scan.CategoryResult
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return nil
 	}
+	results = engine.FilterSkipped(results, buildSkipSet())
 	if !flagJSON {
 		printResults(results, flagDryRun, info.Name)
 	}
@@ -453,11 +443,13 @@ func buildSkipSet() map[string]bool {
 }
 
 // scanAll runs all registered scanners via the engine's channel-based API
-// and returns aggregated results. Scanner errors are logged to stderr; partial
+// and returns aggregated results, without the categories excluded by
+// item-level skip flags. Scanner errors are logged to stderr; partial
 // results are still returned. Results are printed with dryRun=true since
 // interactive mode handles deletion decisions separately.
 func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
-	events, done := eng.ScanAll(context.Background(), nil)
+	skip := buildSkipSet()
+	events, done := eng.ScanAll(context.Background(), skip)
 	for event := range events {
 		switch event.Type {
 		case engine.EventScannerStart:
@@ -465,8 +457,8 @@ func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
 			sp.Start()
 		case engine.EventScannerDone:
 			sp.Stop()
-			if len(event.Results) > 0 {
-				printResults(event.Results, true, event.Label)
+			if results := engine.FilterSkipped(event.Results, skip); len(results) > 0 {
+				printResults(results, true, event.Label)
 			}
 		case engine.EventScannerError:
 			sp.Stop()
@@ -477,12 +469,41 @@ func scanAll(sp *spinner.Spinner) []scan.CategoryResult {
 	return result.Results
 }
 
-// printCleanupSummary displays the results of a cleanup operation.
+// runDeletion runs the confirm-and-clean flow for the given results. With
+// --json, the prompt, "Aborted." and the cleanup summary go to stderr so
+// stdout holds only the JSON document.
+func runDeletion(sp *spinner.Spinner, results []scan.CategoryResult) {
+	out := io.Writer(os.Stdout)
+	if flagJSON {
+		out = os.Stderr
+	} else {
+		printOverlaps(os.Stdout, results)
+	}
+	if !flagForce {
+		if !confirm.PromptConfirmation(os.Stdin, out, results) {
+			fmt.Fprintln(out, "Aborted.")
+			return
+		}
+	}
+	sp.UpdateMessage("Cleaning up...")
+	sp.Start()
+	result := cleanup.Execute(results, cleanupProgress(sp, os.Stderr, results))
+	sp.Stop()
+	printCleanupSummary(out, result)
+}
+
+// printCleanupSummary displays the results of a cleanup operation. Skipped
+// items (nothing to delete, or deliberately left alone) are reported
+// separately from failures.
 func printCleanupSummary(w io.Writer, result cleanup.CleanupResult) {
 	greenBold := color.New(color.FgGreen, color.Bold)
 	fmt.Fprintln(w)
 	_, _ = greenBold.Fprintf(w, "Cleanup complete: %d items removed, %s freed\n",
 		result.Removed, scan.FormatSize(result.BytesFreed))
+	if result.Skipped > 0 {
+		_, _ = color.New(color.Faint).Fprintf(w,
+			"%d items skipped (not files cleanup deletes, already removed, missing, or git busy)\n", result.Skipped)
+	}
 	if result.Failed > 0 {
 		yellow := color.New(color.FgYellow)
 		fmt.Fprintln(w)
@@ -515,6 +536,18 @@ func cleanupProgress(sp *spinner.Spinner, w io.Writer, results []scan.CategoryRe
 				fmt.Fprintf(w, "Cleaning %s (%d/%d)\n", categoryDesc, current, total)
 				return
 			}
+			if repo, ok := strings.CutPrefix(entryPath, "git-gc:"); ok {
+				fmt.Fprintf(w, "  git gc in %s\n", shortenHome(repo, home))
+				return
+			}
+			if !filepath.IsAbs(entryPath) {
+				fmt.Fprintf(w, "  skipping %s (not a filesystem path)\n", entryPath)
+				return
+			}
+			if blocked, reason := safety.IsPathBlocked(entryPath); blocked {
+				fmt.Fprintf(w, "  skipping %s (blocked: %s)\n", shortenHome(entryPath, home), reason)
+				return
+			}
 			fmt.Fprintf(w, "  removing %s\n", shortenHome(entryPath, home))
 			for _, c := range components[entryPath] {
 				if !c.Removed {
@@ -544,12 +577,14 @@ func flagForCategory(categoryID string) string {
 	return ""
 }
 
-// printDryRunSummary prints a compact size-sorted summary table when at least
-// two categories have data. It is intended for dry-run output so the user can
-// quickly see where disk space is reclaimable.
+// printDryRunSummary prints a compact summary table when at least two
+// categories have data. It is intended for dry-run output so the user can
+// quickly see where disk space is reclaimable. Each category shows what
+// cleanup deletes for it (RemovableSize), sorted by that size; the total is
+// scan.Reclaimable, with the counted total added when the two differ.
 func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 	var nonEmpty []scan.CategoryResult
-	for _, cat := range results {
+	for _, cat := range scan.Summarize(results).Categories {
 		if cat.TotalSize > 0 {
 			nonEmpty = append(nonEmpty, cat)
 		}
@@ -558,13 +593,13 @@ func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 		return
 	}
 
-	sort.Slice(nonEmpty, func(i, j int) bool {
-		return nonEmpty[i].TotalSize > nonEmpty[j].TotalSize
+	sort.SliceStable(nonEmpty, func(i, j int) bool {
+		return nonEmpty[i].RemovableSize > nonEmpty[j].RemovableSize
 	})
 
-	var total int64
+	var removable int64
 	for _, cat := range nonEmpty {
-		total += cat.TotalSize
+		removable += cat.RemovableSize
 	}
 
 	bold := color.New(color.Bold)
@@ -578,39 +613,53 @@ func printDryRunSummary(w io.Writer, results []scan.CategoryResult) {
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
 	for _, cat := range nonEmpty {
-		pct := float64(cat.TotalSize) / float64(total) * 100
+		var pct float64
+		if removable > 0 {
+			pct = float64(cat.RemovableSize) / float64(removable) * 100
+		}
 		hint := ""
 		if flag := flagForCategory(cat.Category); flag != "" {
 			hint = faint.Sprintf("(%s)", flag)
 		}
 		fmt.Fprintf(tw, "  %s\t  %s\t  (%4.1f%%)\t  %s\t\n",
 			cat.Description,
-			cyan.Sprint(scan.FormatSize(cat.TotalSize)),
+			cyan.Sprint(scan.FormatSize(cat.RemovableSize)),
 			pct,
 			hint)
 	}
 	_ = tw.Flush()
 
 	fmt.Fprintln(w)
-	_, _ = greenBold.Fprintf(w, "  Total: %s reclaimable\n", scan.FormatSize(total))
+	_, _ = greenBold.Fprintln(w, "  "+totalLine(nonEmpty))
 	fmt.Fprintln(w)
 }
 
-// printJSON outputs scan results as formatted JSON to stdout.
+// totalLine returns the "Total: X reclaimable" line for results, where X is
+// what cleanup deletes (scan.Reclaimable). When that differs from the
+// counted total, the counted total is added, with a pointer to --verbose
+// unless verbose output already explains the difference.
+func totalLine(results []scan.CategoryResult) string {
+	var counted int64
+	for _, cat := range results {
+		counted += cat.TotalSize
+	}
+	removable := scan.Reclaimable(results)
+	line := fmt.Sprintf("Total: %s reclaimable", scan.FormatSize(removable))
+	if removable != counted {
+		if flagVerbose {
+			line += fmt.Sprintf(" (%s counted)", scan.FormatSize(counted))
+		} else {
+			line += fmt.Sprintf(" (%s counted, see --verbose)", scan.FormatSize(counted))
+		}
+	}
+	return line
+}
+
+// printJSON outputs scan results as formatted JSON to stdout. total_size
+// is what was counted; removable_size and unique_size are added by
+// scan.Summarize.
 func printJSON(results []scan.CategoryResult) {
-	var totalSize int64
-	for _, cat := range results {
-		totalSize += cat.TotalSize
-	}
-	var permIssues []scan.PermissionIssue
-	for _, cat := range results {
-		permIssues = append(permIssues, cat.PermissionIssues...)
-	}
-	summary := scan.ScanSummary{
-		Categories:       results,
-		TotalSize:        totalSize,
-		PermissionIssues: permIssues,
-	}
+	summary := scan.Summarize(results)
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(summary); err != nil {
@@ -646,7 +695,7 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 		_, _ = color.New(color.Faint).Print(verboseLegend)
 	}
 
-	var grandTotal, removedTotal int64
+	var grandTotal int64
 
 	for _, cat := range results {
 		if len(cat.Entries) == 0 {
@@ -681,7 +730,6 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 				fmt.Fprintf(w, "        %s\n", shortenHome(entry.Path, home))
 				printBreakdown(w, entry, home)
 			}
-			removedTotal += entry.RemovedSize()
 		}
 		_ = w.Flush()
 
@@ -690,10 +738,10 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 
 	// Summary line.
 	fmt.Println()
-	_, _ = greenBold.Printf("  Total: %s reclaimable\n", scan.FormatSize(grandTotal))
-	if flagVerbose && removedTotal != grandTotal {
+	_, _ = greenBold.Println("  " + totalLine(results))
+	if removed := scan.Reclaimable(results); flagVerbose && removed != grandTotal {
 		_, _ = yellow.Printf("  cleanup removes %s of %s counted\n",
-			scan.FormatSize(removedTotal), scan.FormatSize(grandTotal))
+			scan.FormatSize(removed), scan.FormatSize(grandTotal))
 	}
 	fmt.Println()
 }
@@ -703,8 +751,9 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 var verboseLegendShown bool
 
 // verboseLegend explains how to read the verbose size breakdown.
-const verboseLegend = "  Sizes are apparent file sizes (logical length) in SI units (1 GB = 10^9 bytes, as in Finder);\n" +
-	"  du -h shows disk usage in 1024-based units, so its numbers differ. Docker and git sizes are estimates.\n" +
+const verboseLegend = "  Sizes are disk space allocated on disk (as du reports), with hard-linked files counted once,\n" +
+	"  in SI units (1 GB = 10^9 bytes, as in Finder); APFS clones are still counted at full size.\n" +
+	"  Docker and git sizes are estimates.\n" +
 	"  Under each entry: its path, then (where present) every path counted in its size,\n" +
 	"  largest first, marked when cleanup does not remove it. Paths counted by more than one\n" +
 	"  entry, if any, are listed under \"Counted More Than Once\" at the end.\n"

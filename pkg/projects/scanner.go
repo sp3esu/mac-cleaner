@@ -69,7 +69,7 @@ var projectTypes = []projectType{
 	{
 		CategoryID:   "proj-java",
 		CacheDirName: "build",
-		Markers:      []string{"build.gradle", "build.gradle.kts", "pom.xml"},
+		Markers:      []string{"build.gradle", "build.gradle.kts"},
 		MarkerInside: false,
 		Label:        "build (Java/Kotlin)",
 	},

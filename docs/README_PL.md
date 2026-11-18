@@ -36,7 +36,7 @@ Szybkie i bezpieczne narzędzie CLI do odzyskiwania miejsca na dysku w macOS.
 - **.build (Swift)** — katalogi `.build/` w projektach Swift Package Manager (bezpieczne)
 - **target (Rust)** — katalogi `target/` w projektach Cargo/Rust (bezpieczne)
 - **venv (Python)** — katalogi `venv/` i `.venv/` w projektach Python (umiarkowane)
-- **build (Java/Kotlin)** — katalogi `build/` w projektach Gradle/Maven (bezpieczne)
+- **build (Java/Kotlin)** — katalogi `build/` obok `build.gradle` lub `build.gradle.kts` w projektach Gradle (bezpieczne). Katalog `build/` obok samego `pom.xml` nie jest oznaczany: Maven zapisuje wyniki do `target/`, więc `build/` zawiera tam zwykle ręcznie pisane pliki.
 
 Pamięci podręczne projektów są wykrywane przez przeszukiwanie katalogu domowego i walidację każdego kandydata względem pliku manifestu (np. `package.json` dla node_modules, `Cargo.toml` dla target). Projekty nieaktywne od ponad 6 miesięcy są oznaczane wskaźnikiem nieaktywności.
 
@@ -44,7 +44,7 @@ Pamięci podręczne projektów są wykrywane przez przeszukiwanie katalogu domow
 - **Duze pliki (>100 MB)** — pliki wieksze niz 100 MB w katalogu domowym (ryzykowne)
 - **Stare pliki (>180 dni)** — pliki starsze niz 180 dni i wieksze niz 10 MB w katalogu domowym (ryzykowne)
 
-Skanowanie katalogu domowego wyklucza `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` oraz katalogi z kropka (np. `~/.config`). Wyniki sa oznaczane jako "ryzykowne", poniewaz sa to pliki osobiste, a nie regenerowalne pamięci podręczne.
+Skanowanie katalogu domowego wyklucza `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` oraz katalogi z kropka (np. `~/.config`). Wyniki sa oznaczane jako "ryzykowne", poniewaz sa to pliki osobiste, a nie regenerowalne pamięci podręczne. Skanowanie nie wchodzi też do pakietów i bibliotek macOS (`.photoslibrary`, `.musiclibrary`, `.tvlibrary`, `.imovielibrary`, `.fcpbundle`, `.logicx`, `.app`, `.bundle`, `.framework`, `.sparsebundle`, `.pvm`, `.vmwarevm`, `.utm`), metadanych kontroli wersji (`.git`, `.hg`, `.svn`), zainstalowanych narzędzi (`~/bin`, `~/go/bin`) ani folderów multimediów Muzyki i TV (`~/Music/Music`, `~/Movies/TV/Media.localized`): usunięcie jednego pliku w ich wnętrzu uszkadza całą bibliotekę, repozytorium lub instalację. Progi rozmiaru są porównywane z faktycznie zajętym miejscem na dysku, więc plik rzadki (np. obraz dysku VM), który zajmuje mało miejsca, nie jest uznawany za duży.
 
 > **Uwaga:** Pliki zastępcze iCloud Drive mogą wyświetlać oryginalny rozmiar, nawet gdy zostały usunięte z lokalnego dysku.
 
@@ -59,6 +59,8 @@ Czyszczenie repozytoriow Git wykrywa katalogi `.git` w katalogu domowym, wyswiet
 - **Osierocone preferencje** — pliki `.plist` w `~/Library/Preferences/` dla odinstalowanych aplikacji (ryzykowne)
 - **Kopie zapasowe urządzeń iOS** — `~/Library/Application Support/MobileSync/Backup/` (ryzykowne)
 - **Stare pobrania** — pliki w `~/Downloads/` starsze niż 90 dni (umiarkowane)
+
+Osierocone preferencje nigdy nie obejmują domen systemowych macOS (nazw bez kropki w stylu reverse-DNS, np. `loginwindow`, plików z kropką, np. `.GlobalPreferences`, wszystkiego, co zawiera `com.apple.`, `systemgroup.*` oraz `org.cups.PrintingPrefs`) ani plików `.plist` zmodyfikowanych w ciągu ostatnich 90 dni. Zainstalowane aplikacje są rozpoznawane po własnym identyfikatorze pakietu oraz po identyfikatorach zagnieżdżonych w nich aplikacji pomocniczych, elementów logowania i rozszerzeń, także dla aplikacji w `/Library/Application Support`. Jeśli identyfikatora pakietu którejkolwiek zainstalowanej aplikacji nie da się odczytać, w danym przebiegu nie są zgłaszane żadne osierocone preferencje. Folder w `~/Downloads` jest uznawany za stary tylko wtedy, gdy nic w nim nie zmieniło się w ciągu ostatnich 90 dni; foldery zbyt głębokie lub zbyt duże, by je w pełni sprawdzić, są pomijane.
 
 ### Pamięci podręczne aplikacji kreatywnych
 - **Pamięć podręczna Adobe** — `~/Library/Caches/Adobe/` (bezpieczne)
@@ -382,7 +384,7 @@ mac-cleaner schedule uninstall   # usuń agenta
 |-------|------|
 | `--at HH:MM` | Godzina uruchomienia, format 24-godzinny (domyślnie `03:00`) |
 | `--weekdays` | Dni rozdzielone przecinkami, np. `mon,wed,fri` (domyślnie codziennie) |
-| `--targets` | Elementy do czyszczenia, wg nazw flag `scan` (domyślnie `derived-data`) |
+| `--targets` | Elementy cache do czyszczenia, wg nazw flag `scan` (domyślnie `derived-data`). Elementy ryzykowne i zawierające dane użytkownika są odrzucane (patrz niżej) |
 | `--simulator-caches` | Czyść także cache symulatora iOS |
 | `--even-if-running` | Czyść nawet gdy Xcode jest uruchomiony (domyślnie uruchomienie jest pomijane) |
 
@@ -390,6 +392,7 @@ Uwagi:
 - Jeśli Mac śpi o zaplanowanej godzinie, zadanie uruchomi się po wybudzeniu; jeśli jest wyłączony, to uruchomienie zostanie pominięte.
 - Wyjście jest dopisywane do `~/Library/Logs/mac-cleaner/scheduled.log`.
 - Ponowne `install` zastępuje istniejący harmonogram. Przy instalacji przez Homebrew używana jest stała ścieżka `/opt/homebrew/bin/mac-cleaner`, więc aktualizacje nie psują harmonogramu.
+- Ponieważ zaplanowane przebiegi usuwają bez pytania, `install` odrzuca cele ryzykowne lub zawierające dane użytkownika, np. `large-files`, `old-files`, `orphaned-prefs`, `old-downloads`, `ios-backups`, `mail`, `messages`, `xcode-archives`, `docker` i cele maszyn wirtualnych. `derived-data` to jedyny wyjątek oznaczony jako ryzykowny, bo Xcode odtwarza go samodzielnie.
 
 ## Licencja
 

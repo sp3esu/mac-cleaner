@@ -36,7 +36,7 @@ Un outil CLI rapide et sûr pour récupérer de l'espace disque sous macOS.
 - **.build (Swift)** — repertoires `.build/` dans les projets Swift Package Manager (sur)
 - **target (Rust)** — repertoires `target/` dans les projets Cargo/Rust (sur)
 - **venv (Python)** — repertoires `venv/` et `.venv/` dans les projets Python (modere)
-- **build (Java/Kotlin)** — repertoires `build/` dans les projets Gradle/Maven (sur)
+- **build (Java/Kotlin)** — répertoires `build/` à côté de `build.gradle` ou `build.gradle.kts` dans les projets Gradle (sûr). Un `build/` à côté d'un seul `pom.xml` n'est pas signalé : Maven écrit sa sortie dans `target/`, donc `build/` y contient généralement des fichiers écrits à la main.
 
 Les caches de projets sont detectes en parcourant votre repertoire personnel et en validant chaque candidat par rapport a son fichier manifeste (par exemple, `package.json` pour node_modules, `Cargo.toml` pour target). Les projets inactifs depuis plus de 6 mois sont signales par un indicateur d'inactivite.
 
@@ -44,7 +44,7 @@ Les caches de projets sont detectes en parcourant votre repertoire personnel et 
 - **Gros fichiers (>100 Mo)** — fichiers de plus de 100 Mo dans votre repertoire personnel (risque)
 - **Anciens fichiers (>180 jours)** — fichiers de plus de 180 jours et de plus de 10 Mo dans votre repertoire personnel (risque)
 
-L'analyse du repertoire personnel exclut `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` et les repertoires de fichiers caches (par exemple, `~/.config`). Les resultats sont marques comme "risques" car ce sont des fichiers personnels, pas des caches regenerables.
+L'analyse du repertoire personnel exclut `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` et les repertoires de fichiers caches (par exemple, `~/.config`). Les resultats sont marques comme "risques" car ce sont des fichiers personnels, pas des caches regenerables. L'analyse n'entre jamais non plus dans les paquets et bibliothèques macOS (`.photoslibrary`, `.musiclibrary`, `.tvlibrary`, `.imovielibrary`, `.fcpbundle`, `.logicx`, `.app`, `.bundle`, `.framework`, `.sparsebundle`, `.pvm`, `.vmwarevm`, `.utm`), les métadonnées de gestion de versions (`.git`, `.hg`, `.svn`), les outils installés (`~/bin`, `~/go/bin`) ni les dossiers multimédias de Musique et TV (`~/Music/Music`, `~/Movies/TV/Media.localized`) : supprimer un seul fichier à l'intérieur corrompt toute la bibliothèque, le dépôt ou l'installation. Les seuils de taille sont comparés à l'espace disque réellement alloué, donc un fichier creux (par exemple une image disque de VM) qui occupe peu d'espace n'est pas considéré comme volumineux.
 
 > **Remarque :** Les fichiers de remplacement iCloud Drive peuvent afficher leur taille originale meme lorsqu'ils sont supprimes du stockage local.
 
@@ -59,6 +59,8 @@ Le nettoyage des depots Git decouvre les repertoires `.git` sous votre dossier p
 - **Préférences orphelines** — fichiers `.plist` dans `~/Library/Preferences/` pour les applications désinstallées (risqué)
 - **Sauvegardes d'appareils iOS** — `~/Library/Application Support/MobileSync/Backup/` (risqué)
 - **Anciens téléchargements** — fichiers dans `~/Downloads/` de plus de 90 jours (modéré)
+
+Les préférences orphelines n'incluent jamais les domaines système de macOS (noms sans point de style reverse-DNS comme `loginwindow`, fichiers cachés comme `.GlobalPreferences`, tout ce qui contient `com.apple.`, `systemgroup.*` et `org.cups.PrintingPrefs`) ni les `.plist` modifiés au cours des 90 derniers jours. Les applications installées sont reconnues par leur propre identifiant de bundle et par ceux des applications d'assistance, éléments de connexion et extensions qu'elles contiennent, y compris pour les applications sous `/Library/Application Support`. Si l'identifiant de bundle d'une application installée ne peut pas être lu, aucune préférence orpheline n'est signalée pour cette exécution. Un dossier de `~/Downloads` n'est considéré comme ancien que si rien à l'intérieur n'a été modifié au cours des 90 derniers jours ; les dossiers trop profonds ou trop volumineux pour être entièrement vérifiés sont ignorés.
 
 ### Caches des applications créatives
 - **Caches Adobe** — `~/Library/Caches/Adobe/` (sûr)
@@ -382,7 +384,7 @@ mac-cleaner schedule uninstall   # supprimer l'agent
 |---------|-------------|
 | `--at HH:MM` | Heure d'exécution, format 24 h (par défaut `03:00`) |
 | `--weekdays` | Jours séparés par des virgules, p. ex. `mon,wed,fri` (par défaut tous les jours) |
-| `--targets` | Éléments à nettoyer, avec les noms de drapeaux de `scan` (par défaut `derived-data`) |
+| `--targets` | Éléments de cache à nettoyer, avec les noms de drapeaux de `scan` (par défaut `derived-data`). Les éléments risqués ou contenant des données utilisateur sont refusés (voir ci-dessous) |
 | `--simulator-caches` | Nettoyer aussi les caches du Simulateur iOS |
 | `--even-if-running` | Nettoyer même si Xcode est ouvert (par défaut l'exécution est ignorée) |
 
@@ -390,6 +392,7 @@ Remarques :
 - Si le Mac est en veille à l'heure prévue, la tâche s'exécute au réveil ; s'il est éteint, cette exécution est ignorée.
 - La sortie est ajoutée à `~/Library/Logs/mac-cleaner/scheduled.log`.
 - Relancer `install` remplace la planification existante. En cas d'installation via Homebrew, le chemin stable `/opt/homebrew/bin/mac-cleaner` est utilisé afin que les mises à jour continuent de fonctionner.
+- Comme les exécutions planifiées suppriment sans confirmation, `install` refuse les cibles risquées ou contenant des données utilisateur, comme `large-files`, `old-files`, `orphaned-prefs`, `old-downloads`, `ios-backups`, `mail`, `messages`, `xcode-archives`, `docker` et les cibles de machines virtuelles. `derived-data` est la seule exception classée risquée, car Xcode la régénère.
 
 ## Licence
 

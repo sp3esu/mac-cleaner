@@ -36,7 +36,7 @@ Ein schnelles, sicheres CLI-Tool zur Rückgewinnung von Speicherplatz unter macO
 - **.build (Swift)** — `.build/`-Verzeichnisse in Swift-Package-Manager-Projekten (sicher)
 - **target (Rust)** — `target/`-Verzeichnisse in Cargo/Rust-Projekten (sicher)
 - **venv (Python)** — `venv/`- und `.venv/`-Verzeichnisse in Python-Projekten (moderat)
-- **build (Java/Kotlin)** — `build/`-Verzeichnisse in Gradle/Maven-Projekten (sicher)
+- **build (Java/Kotlin)** — `build/`-Verzeichnisse neben `build.gradle` oder `build.gradle.kts` in Gradle-Projekten (sicher). Ein `build/` neben nur einer `pom.xml` wird nicht markiert: Maven schreibt seine Ausgabe nach `target/`, dort enthält `build/` meist handgeschriebene Dateien.
 
 Projekt-Caches werden durch Durchsuchen Ihres Home-Verzeichnisses erkannt und gegen die jeweilige Manifest-Datei validiert (z.B. `package.json` fuer node_modules, `Cargo.toml` fuer target). Projekte, die seit ueber 6 Monaten inaktiv sind, werden mit einem Inaktivitaetsindikator markiert.
 
@@ -44,7 +44,7 @@ Projekt-Caches werden durch Durchsuchen Ihres Home-Verzeichnisses erkannt und ge
 - **Grosse Dateien (>100 MB)** — Dateien groesser als 100 MB in Ihrem Home-Verzeichnis (riskant)
 - **Alte Dateien (>180 Tage)** — Dateien aelter als 180 Tage und groesser als 10 MB in Ihrem Home-Verzeichnis (riskant)
 
-Die Home-Verzeichnis-Suche schliesst `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` und Dotfile-Verzeichnisse (z.B. `~/.config`) aus. Ergebnisse werden als "riskant" markiert, da es sich um persoenliche Dateien handelt, nicht um regenerierbare Caches.
+Die Home-Verzeichnis-Suche schliesst `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads` und Dotfile-Verzeichnisse (z.B. `~/.config`) aus. Ergebnisse werden als "riskant" markiert, da es sich um persoenliche Dateien handelt, nicht um regenerierbare Caches. Außerdem steigt sie nie in macOS-Pakete und App-Bibliotheken (`.photoslibrary`, `.musiclibrary`, `.tvlibrary`, `.imovielibrary`, `.fcpbundle`, `.logicx`, `.app`, `.bundle`, `.framework`, `.sparsebundle`, `.pvm`, `.vmwarevm`, `.utm`), Versionskontroll-Metadaten (`.git`, `.hg`, `.svn`), installierte Werkzeuge (`~/bin`, `~/go/bin`) oder die Musik- und TV-Medienordner (`~/Music/Music`, `~/Movies/TV/Media.localized`) ab: Das Löschen einer einzelnen Datei darin beschädigt die ganze Mediathek, das Repository bzw. die Installation. Die Größenschwellen werden mit dem tatsächlich belegten Speicherplatz verglichen, daher gilt eine Sparse-Datei (etwa ein VM-Image), die wenig Platz belegt, nicht als groß.
 
 > **Hinweis:** iCloud-Drive-Platzhalterdateien koennen ihre urspruengliche Groesse anzeigen, auch wenn sie nicht lokal gespeichert sind.
 
@@ -59,6 +59,8 @@ Die Git-Repository-Bereinigung entdeckt `.git`-Verzeichnisse unter Ihrem Home-Or
 - **Verwaiste Einstellungen** — `.plist`-Dateien in `~/Library/Preferences/` für deinstallierte Apps (riskant)
 - **iOS-Gerätesicherungen** — `~/Library/Application Support/MobileSync/Backup/` (riskant)
 - **Alte Downloads** — Dateien in `~/Downloads/` älter als 90 Tage (moderat)
+
+Verwaiste Einstellungen umfassen nie macOS-Systemdomänen (Namen ohne Reverse-DNS-Punkt wie `loginwindow`, Dotfiles wie `.GlobalPreferences`, alles mit `com.apple.`, `systemgroup.*` sowie `org.cups.PrintingPrefs`) und keine `.plist`, die in den letzten 90 Tagen geändert wurde. Installierte Apps werden an ihrer eigenen Bundle-ID und an den IDs der darin enthaltenen Hilfs-Apps, Anmeldeobjekte und Erweiterungen erkannt, auch bei Apps unter `/Library/Application Support`. Kann die Bundle-ID einer installierten App nicht gelesen werden, werden in diesem Lauf keine verwaisten Einstellungen gemeldet. Ein Ordner in `~/Downloads` gilt nur dann als alt, wenn darin in den letzten 90 Tagen nichts geändert wurde; Ordner, die für eine vollständige Prüfung zu tief oder zu groß sind, bleiben unangetastet.
 
 ### Kreativ-App-Caches
 - **Adobe-Caches** — `~/Library/Caches/Adobe/` (sicher)
@@ -382,7 +384,7 @@ mac-cleaner schedule uninstall   # Agenten entfernen
 |------|--------------|
 | `--at HH:MM` | Uhrzeit im 24-Stunden-Format (Standard `03:00`) |
 | `--weekdays` | Kommagetrennte Tage, z. B. `mon,wed,fri` (Standard: jeden Tag) |
-| `--targets` | Zu bereinigende Elemente, als `scan`-Flag-Namen (Standard `derived-data`) |
+| `--targets` | Zu bereinigende Cache-Elemente, als `scan`-Flag-Namen (Standard `derived-data`). Riskante Elemente und Elemente mit Benutzerdaten werden abgelehnt (siehe unten) |
 | `--simulator-caches` | Zusätzlich iOS-Simulator-Caches bereinigen |
 | `--even-if-running` | Auch bereinigen, während Xcode läuft (standardmäßig wird der Lauf übersprungen) |
 
@@ -390,6 +392,7 @@ Hinweise:
 - Schläft der Mac zur geplanten Zeit, wird der Job beim Aufwachen ausgeführt; ist er ausgeschaltet, entfällt dieser Lauf.
 - Die Ausgabe wird an `~/Library/Logs/mac-cleaner/scheduled.log` angehängt.
 - Ein erneutes `install` ersetzt den bestehenden Zeitplan. Bei Installation über Homebrew wird der stabile Pfad `/opt/homebrew/bin/mac-cleaner` verwendet, damit Upgrades weiter funktionieren.
+- Da geplante Läufe ohne Rückfrage löschen, lehnt `install` Ziele ab, die riskant sind oder Benutzerdaten enthalten, etwa `large-files`, `old-files`, `orphaned-prefs`, `old-downloads`, `ios-backups`, `mail`, `messages`, `xcode-archives`, `docker` und die VM-Ziele. `derived-data` ist die einzige als riskant eingestufte Ausnahme, da Xcode es neu erzeugt.
 
 ## Lizenz
 

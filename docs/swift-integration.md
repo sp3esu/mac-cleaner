@@ -81,7 +81,7 @@ Run a full scan with streaming progress. Optional `skip` param filters category 
 ← {"id":"3","type":"result","result":{"categories":[...],"total_size":12345678,"token":"a1b2c3d4..."}}
 ```
 
-Each entry may carry an optional `components` array that breaks its `size` down into the paths it was summed from. It is present only when the size covers more than the entry's `path`, or when cleanup does not delete `path` (for example unused apps, Docker, git repositories, Time Machine snapshots). Component sizes sum to the entry `size`; `removed` tells whether cleanup deletes that path. Cleanup only ever deletes the entry's `path`. Decoders that ignore unknown keys (Swift `Codable` default) are unaffected.
+Each entry may carry an optional `components` array that breaks its `size` down into the paths it was summed from. It is present only when the size covers more than the entry's `path`, or when cleanup does not delete `path` (for example unused apps, Docker, git repositories, Time Machine snapshots). Component sizes sum to the entry `size`; `removed` tells whether cleanup deletes that path. Cleanup deletes at most the entry's `path` (for `git-gc:` entries it runs `git gc` instead of deleting files). The same path can be counted by more than one entry (for example a file in both `home-large-files` and `home-old-files`, or `browser-chrome` inside a `system-caches` directory); `components` does not flag this, so clients that sum sizes across categories should de-duplicate by path. Decoders that ignore unknown keys (Swift `Codable` default) are unaffected.
 
 ```json
 {"path":"/Applications/Docker.app","description":"Docker (last used Dec 2024)","size":71400000000,"risk_level":"risky",

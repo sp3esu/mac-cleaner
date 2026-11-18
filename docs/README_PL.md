@@ -255,7 +255,9 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 
 ### Szczegółowy rozkład rozmiarów
 
-Z `--verbose` każdy wpis pokazuje swoją ścieżkę. Gdy rozmiar wpisu obejmuje więcej niż tę ścieżkę albo czyszczenie by jej nie usunęło, wpis wymienia też każdą zliczoną ścieżkę z jej rozmiarem (od największej). Ścieżki, których czyszczenie nie usuwa, są oznaczone `(counted, not removed by cleanup)`, a gdy wartości się różnią, pojawia się linia `cleanup removes X of Y counted`. Przykłady: nieużywane aplikacje (pakiet plus dane w `~/Library`), Docker (szacunek z `docker system df`), repozytoria git (szacunek z `git count-objects`; czyszczenie uruchamia `git gc`), migawki Time Machine (rozmiar niedostępny) oraz pliki z katalogu domowego wymienione zarówno w dużych, jak i starych plikach.
+Z `--verbose` każdy wpis pokazuje swoją ścieżkę. Gdy rozmiar wpisu obejmuje więcej niż tę ścieżkę albo czyszczenie by jej nie usunęło, wpis wymienia też każdą zliczoną ścieżkę z jej rozmiarem (od największej). Ścieżki, których czyszczenie nie usuwa, są oznaczone `(counted, not removed by cleanup)`, a gdy wartości się różnią, pojawia się linia `cleanup removes X of Y counted`. Przykłady: nieużywane aplikacje (pakiet plus dane w `~/Library`), Docker (szacunek z `docker system df`), repozytoria git (szacunek z `git count-objects`; czyszczenie uruchamia `git gc`) oraz migawki Time Machine (rozmiar niedostępny).
+
+Na końcu przebiegu z `--verbose` sekcja `Counted More Than Once` wymienia każdą ścieżkę zliczoną przez więcej niż jeden wpis: ten sam plik w dużych i starych plikach albo ścieżkę zagnieżdżoną w ścieżce innej kategorii (np. pamięć podręczna Chrome w `~/Library/Caches/Google`, którą zlicza też kategoria pamięci podręcznych aplikacji). Pokazuje, które kategorie ją zliczają, sumę z każdym bajtem policzonym raz oraz ile usunęłoby czyszczenie przy każdej ścieżce policzonej raz. Sekcja pojawia się tylko wtedy, gdy takie ścieżki występują wśród skanowanych (i niepominiętych) kategorii.
 
 ```
       Docker (last used Dec 2024)  [risky]    71.4 GB
@@ -265,7 +267,7 @@ Z `--verbose` każdy wpis pokazuje swoją ścieżkę. Gdy rozmiar wpisu obejmuje
           cleanup removes 0 B of 71.4 GB counted
 ```
 
-Rozmiary to pozorne rozmiary plików (długość logiczna), więc mogą różnić się od `du` lub Findera dla plików rzadkich, np. obrazów dysków. W wyniku `--json` ten sam rozkład jest dostępny jako opcjonalna tablica `components` przy każdym wpisie.
+Rozmiary to pozorne rozmiary plików (długość logiczna) w jednostkach SI (1 GB = 10^9 bajtów, jak w Finderze). `du -h` pokazuje zajętość dysku w jednostkach opartych na 1024, więc liczby się różnią, zwłaszcza dla plików rzadkich, np. obrazów dysków. Rozmiary dla Dockera i gita są szacunkowe. W wyniku `--json` ten sam rozkład jest dostępny jako opcjonalna tablica `components` przy każdym wpisie.
 
 ### Flagi pomijania kategorii
 

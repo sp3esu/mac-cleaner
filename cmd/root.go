@@ -185,6 +185,7 @@ Examples:
 			allResults = engine.FilterSkipped(allResults, buildSkipSet())
 			printPermissionIssues(allResults)
 			printDryRunSummary(os.Stdout, allResults)
+			printOverlaps(os.Stdout, allResults)
 			if len(allResults) == 0 {
 				fmt.Println("Nothing to clean.")
 				return
@@ -230,11 +231,15 @@ Examples:
 
 		if flagDryRun && !flagJSON {
 			printDryRunSummary(os.Stdout, allResults)
+			printOverlaps(os.Stdout, allResults)
 			return
 		}
 
 		// Deletion flow: only when not in dry-run mode and there are results.
 		if !flagDryRun && len(allResults) > 0 {
+			if !flagJSON {
+				printOverlaps(os.Stdout, allResults)
+			}
 			if !flagForce {
 				if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
 					fmt.Println("Aborted.")
@@ -698,9 +703,11 @@ func printResults(results []scan.CategoryResult, dryRun bool, title string) {
 var verboseLegendShown bool
 
 // verboseLegend explains how to read the verbose size breakdown.
-const verboseLegend = "  Sizes are apparent file sizes (logical length; may differ from du/Finder disk usage).\n" +
+const verboseLegend = "  Sizes are apparent file sizes (logical length) in SI units (1 GB = 10^9 bytes, as in Finder);\n" +
+	"  du -h shows disk usage in 1024-based units, so its numbers differ. Docker and git sizes are estimates.\n" +
 	"  Under each entry: its path, then (where present) every path counted in its size,\n" +
-	"  largest first, marked when cleanup does not remove it.\n"
+	"  largest first, marked when cleanup does not remove it. Paths counted by more than one\n" +
+	"  entry, if any, are listed under \"Counted More Than Once\" at the end.\n"
 
 // printBreakdown prints, in verbose mode, the paths an entry's size was summed
 // from (largest first), marking those cleanup does not remove, followed by

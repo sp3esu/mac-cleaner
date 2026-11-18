@@ -68,25 +68,21 @@ func scanFrom(root string) ([]scan.CategoryResult, error) {
 			mtime := info.ModTime()
 			age := now.Sub(mtime)
 
-			isLarge := size >= defaultSizeThreshold
-			// Old files must also meet the minimum size.
-			isOld := age >= defaultAgeThreshold && size >= defaultOldFileMinSize
-
-			if isLarge {
+			// Check large file threshold.
+			if size >= defaultSizeThreshold {
 				largeFiles = append(largeFiles, scan.ScanEntry{
 					Path:        path,
 					Description: filepath.Base(path),
 					Size:        size,
-					Components:  duplicateComponents(isOld, path, size, "Old Files"),
 				})
 			}
 
-			if isOld {
+			// Check old file threshold (must also meet minimum size).
+			if age >= defaultAgeThreshold && size >= defaultOldFileMinSize {
 				oldFiles = append(oldFiles, scan.ScanEntry{
 					Path:        path,
 					Description: filepath.Base(path) + "  " + formatAge(mtime),
 					Size:        size,
-					Components:  duplicateComponents(isLarge, path, size, "Large Files"),
 				})
 			}
 		},
@@ -140,21 +136,6 @@ func scanFrom(root string) ([]scan.CategoryResult, error) {
 	}
 
 	return results, nil
-}
-
-// duplicateComponents returns a size breakdown flagging that the file is
-// also listed in the other category (and therefore counted in both
-// totals). It returns nil when the file appears in only one category.
-func duplicateComponents(duplicate bool, path string, size int64, otherCategory string) []scan.SizeComponent {
-	if !duplicate {
-		return nil
-	}
-	return []scan.SizeComponent{{
-		Path:    path,
-		Size:    size,
-		Removed: true,
-		Note:    "also listed under " + otherCategory + "; counted in both totals",
-	}}
 }
 
 // formatAge formats a time as a human-readable age string.

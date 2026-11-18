@@ -255,7 +255,9 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 
 ### Détail des tailles en mode verbeux
 
-Avec `--verbose`, chaque entrée affiche son chemin. Lorsque la taille d'une entrée couvre plus que ce chemin, ou que le nettoyage ne le supprimerait pas, l'entrée liste aussi chaque chemin compté avec sa taille (le plus grand d'abord). Les chemins que le nettoyage ne supprime pas sont marqués `(counted, not removed by cleanup)`, et une ligne `cleanup removes X of Y counted` apparaît lorsque les deux valeurs diffèrent. Exemples : applications inutilisées (bundle plus données dans `~/Library`), Docker (estimation issue de `docker system df`), dépôts git (estimation issue de `git count-objects` ; le nettoyage exécute `git gc`), instantanés Time Machine (taille indisponible) et fichiers du dossier personnel listés à la fois dans les gros et les vieux fichiers.
+Avec `--verbose`, chaque entrée affiche son chemin. Lorsque la taille d'une entrée couvre plus que ce chemin, ou que le nettoyage ne le supprimerait pas, l'entrée liste aussi chaque chemin compté avec sa taille (le plus grand d'abord). Les chemins que le nettoyage ne supprime pas sont marqués `(counted, not removed by cleanup)`, et une ligne `cleanup removes X of Y counted` apparaît lorsque les deux valeurs diffèrent. Exemples : applications inutilisées (bundle plus données dans `~/Library`), Docker (estimation issue de `docker system df`), dépôts git (estimation issue de `git count-objects` ; le nettoyage exécute `git gc`) et instantanés Time Machine (taille indisponible).
+
+À la fin d'une exécution verbeuse, une section `Counted More Than Once` liste chaque chemin compté par plus d'une entrée : le même fichier dans les gros et les vieux fichiers, ou un chemin imbriqué dans le chemin d'une autre catégorie (par exemple le cache de Chrome dans `~/Library/Caches/Google`, que les caches d'applications comptent aussi). Elle indique quelles catégories le comptent, le total avec chaque octet compté une seule fois, et ce que le nettoyage supprimerait avec chaque chemin compté une seule fois. La section n'apparaît que si de tels chemins existent parmi les catégories analysées (et non ignorées).
 
 ```
       Docker (last used Dec 2024)  [risky]    71.4 GB
@@ -265,7 +267,7 @@ Avec `--verbose`, chaque entrée affiche son chemin. Lorsque la taille d'une ent
           cleanup removes 0 B of 71.4 GB counted
 ```
 
-Les tailles sont des tailles apparentes (longueur logique) et peuvent donc différer de `du` ou du Finder pour les fichiers creux comme les images disque. Dans la sortie `--json`, le même détail est disponible sous forme de tableau optionnel `components` sur chaque entrée.
+Les tailles sont des tailles apparentes (longueur logique) en unités SI (1 GB = 10^9 octets, comme dans le Finder). `du -h` indique l'occupation disque en unités de 1024, d'où des chiffres différents, surtout pour les fichiers creux comme les images disque. Les tailles de Docker et de git sont des estimations. Dans la sortie `--json`, le même détail est disponible sous forme de tableau optionnel `components` sur chaque entrée.
 
 ### Drapeaux d'exclusion de catégories
 

@@ -44,9 +44,6 @@ func TestLargeFiles(t *testing.T) {
 			if cr.Entries[0].Size != 150*1024*1024 {
 				t.Errorf("expected size %d, got %d", 150*1024*1024, cr.Entries[0].Size)
 			}
-			if cr.Entries[0].Components != nil {
-				t.Errorf("file in one category only should have no breakdown, got %+v", cr.Entries[0].Components)
-			}
 		}
 	}
 	if !found {
@@ -161,21 +158,11 @@ func TestDualCategory(t *testing.T) {
 	for _, cr := range results {
 		for _, e := range cr.Entries {
 			if e.Path == dualFile {
-				want := ""
 				if cr.Category == "home-large-files" {
 					foundLarge = true
-					want = "also listed under Old Files; counted in both totals"
 				}
 				if cr.Category == "home-old-files" {
 					foundOld = true
-					want = "also listed under Large Files; counted in both totals"
-				}
-				if len(e.Components) != 1 {
-					t.Fatalf("%s: expected 1 component flagging the duplicate, got %+v", cr.Category, e.Components)
-				}
-				c := e.Components[0]
-				if c.Path != dualFile || c.Size != e.Size || !c.Removed || c.Note != want {
-					t.Errorf("%s: unexpected component %+v", cr.Category, c)
 				}
 			}
 		}

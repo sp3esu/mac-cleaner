@@ -170,10 +170,14 @@ Examples:
 
 		if flagDryRun && !flagJSON {
 			printDryRunSummary(os.Stdout, allResults)
+			printOverlaps(os.Stdout, allResults)
 			return
 		}
 
 		if !flagDryRun && len(allResults) > 0 {
+			if !flagJSON {
+				printOverlaps(os.Stdout, allResults)
+			}
 			if !flagForce {
 				if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
 					fmt.Println("Aborted.")

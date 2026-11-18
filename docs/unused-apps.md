@@ -33,6 +33,23 @@ Each unused app's reported size includes:
 | `~/Library/Cookies/<id>.binarycookies` | Bundle ID |
 | `~/Library/LaunchAgents/<id>*.plist` | Bundle ID (glob) |
 
+Paths are listed with the case they have on disk (for example `Application Support/discord` for an app named Discord), and a directory matched by both bundle ID and app name is counted once.
+
+## When an App Is Not Reported
+
+An app whose last-used date is older than the threshold, or missing, is still left out when any of these checks shows it is in use:
+
+| Check | Rule |
+|-------|------|
+| Running | An executable inside the bundle is in the process list (`ps -axo comm=`, read once per scan) |
+| launchd job | A plist in `~/Library/LaunchAgents`, `/Library/LaunchAgents` or `/Library/LaunchDaemons` whose `Program`, `ProgramArguments[0]` or `BundleProgram` points inside the bundle, or whose `AssociatedBundleIdentifiers` contains the app's bundle ID (read with `plutil -convert json`) |
+| Recent app data | Something modified within the threshold in `Preferences/<id>.plist`, `Preferences/ByHost/<id>.*.plist`, `Group Containers/<id>` or `Group Containers/<prefix>.<id>`, `Containers/<id>` and `Containers/<id>/Data`, `Application Support/<id or name>`, `Caches/<id>`, `Saved Application State`, `HTTPStorages`, `WebKit` or `Logs`. Directories are searched for their newest entry, up to 4 levels deep and 5,000 entries each, so a disk image written deep inside an old folder counts |
+| Recently installed | `kMDItemLastUsedDate` is `(null)` and `kMDItemDateAdded` is within the threshold |
+| Extension host | The bundle contains `Contents/PlugIns/*.appex`, `Contents/Library/QuickLook`, `Contents/Library/Spotlight` or `Contents/Library/SystemExtensions`. Such apps work through Finder, Quick Look, Safari or the system without being opened |
+| Apple app | The bundle ID starts with `com.apple.` |
+
+If the process list cannot be read, no app is reported in that scan and a note explains why. An app with neither a last-used date nor a date added is reported as `(no usage history)` only when none of the checks above apply.
+
 ## Default Threshold
 
 Applications not opened in **180 days** (approximately 6 months) are flagged as unused. Apps opened more recently are excluded from results.

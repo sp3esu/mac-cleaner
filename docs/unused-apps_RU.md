@@ -33,6 +33,23 @@ mdls -name kMDItemLastUsedDate -raw /Applications/SomeApp.app
 | `~/Library/Cookies/<id>.binarycookies` | Bundle ID |
 | `~/Library/LaunchAgents/<id>*.plist` | Bundle ID (glob) |
 
+Пути показываются в том регистре, в котором они записаны на диске (например, `Application Support/discord` для приложения Discord), а директория, найденная и по Bundle ID, и по имени приложения, учитывается один раз.
+
+## Когда приложение не попадает в отчёт
+
+Приложение, дата последнего использования которого старше порога или отсутствует, всё равно исключается, если любая из этих проверок показывает, что оно используется:
+
+| Проверка | Правило |
+|----------|---------|
+| Запущено | Исполняемый файл внутри пакета есть в списке процессов (`ps -axo comm=`, читается один раз за сканирование) |
+| Задание launchd | plist в `~/Library/LaunchAgents`, `/Library/LaunchAgents` или `/Library/LaunchDaemons`, у которого `Program`, `ProgramArguments[0]` или `BundleProgram` указывает внутрь пакета, либо `AssociatedBundleIdentifiers` содержит Bundle ID приложения (читается через `plutil -convert json`) |
+| Свежие данные приложения | Что-либо изменённое в пределах порога в `Preferences/<id>.plist`, `Preferences/ByHost/<id>.*.plist`, `Group Containers/<id>` или `Group Containers/<префикс>.<id>`, `Containers/<id>` и `Containers/<id>/Data`, `Application Support/<id or name>`, `Caches/<id>`, `Saved Application State`, `HTTPStorages`, `WebKit` или `Logs`. В директориях ищется самая свежая запись, не глубже 4 уровней и не более 5000 записей в каждой, поэтому учитывается и образ диска, который записывается глубоко внутри старой папки |
+| Недавно установлено | `kMDItemLastUsedDate` равно `(null)`, а `kMDItemDateAdded` в пределах порога |
+| Хост расширений | Пакет содержит `Contents/PlugIns/*.appex`, `Contents/Library/QuickLook`, `Contents/Library/Spotlight` или `Contents/Library/SystemExtensions`. Такие приложения работают через Finder, Quick Look, Safari или систему без открытия |
+| Приложение Apple | Bundle ID начинается с `com.apple.` |
+
+Если список процессов прочитать не удалось, в этом сканировании не сообщается ни одно приложение, а примечание объясняет причину. Приложение без даты последнего использования и без даты добавления помечается как `(no usage history)` только если ни одна из проверок выше не сработала.
+
 ## Пороговое значение по умолчанию
 
 Приложения, не открывавшиеся в течение **180 дней** (приблизительно 6 месяцев), помечаются как неиспользуемые. Приложения, открытые позже, не включаются в результаты.

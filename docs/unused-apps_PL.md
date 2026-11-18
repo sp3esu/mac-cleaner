@@ -33,6 +33,23 @@ Raportowany rozmiar każdej nieużywanej aplikacji obejmuje:
 | `~/Library/Cookies/<id>.binarycookies` | Identyfikator pakietu |
 | `~/Library/LaunchAgents/<id>*.plist` | Identyfikator pakietu (glob) |
 
+Ścieżki są pokazywane z wielkością liter taką, jaką mają na dysku (na przykład `Application Support/discord` dla aplikacji o nazwie Discord), a katalog dopasowany zarówno po identyfikatorze pakietu, jak i po nazwie aplikacji jest liczony raz.
+
+## Kiedy aplikacja nie jest zgłaszana
+
+Aplikacja, której data ostatniego użycia jest starsza niż próg lub jej brak, jest mimo to pomijana, gdy którakolwiek z tych kontroli wskazuje, że jest używana:
+
+| Kontrola | Reguła |
+|----------|--------|
+| Działa | Plik wykonywalny z wnętrza pakietu jest na liście procesów (`ps -axo comm=`, odczytywanej raz na skanowanie) |
+| Zadanie launchd | Plik plist w `~/Library/LaunchAgents`, `/Library/LaunchAgents` lub `/Library/LaunchDaemons`, którego `Program`, `ProgramArguments[0]` lub `BundleProgram` wskazuje do wnętrza pakietu albo którego `AssociatedBundleIdentifiers` zawiera identyfikator pakietu aplikacji (odczytywany przez `plutil -convert json`) |
+| Świeże dane aplikacji | Coś zmienionego w okresie progu w `Preferences/<id>.plist`, `Preferences/ByHost/<id>.*.plist`, `Group Containers/<id>` lub `Group Containers/<prefiks>.<id>`, `Containers/<id>` i `Containers/<id>/Data`, `Application Support/<id lub nazwa>`, `Caches/<id>`, `Saved Application State`, `HTTPStorages`, `WebKit` lub `Logs`. W katalogach szukany jest najnowszy wpis, do 4 poziomów w głąb i najwyżej 5000 wpisów w każdym, więc liczy się też obraz dysku zapisywany głęboko w starym folderze |
+| Niedawno zainstalowana | `kMDItemLastUsedDate` to `(null)`, a `kMDItemDateAdded` mieści się w okresie progu |
+| Host rozszerzeń | Pakiet zawiera `Contents/PlugIns/*.appex`, `Contents/Library/QuickLook`, `Contents/Library/Spotlight` lub `Contents/Library/SystemExtensions`. Takie aplikacje działają przez Findera, Szybki przegląd, Safari lub system bez otwierania |
+| Aplikacja Apple | Identyfikator pakietu zaczyna się od `com.apple.` |
+
+Jeśli listy procesów nie da się odczytać, w tym skanowaniu nie jest zgłaszana żadna aplikacja, a komunikat wyjaśnia dlaczego. Aplikacja bez daty ostatniego użycia i bez daty dodania jest zgłaszana jako `(no usage history)` tylko wtedy, gdy żadna z powyższych kontroli nie ma zastosowania.
+
 ## Domyślny próg
 
 Aplikacje nieotwierane przez **180 dni** (około 6 miesięcy) są oznaczane jako nieużywane. Aplikacje otwierane w tym czasie są wykluczane z wyników.

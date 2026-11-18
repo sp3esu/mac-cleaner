@@ -33,6 +33,23 @@ Der gemeldete Speicherverbrauch jeder ungenutzten App beinhaltet:
 | `~/Library/Cookies/<id>.binarycookies` | Bundle-ID |
 | `~/Library/LaunchAgents/<id>*.plist` | Bundle-ID (Glob) |
 
+Pfade werden in der Schreibweise angezeigt, die sie auf der Festplatte haben (zum Beispiel `Application Support/discord` für eine App namens Discord), und ein Verzeichnis, das sowohl über die Bundle-ID als auch über den App-Namen gefunden wird, wird nur einmal gezählt.
+
+## Wann eine App nicht gemeldet wird
+
+Eine App, deren letztes Nutzungsdatum älter als der Schwellenwert ist oder fehlt, wird trotzdem ausgelassen, wenn eine dieser Prüfungen zeigt, dass sie verwendet wird:
+
+| Prüfung | Regel |
+|---------|-------|
+| Läuft | Eine ausführbare Datei innerhalb des Bundles steht in der Prozessliste (`ps -axo comm=`, einmal pro Scan gelesen) |
+| launchd-Job | Eine plist in `~/Library/LaunchAgents`, `/Library/LaunchAgents` oder `/Library/LaunchDaemons`, deren `Program`, `ProgramArguments[0]` oder `BundleProgram` in das Bundle zeigt oder deren `AssociatedBundleIdentifiers` die Bundle-ID der App enthält (gelesen mit `plutil -convert json`) |
+| Aktuelle App-Daten | Etwas innerhalb des Schwellenwerts geändert in `Preferences/<id>.plist`, `Preferences/ByHost/<id>.*.plist`, `Group Containers/<id>` oder `Group Containers/<präfix>.<id>`, `Containers/<id>` und `Containers/<id>/Data`, `Application Support/<id or name>`, `Caches/<id>`, `Saved Application State`, `HTTPStorages`, `WebKit` oder `Logs`. Verzeichnisse werden nach ihrem neuesten Eintrag durchsucht, bis zu 4 Ebenen tief und je höchstens 5.000 Einträge, sodass auch ein tief in einem alten Ordner beschriebenes Disk-Image zählt |
+| Kürzlich installiert | `kMDItemLastUsedDate` ist `(null)` und `kMDItemDateAdded` liegt innerhalb des Schwellenwerts |
+| Erweiterungs-Host | Das Bundle enthält `Contents/PlugIns/*.appex`, `Contents/Library/QuickLook`, `Contents/Library/Spotlight` oder `Contents/Library/SystemExtensions`. Solche Apps arbeiten über Finder, Quick Look, Safari oder das System, ohne geöffnet zu werden |
+| Apple-App | Die Bundle-ID beginnt mit `com.apple.` |
+
+Kann die Prozessliste nicht gelesen werden, wird in diesem Scan keine App gemeldet, und ein Hinweis erklärt den Grund. Eine App ohne letztes Nutzungsdatum und ohne Hinzufügedatum wird nur dann als `(no usage history)` gemeldet, wenn keine der obigen Prüfungen zutrifft.
+
 ## Standard-Schwellenwert
 
 Anwendungen, die seit **180 Tagen** (ca. 6 Monate) nicht geöffnet wurden, werden als unbenutzt markiert. Kürzlich geöffnete Apps werden aus den Ergebnissen ausgeschlossen.

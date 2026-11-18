@@ -90,7 +90,7 @@ Die Git-Repository-Bereinigung entdeckt `.git`-Verzeichnisse unter Ihrem Home-Or
 - **VMware Fusion-VMs** — `~/Virtual Machines.localized/` Disk-Images (riskant)
 
 ### Unbenutzte Anwendungen
-- **Unbenutzte Apps** — Anwendungen in `/Applications` und `~/Applications`, die seit über 180 Tagen nicht geöffnet wurden, mit gesamtem Speicherverbrauch einschließlich `~/Library/`-Daten (riskant)
+- **Unbenutzte Apps** — Anwendungen in `/Applications` und `~/Applications`, die seit über 180 Tagen nicht geöffnet wurden, mit gesamtem Speicherverbrauch einschließlich `~/Library/`-Daten (riskant). Apps, die laufen, einen launchd-Job haben, in diesem Zeitraum `~/Library/`-Daten geschrieben haben oder installiert wurden oder Erweiterungen bereitstellen (Quick Look, Spotlight, Safari u. Ä.), werden nicht aufgeführt
 
 Details finden Sie in der Dokumentation [Erkennung unbenutzter Anwendungen](unused-apps_DE.md).
 

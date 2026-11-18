@@ -33,6 +33,23 @@ La taille rapportée pour chaque application inutilisée comprend :
 | `~/Library/Cookies/<id>.binarycookies` | Bundle ID |
 | `~/Library/LaunchAgents/<id>*.plist` | Bundle ID (glob) |
 
+Les chemins sont affichés avec la casse qu'ils ont sur le disque (par exemple `Application Support/discord` pour une application nommée Discord), et un répertoire trouvé à la fois par le bundle ID et par le nom de l'application n'est compté qu'une fois.
+
+## Quand une application n'est pas signalée
+
+Une application dont la date de dernière utilisation est plus ancienne que le seuil, ou absente, est tout de même écartée si l'une de ces vérifications montre qu'elle est utilisée :
+
+| Vérification | Règle |
+|--------------|-------|
+| En cours d'exécution | Un exécutable situé dans le paquet figure dans la liste des processus (`ps -axo comm=`, lue une fois par analyse) |
+| Tâche launchd | Un plist dans `~/Library/LaunchAgents`, `/Library/LaunchAgents` ou `/Library/LaunchDaemons` dont `Program`, `ProgramArguments[0]` ou `BundleProgram` pointe dans le paquet, ou dont `AssociatedBundleIdentifiers` contient le bundle ID de l'application (lu avec `plutil -convert json`) |
+| Données récentes | Un élément modifié pendant la période du seuil dans `Preferences/<id>.plist`, `Preferences/ByHost/<id>.*.plist`, `Group Containers/<id>` ou `Group Containers/<préfixe>.<id>`, `Containers/<id>` et `Containers/<id>/Data`, `Application Support/<id or name>`, `Caches/<id>`, `Saved Application State`, `HTTPStorages`, `WebKit` ou `Logs`. Les répertoires sont parcourus pour trouver leur entrée la plus récente, sur 4 niveaux au plus et 5 000 entrées chacun, de sorte qu'une image disque écrite au fond d'un ancien dossier compte |
+| Installée récemment | `kMDItemLastUsedDate` vaut `(null)` et `kMDItemDateAdded` est dans la période du seuil |
+| Hôte d'extensions | Le paquet contient `Contents/PlugIns/*.appex`, `Contents/Library/QuickLook`, `Contents/Library/Spotlight` ou `Contents/Library/SystemExtensions`. Ces applications fonctionnent via le Finder, Coup d'œil, Safari ou le système sans être ouvertes |
+| Application Apple | Le bundle ID commence par `com.apple.` |
+
+Si la liste des processus ne peut pas être lue, aucune application n'est signalée lors de cette analyse et une note en explique la raison. Une application sans date de dernière utilisation ni date d'ajout n'est signalée comme `(no usage history)` que si aucune des vérifications ci-dessus ne s'applique.
+
 ## Seuil par défaut
 
 Les applications non ouvertes depuis **180 jours** (environ 6 mois) sont signalées comme inutilisées. Les applications ouvertes plus récemment sont exclues des résultats.

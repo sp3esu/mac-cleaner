@@ -90,7 +90,7 @@ Le nettoyage des depots Git decouvre les repertoires `.git` sous votre dossier p
 - **VMs VMware Fusion** — images disque dans `~/Virtual Machines.localized/` (risqué)
 
 ### Applications inutilisées
-- **Applications inutilisées** — applications dans `/Applications` et `~/Applications` non ouvertes depuis plus de 180 jours, avec l'empreinte disque totale incluant les données `~/Library/` (risqué)
+- **Applications inutilisées** — applications dans `/Applications` et `~/Applications` non ouvertes depuis plus de 180 jours, avec l'empreinte disque totale incluant les données `~/Library/` (risqué). Les applications en cours d'exécution, dotées d'une tâche launchd, ayant écrit des données `~/Library/` ou été installées pendant cette période, ou hébergeant des extensions (Coup d'œil, Spotlight, Safari, etc.) ne sont pas listées
 
 Pour plus de détails, voir [Détection des applications inutilisées](unused-apps_FR.md).
 

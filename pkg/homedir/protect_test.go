@@ -53,6 +53,7 @@ func TestProtectedLocationsNotFlagged(t *testing.T) {
 	protected := []string{
 		"Pictures/Photos Library.photoslibrary/database/Photos.sqlite",
 		"Music/Music/Music Library.musiclibrary/Library.musicdb",
+		"Music/Music/Media.localized/Music/song.m4a",
 		"repo/.git/objects/pack/pack-abc.pack",
 		"go/bin/gopls",
 		"bin/tool",
@@ -115,10 +116,23 @@ func TestPackageSuffixDirIsPruned(t *testing.T) {
 			t.Errorf("skipDir(%q) = false, want true", name)
 		}
 	}
-	for _, name := range []string{"Documents", "photoslibrary", "app", "git", "my.git.backup", "Movies"} {
+	// A name that is only a suffix (".app") is not a package.
+	for _, name := range []string{"Documents", "photoslibrary", "app", ".app", ".photoslibrary", "git", "my.git.backup", "Movies"} {
 		if skipDir(name) {
 			t.Errorf("skipDir(%q) = true, want false", name)
 		}
+	}
+}
+
+// TestRootNamedLikePackageIsWalked: the scan root itself is always walked,
+// even when its name ends in a package suffix.
+func TestRootNamedLikePackageIsWalked(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "home.bundle")
+	iso := filepath.Join(root, "Documents", "big.iso")
+	writeFile(t, iso, 101*1024*1024)
+	got := entryPaths(t, root)
+	if len(got["home-large-files"]) != 1 {
+		t.Errorf("home-large-files = %v, want Documents/big.iso", got["home-large-files"])
 	}
 }
 

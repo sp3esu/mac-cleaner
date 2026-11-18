@@ -187,6 +187,82 @@ func TestOrphanedPrefs_ApplicationSupportApps(t *testing.T) {
 	}
 }
 
+// TestOrphanedPrefs_SymlinkedAppsRecognised: apps installed as symlinks
+// (nix-darwin, home-manager, cryptex links) count as installed, in every
+// searched location. Links to files and dangling links are ignored.
+func TestOrphanedPrefs_SymlinkedAppsRecognised(t *testing.T) {
+	appDir, support := isolateAppRoots(t)
+	home := t.TempDir()
+	store := t.TempDir()
+	link := func(target, name string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(name), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bundle := func(name, id string) string {
+		p := filepath.Join(store, name)
+		writeBundle(t, p, id)
+		return p
+	}
+	// Symlinked .app in a system app dir and in ~/Applications.
+	link(bundle("Sys.app", "com.vendor.sys"), filepath.Join(appDir, "Sys.app"))
+	link(bundle("User.app", "com.vendor.user"), filepath.Join(home, "Applications", "User.app"))
+	// A symlinked vendor folder holding a real .app.
+	vendor := filepath.Join(store, "VendorDir")
+	writeBundle(t, filepath.Join(vendor, "Tool.app"), "com.vendor.tool")
+	link(vendor, filepath.Join(appDir, "Vendor"))
+	// A symlinked vendor folder under /Library/Application Support.
+	agentDir := filepath.Join(store, "AgentDir")
+	writeBundle(t, filepath.Join(agentDir, "Agent.app"), "com.vendor.agent")
+	link(agentDir, filepath.Join(support, "Agent"))
+	// A link to a regular file and a dangling link: not apps, no failure.
+	plain := filepath.Join(store, "plain")
+	writeFile(t, plain, 10)
+	link(plain, filepath.Join(appDir, "File.app"))
+	link(filepath.Join(store, "missing.app"), filepath.Join(appDir, "Dangling.app"))
+	// A link cycle: the bounded depth stops the search.
+	link(appDir, filepath.Join(appDir, "Loop"))
+
+	for _, d := range []string{"com.vendor.sys", "com.vendor.user", "com.vendor.tool", "com.vendor.agent", "com.example.gone"} {
+		writePref(t, home, d)
+	}
+
+	r := &fileRunner{}
+	got := flaggedDomains(t, home, r.run)
+	if strings.Join(got, ",") != "com.example.gone" {
+		t.Errorf("flagged = %v (read %v), want only com.example.gone", got, r.read)
+	}
+}
+
+func TestIsDirOrDirLink(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	file := filepath.Join(dir, "file")
+	if err := os.Mkdir(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, file, 10)
+	for name, target := range map[string]string{"dirlink": sub, "filelink": file, "dangling": filepath.Join(dir, "nope")} {
+		if err := os.Symlink(target, filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"sub": true, "dirlink": true, "file": false, "filelink": false, "dangling": false}
+	for _, e := range entries {
+		if got := isDirOrDirLink(filepath.Join(dir, e.Name()), e); got != want[e.Name()] {
+			t.Errorf("isDirOrDirLink(%s) = %v, want %v", e.Name(), got, want[e.Name()])
+		}
+	}
+}
+
 func TestOrphanedPrefs_RecentlyModifiedNotFlagged(t *testing.T) {
 	isolateAppRoots(t)
 	home := t.TempDir()

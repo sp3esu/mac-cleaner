@@ -278,10 +278,10 @@ func findAppBundles(home string) []string {
 			return
 		}
 		for _, e := range entries {
-			if !e.IsDir() {
+			p := filepath.Join(dir, e.Name())
+			if !isDirOrDirLink(p, e) {
 				continue
 			}
-			p := filepath.Join(dir, e.Name())
 			if strings.HasSuffix(e.Name(), ".app") {
 				add(p)
 			} else if depth > 0 {
@@ -296,12 +296,28 @@ func findAppBundles(home string) []string {
 	// /Library/Application Support/*/*.app and */*/*.app.
 	if entries, err := os.ReadDir(libraryAppSupportDir); err == nil {
 		for _, e := range entries {
-			if e.IsDir() {
-				appsIn(filepath.Join(libraryAppSupportDir, e.Name()), 1)
+			p := filepath.Join(libraryAppSupportDir, e.Name())
+			if isDirOrDirLink(p, e) {
+				appsIn(p, 1)
 			}
 		}
 	}
 	return apps
+}
+
+// isDirOrDirLink reports whether e (found at p) is a directory or a symlink
+// to one. Apps are often installed as symlinks (nix-darwin, home-manager,
+// Apple's cryptex links such as /Applications/Safari.app), and must still
+// count as installed. The search depth is bounded, so link cycles end.
+func isDirOrDirLink(p string, e fs.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&fs.ModeSymlink == 0 {
+		return false
+	}
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
 }
 
 // bundlePlists returns the Info.plist of app and of every .app or .appex

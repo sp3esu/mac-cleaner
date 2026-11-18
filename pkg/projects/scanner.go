@@ -230,7 +230,7 @@ func hasManifest(cacheDirPath string, pt projectType) (string, bool) {
 // Returns empty string if parsing fails.
 func projectNameFromManifest(manifestPath string) string {
 	base := filepath.Base(manifestPath)
-	data, err := os.ReadFile(manifestPath)
+	data, err := os.ReadFile(filepath.Clean(manifestPath))
 	if err != nil {
 		return ""
 	}

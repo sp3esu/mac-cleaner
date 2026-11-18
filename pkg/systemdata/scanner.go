@@ -143,6 +143,9 @@ func scanIOSUpdates(home string) *scan.CategoryResult {
 	return scanMultiDir(paths, "sysdata-ios-updates", "iOS Software Updates")
 }
 
+// timeMachineNote explains Time Machine entries in the size breakdown.
+const timeMachineNote = "local snapshot; size unavailable without root, cleanup does not delete snapshots"
+
 // scanTimeMachine queries tmutil for local APFS snapshots.
 // Snapshots use pseudo-paths (tmutil:snapshot:<name>) since they are not
 // regular filesystem entries. Size is reported as 0 because per-snapshot
@@ -168,10 +171,15 @@ func scanTimeMachine(runner CmdRunner) *scan.CategoryResult {
 
 	var entries []scan.ScanEntry
 	for _, name := range snapshots {
+		path := "tmutil:snapshot:" + name
 		entries = append(entries, scan.ScanEntry{
-			Path:        "tmutil:snapshot:" + name,
+			Path:        path,
 			Description: name,
 			Size:        0,
+			Components: []scan.SizeComponent{{
+				Path: path,
+				Note: timeMachineNote,
+			}},
 		})
 	}
 

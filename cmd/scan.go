@@ -170,10 +170,14 @@ Examples:
 
 		if flagDryRun && !flagJSON {
 			printDryRunSummary(os.Stdout, allResults)
+			printOverlaps(os.Stdout, allResults)
 			return
 		}
 
 		if !flagDryRun && len(allResults) > 0 {
+			if !flagJSON {
+				printOverlaps(os.Stdout, allResults)
+			}
 			if !flagForce {
 				if !confirm.PromptConfirmation(os.Stdin, os.Stdout, allResults) {
 					fmt.Println("Aborted.")
@@ -182,7 +186,7 @@ Examples:
 			}
 			sp.UpdateMessage("Cleaning up...")
 			sp.Start()
-			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr))
+			result := cleanup.Execute(allResults, cleanupProgress(sp, os.Stderr, allResults))
 			sp.Stop()
 			printCleanupSummary(os.Stdout, result)
 		}

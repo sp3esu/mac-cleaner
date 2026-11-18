@@ -240,6 +240,11 @@ func scanHomebrew(home string) *scan.CategoryResult {
 	return cr
 }
 
+// dockerNote explains Docker entries in the size breakdown: their size is
+// an estimate reported by the Docker daemon, not files on disk, and cleanup
+// skips non-filesystem paths.
+const dockerNote = "reclaimable estimate from 'docker system df'; not a file path, cleanup does not run docker prune"
+
 // dockerDFRow represents one row from docker system df --format '{{json .}}'.
 type dockerDFRow struct {
 	Type        string `json:"Type"`
@@ -283,10 +288,16 @@ func scanDocker(runner CmdRunner) *scan.CategoryResult {
 			continue
 		}
 
+		path := "docker:" + row.Type
 		entries = append(entries, scan.ScanEntry{
-			Path:        "docker:" + row.Type,
+			Path:        path,
 			Description: "Docker " + row.Type,
 			Size:        size,
+			Components: []scan.SizeComponent{{
+				Path: path,
+				Size: size,
+				Note: dockerNote,
+			}},
 		})
 		totalSize += size
 	}

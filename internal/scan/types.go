@@ -11,6 +11,43 @@ type ScanEntry struct {
 	Size int64 `json:"size"`
 	// RiskLevel indicates the deletion risk (safe, moderate, risky).
 	RiskLevel string `json:"risk_level"`
+	// Components optionally breaks Size down into the individual paths (or
+	// sources) it was summed from. It is always set when Size covers anything
+	// other than exactly Path, or when cleanup would not delete Path; some
+	// scanners (unused apps) set it on every entry. When set, the component
+	// sizes sum to Size. When empty, Size is the size of Path alone and
+	// cleanup removes Path.
+	Components []SizeComponent `json:"components,omitempty"`
+}
+
+// SizeComponent is one path (or non-filesystem source) that contributes to
+// a ScanEntry's Size.
+type SizeComponent struct {
+	// Path is the filesystem path (or pseudo-path such as "docker:Images")
+	// this component was measured from.
+	Path string `json:"path"`
+	// Size is this component's contribution to the entry's Size, in bytes.
+	Size int64 `json:"size"`
+	// Removed reports whether cleanup deletes this path.
+	Removed bool `json:"removed"`
+	// Note optionally explains how the size was obtained or why cleanup
+	// does not remove the path.
+	Note string `json:"note,omitempty"`
+}
+
+// RemovedSize returns the number of bytes of this entry that cleanup
+// deletes: the sum of removed components, or Size when no breakdown is set.
+func (e ScanEntry) RemovedSize() int64 {
+	if len(e.Components) == 0 {
+		return e.Size
+	}
+	var n int64
+	for _, c := range e.Components {
+		if c.Removed {
+			n += c.Size
+		}
+	}
+	return n
 }
 
 // PermissionIssue records a path that could not be scanned due to

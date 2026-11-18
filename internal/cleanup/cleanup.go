@@ -64,6 +64,8 @@ type CleanupResult struct {
 // a "git-gc:" path prefix are handled by running git gc --aggressive
 // (and optionally git lfs prune). Other pseudo-paths (e.g. "docker:...")
 // are skipped. Errors on individual items do not abort the overall operation.
+// Only entry.Path is ever removed: paths listed in entry.Components other
+// than entry.Path are counted in Size but left in place.
 func Execute(results []scan.CategoryResult, onProgress ProgressFunc) CleanupResult {
 	var res CleanupResult
 

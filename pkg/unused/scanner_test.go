@@ -5,9 +5,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
+
+// sumSizes returns the total size of the given components.
+func sumSizes(components []scan.SizeComponent) int64 {
+	var n int64
+	for _, c := range components {
+		n += c.Size
+	}
+	return n
+}
 
 // writeFile is a test helper that creates a file with the given size,
 // creating parent directories as needed.
@@ -480,7 +492,7 @@ func TestLibraryFootprint(t *testing.T) {
 	writeFile(t, filepath.Join(home, "Library", "Application Support", "com.test.app", "db"), 2000)
 	writeFile(t, filepath.Join(home, "Library", "Preferences", "com.test.app.plist"), 500)
 
-	size := libraryFootprint(home, "com.test.app", "TestApp")
+	size := sumSizes(libraryFootprint(home, "com.test.app", "TestApp"))
 
 	// Should include Caches (1000) + AppSupport (2000) + Preferences plist (500) = 3500
 	if size != 3500 {
@@ -495,7 +507,7 @@ func TestLibraryFootprint_EmptyBundleID(t *testing.T) {
 	writeFile(t, filepath.Join(home, "Library", "Application Support", "MyApp", "data"), 1500)
 	writeFile(t, filepath.Join(home, "Library", "Logs", "MyApp", "log.txt"), 500)
 
-	size := libraryFootprint(home, "", "MyApp")
+	size := sumSizes(libraryFootprint(home, "", "MyApp"))
 
 	if size != 2000 {
 		t.Errorf("expected library footprint 2000, got %d", size)
@@ -505,7 +517,7 @@ func TestLibraryFootprint_EmptyBundleID(t *testing.T) {
 func TestLibraryFootprint_NoPaths(t *testing.T) {
 	home := t.TempDir()
 
-	size := libraryFootprint(home, "com.nonexistent.app", "NonExistent")
+	size := sumSizes(libraryFootprint(home, "com.nonexistent.app", "NonExistent"))
 
 	if size != 0 {
 		t.Errorf("expected 0 for nonexistent paths, got %d", size)
@@ -758,5 +770,113 @@ func TestScanUnusedApps_OldLibraryDataStillDetected(t *testing.T) {
 
 	if result.Entries[0].Path != filepath.Join(appDir, "TrulyOld.app") {
 		t.Errorf("expected TrulyOld.app, got %q", result.Entries[0].Path)
+	}
+}
+
+func TestScanUnusedApps_ComponentsExplainSize(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	appPath := filepath.Join(appDir, "BigData.app")
+
+	writeFile(t, filepath.Join(appPath, "Contents", "MacOS", "BigData"), 1000)
+	containers := filepath.Join(home, "Library", "Containers", "com.example.bigdata")
+	caches := filepath.Join(home, "Library", "Caches", "com.example.bigdata")
+	writeFile(t, filepath.Join(containers, "Data", "disk.raw"), 9000)
+	writeFile(t, filepath.Join(caches, "data.db"), 500)
+	oldTime := time.Now().Add(-200 * 24 * time.Hour)
+	os.Chtimes(containers, oldTime, oldTime)
+	os.Chtimes(caches, oldTime, oldTime)
+
+	runner := newMockRunner(map[string]mockResponse{
+		"mdls -name kMDItemLastUsedDate -raw " + appPath: {output: []byte(oldTime.Format(mdlsDateLayout))},
+		"/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " +
+			filepath.Join(appPath, "Contents", "Info.plist"): {output: []byte("com.example.bigdata\n")},
+	})
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	if result == nil || len(result.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %+v", result)
+	}
+	e := result.Entries[0]
+	if got := sumSizes(e.Components); got != e.Size {
+		t.Errorf("components sum %d != entry size %d", got, e.Size)
+	}
+	if e.Size != 10500 {
+		t.Errorf("expected size 10500, got %d", e.Size)
+	}
+
+	byPath := map[string]scan.SizeComponent{}
+	for _, c := range e.Components {
+		byPath[c.Path] = c
+	}
+	if len(byPath) != 3 {
+		t.Fatalf("expected 3 components (bundle, Containers, Caches), got %+v", e.Components)
+	}
+	if b := byPath[appPath]; !b.Removed || b.Size != 1000 {
+		t.Errorf("bundle component = %+v, want Removed=true Size=1000", b)
+	}
+	for _, p := range []string{containers, caches} {
+		c, ok := byPath[p]
+		if !ok {
+			t.Fatalf("missing component for %s", p)
+		}
+		if c.Removed {
+			t.Errorf("library component %s must not be marked removed", p)
+		}
+		if c.Note != libraryNote {
+			t.Errorf("library component note = %q, want %q", c.Note, libraryNote)
+		}
+	}
+	if got := e.RemovedSize(); got != 1000 {
+		t.Errorf("RemovedSize = %d, want 1000 (bundle only)", got)
+	}
+}
+
+func TestBundleComponent(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("no home directory")
+	}
+
+	t.Run("under home is removed", func(t *testing.T) {
+		p := filepath.Join(home, "Applications", "Foo.app")
+		c := bundleComponent(p, 42)
+		if !c.Removed || c.Size != 42 || c.Path != p || c.Note != "app bundle" {
+			t.Errorf("got %+v", c)
+		}
+	})
+
+	t.Run("system Applications is blocked", func(t *testing.T) {
+		c := bundleComponent("/Applications/Foo.app", 42)
+		if c.Removed {
+			t.Error("bundle in /Applications must not be marked removed")
+		}
+		if !strings.Contains(c.Note, "blocked by safety check") {
+			t.Errorf("note should explain the block, got %q", c.Note)
+		}
+	})
+}
+
+func TestLibraryFootprint_ComponentsNotRemoved(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "Library", "Caches", "com.test.app", "data"), 1000)
+	writeFile(t, filepath.Join(home, "Library", "Group Containers", "XYZ.com.test.app", "db"), 300)
+	writeFile(t, filepath.Join(home, "Library", "LaunchAgents", "com.test.app.helper.plist"), 20)
+	// Empty directory: must not produce a component.
+	if err := os.MkdirAll(filepath.Join(home, "Library", "Logs", "com.test.app"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	comps := libraryFootprint(home, "com.test.app", "TestApp")
+	if len(comps) != 3 {
+		t.Fatalf("expected 3 non-empty components, got %+v", comps)
+	}
+	if sumSizes(comps) != 1320 {
+		t.Errorf("expected total 1320, got %d", sumSizes(comps))
+	}
+	for _, c := range comps {
+		if c.Removed || c.Size == 0 {
+			t.Errorf("unexpected component %+v", c)
+		}
 	}
 }

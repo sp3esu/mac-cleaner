@@ -253,6 +253,22 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--force` | Bestätigungsabfrage überspringen |
 | `--help-json` | Strukturierte Hilfe als JSON für KI-Agenten ausgeben |
 
+### Ausführliche Größenaufschlüsselung
+
+Mit `--verbose` zeigt jeder Eintrag seinen Pfad. Besteht die Größe eines Eintrags aus mehr als diesem Pfad oder würde die Bereinigung ihn nicht löschen, listet der Eintrag zusätzlich jeden gezählten Pfad mit seiner Größe auf (größte zuerst). Pfade, die die Bereinigung nicht entfernt, sind mit `(counted, not removed by cleanup)` markiert, und eine Zeile `cleanup removes X of Y counted` erscheint, wenn beide Werte abweichen. Beispiele: unbenutzte Apps (Bundle plus Daten in `~/Library`), Docker (Schätzung aus `docker system df`), Git-Repositories (Schätzung aus `git count-objects`; die Bereinigung führt `git gc` aus) sowie Time-Machine-Snapshots (Größe nicht verfügbar).
+
+Am Ende eines ausführlichen Laufs listet der Abschnitt `Counted More Than Once` jeden Pfad auf, den mehr als ein Eintrag zählt: dieselbe Datei unter großen und alten Dateien oder ein Pfad innerhalb des Pfads einer anderen Kategorie (zum Beispiel der Chrome-Cache in `~/Library/Caches/Google`, den auch die App-Caches des Benutzers zählen). Er zeigt, welche Kategorien ihn zählen, die Summe mit jedem Byte einmal gezählt und wie viel die Bereinigung entfernen würde, wenn jeder Pfad einmal gezählt wird. Der Abschnitt erscheint nur, wenn solche Pfade unter den gescannten (und nicht übersprungenen) Kategorien vorkommen.
+
+```
+      Docker (last used Dec 2024)  [risky]    71.4 GB
+        /Applications/Docker.app
+            68.8 GB  ~/Library/Containers/com.docker.docker  (counted, not removed by cleanup)  - app data in ~/Library
+             2.6 GB  /Applications/Docker.app  (counted, not removed by cleanup)  - app bundle; cleanup is blocked by safety check: outside home directory
+          cleanup removes 0 B of 71.4 GB counted
+```
+
+Größen sind scheinbare Dateigrößen (logische Länge) in SI-Einheiten (1 GB = 10^9 Bytes, wie im Finder). `du -h` zeigt die Plattenbelegung in 1024er-Einheiten, daher weichen die Zahlen ab, besonders bei Sparse-Dateien wie Disk-Images. Größen für Docker und Git sind Schätzungen. In der `--json`-Ausgabe ist dieselbe Aufschlüsselung als optionales Array `components` an jedem Eintrag verfügbar.
+
 ### Kategorie-Skip-Flags
 
 | Flag | Beschreibung |

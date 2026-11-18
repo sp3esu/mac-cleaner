@@ -81,6 +81,15 @@ Run a full scan with streaming progress. Optional `skip` param filters category 
 ← {"id":"3","type":"result","result":{"categories":[...],"total_size":12345678,"token":"a1b2c3d4..."}}
 ```
 
+Each entry may carry an optional `components` array that breaks its `size` down into the paths it was summed from. It is always present when the size covers more than the entry's `path`, or when cleanup does not delete `path` (for example unused apps, Docker, git repositories, Time Machine snapshots); unused-app entries always carry it, even when it holds a single removed component equal to `path`. Component sizes sum to the entry `size`; `removed` tells whether cleanup deletes that path. Cleanup deletes at most the entry's `path` (for `git-gc:` entries it runs `git gc` instead of deleting files). The same path can be counted by more than one entry (for example a file in both `home-large-files` and `home-old-files`, or `browser-chrome` inside a `system-caches` directory); `components` does not flag this, so clients that sum sizes across categories should de-duplicate by path. Decoders that ignore unknown keys (Swift `Codable` default) are unaffected.
+
+```json
+{"path":"/Applications/Docker.app","description":"Docker (last used Dec 2024)","size":71400000000,"risk_level":"risky",
+ "components":[
+   {"path":"/Applications/Docker.app","size":2600000000,"removed":false,"note":"app bundle; cleanup is blocked by safety check: outside home directory"},
+   {"path":"/Users/me/Library/Containers/com.docker.docker","size":68800000000,"removed":false,"note":"app data in ~/Library"}]}
+```
+
 ### `cleanup`
 
 Clean up scan results. Requires the `token` returned by a prior `scan` call (replay protection). Optional `categories` param filters which category IDs to clean.
@@ -146,14 +155,22 @@ struct PingResult: Codable {
     let version: String
 }
 
+struct SizeComponent: Codable {
+    let path: String
+    let size: Int64
+    let removed: Bool   // true if cleanup deletes this path
+    let note: String?
+}
+
 struct ScanEntry: Codable {
     let path: String
     let description: String
     let size: Int64
     let riskLevel: String
+    let components: [SizeComponent]?  // optional size breakdown
 
     enum CodingKeys: String, CodingKey {
-        case path, description, size
+        case path, description, size, components
         case riskLevel = "risk_level"
     }
 }

@@ -135,8 +135,12 @@ func scanUnusedApps(home string, threshold time.Duration, runner CmdRunner) *sca
 				continue
 			}
 
-			libSize := libraryFootprint(home, bundleID, appName)
-			size := bundleSize + libSize
+			components := append([]scan.SizeComponent{bundleComponent(appPath, bundleSize)},
+				libraryFootprint(home, bundleID, appName)...)
+			var size int64
+			for _, c := range components {
+				size += c.Size
+			}
 
 			if size == 0 {
 				continue
@@ -148,6 +152,7 @@ func scanUnusedApps(home string, threshold time.Duration, runner CmdRunner) *sca
 				Path:        appPath,
 				Description: desc,
 				Size:        size,
+				Components:  components,
 			})
 			totalSize += size
 		}
@@ -214,10 +219,32 @@ func extractBundleID(appPath, plistBuddyPath string, runner CmdRunner) string {
 	return strings.TrimSpace(string(out))
 }
 
-// libraryFootprint calculates the total size of an app's associated
-// ~/Library/ directories. Paths are probed by both bundleID and appName.
-func libraryFootprint(home, bundleID, appName string) int64 {
-	var total int64
+// libraryNote labels ~/Library footprint components. They are counted in
+// the entry size, but cleanup removes only the app bundle.
+const libraryNote = "app data in ~/Library"
+
+// bundleComponent describes the .app bundle's share of an entry's size and
+// whether cleanup can delete it (bundles outside the home directory, such
+// as /Applications, are blocked by the safety checks at cleanup time).
+func bundleComponent(appPath string, size int64) scan.SizeComponent {
+	c := scan.SizeComponent{Path: appPath, Size: size, Removed: true, Note: "app bundle"}
+	if blocked, reason := safety.IsPathBlocked(appPath); blocked {
+		c.Removed = false
+		c.Note = "app bundle; cleanup is blocked by safety check: " + reason
+	}
+	return c
+}
+
+// libraryFootprint returns the non-empty ~/Library/ paths associated with
+// an app, each with its size. Paths are probed by both bundleID and appName.
+// None of them are removed by cleanup.
+func libraryFootprint(home, bundleID, appName string) []scan.SizeComponent {
+	var components []scan.SizeComponent
+	add := func(p string) {
+		if size := pathSize(p); size > 0 {
+			components = append(components, scan.SizeComponent{Path: p, Size: size, Note: libraryNote})
+		}
+	}
 
 	// Direct paths to probe by bundleID.
 	if bundleID != "" {
@@ -234,7 +261,7 @@ func libraryFootprint(home, bundleID, appName string) int64 {
 		}
 
 		for _, p := range directPaths {
-			total += pathSize(p)
+			add(p)
 		}
 
 		// Glob patterns for bundleID.
@@ -250,7 +277,7 @@ func libraryFootprint(home, bundleID, appName string) int64 {
 				continue
 			}
 			for _, m := range matches {
-				total += pathSize(m)
+				add(m)
 			}
 		}
 	}
@@ -266,11 +293,11 @@ func libraryFootprint(home, bundleID, appName string) int64 {
 			if bundleID != "" && bundleID == appName {
 				continue
 			}
-			total += pathSize(p)
+			add(p)
 		}
 	}
 
-	return total
+	return components
 }
 
 // libraryLastModified returns the most recent modification time across an

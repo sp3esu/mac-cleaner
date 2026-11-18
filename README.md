@@ -253,6 +253,22 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--force` | Bypass confirmation prompt |
 | `--help-json` | Output structured help as JSON for AI agents |
 
+### Verbose Size Breakdown
+
+With `--verbose`, every entry shows its path. When an entry's size is made up of more than that path, or cleanup would not delete it, the entry also lists every counted path with its size (largest first). Paths cleanup does not remove are marked `(counted, not removed by cleanup)`, and a `cleanup removes X of Y counted` line appears when the two differ. Examples: unused apps (bundle plus `~/Library` data), Docker (estimate from `docker system df`), git repos (estimate from `git count-objects`; cleanup runs `git gc`), and Time Machine snapshots (size unavailable).
+
+At the end of a verbose run, a `Counted More Than Once` section lists every path counted by more than one entry: the same file in Large and Old Files, or a path nested inside another category's path (for example the Chrome cache inside `~/Library/Caches/Google`, which User App Caches also counts). It shows which categories count it, the total with every byte counted once, and how much cleanup would remove with each path counted once. The section appears only when such paths exist among the scanned (and not skipped) categories.
+
+```
+      Docker (last used Dec 2024)  [risky]    71.4 GB
+        /Applications/Docker.app
+            68.8 GB  ~/Library/Containers/com.docker.docker  (counted, not removed by cleanup)  - app data in ~/Library
+             2.6 GB  /Applications/Docker.app  (counted, not removed by cleanup)  - app bundle; cleanup is blocked by safety check: outside home directory
+          cleanup removes 0 B of 71.4 GB counted
+```
+
+Sizes are apparent file sizes (logical length) in SI units (1 GB = 10^9 bytes, as in Finder). `du -h` reports disk usage in 1024-based units, so its numbers differ, especially for sparse files such as disk images. Docker and git sizes are estimates. In `--json` output the same breakdown is available as an optional `components` array on each entry.
+
 ### Category Skip Flags
 
 | Flag | Description |

@@ -76,8 +76,8 @@ func TestScanOrphanedPrefs(t *testing.T) {
 		t.Errorf("expected orphaned entry 'com.example.removed', got %q", result.Entries[0].Description)
 	}
 
-	if result.Entries[0].Size != 500 {
-		t.Errorf("expected size 500, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 500); result.Entries[0].Size != want {
+		t.Errorf("expected size %d, got %d", want, result.Entries[0].Size)
 	}
 }
 
@@ -255,14 +255,14 @@ func TestScanOldDownloads(t *testing.T) {
 	if result.Entries[0].Description != "old-large.dmg" {
 		t.Errorf("expected first entry 'old-large.dmg', got %q", result.Entries[0].Description)
 	}
-	if result.Entries[0].Size != 5000 {
-		t.Errorf("expected first entry size 5000, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 5000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
 	if result.Entries[1].Description != "old-small.zip" {
 		t.Errorf("expected second entry 'old-small.zip', got %q", result.Entries[1].Description)
 	}
 
-	expectedTotal := int64(6000)
+	expectedTotal := scantest.OnDisk(t, 5000, 1000)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}

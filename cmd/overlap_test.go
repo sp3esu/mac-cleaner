@@ -161,6 +161,58 @@ func TestFindOverlaps_RemovedCoveredOnlyByRemoved(t *testing.T) {
 	}
 }
 
+func TestFindOverlaps_NotRemovedAtOrInsideRemoved(t *testing.T) {
+	// System caches runs before unused apps, so a removed cache entry can
+	// cover an unused app's ~/Library component, which cleanup does not
+	// remove. Those bytes are counted twice but removed only once.
+	results := []scan.CategoryResult{
+		{Description: "User App Caches", Entries: []scan.ScanEntry{{Path: "/h/Library/Caches/com.foo", Size: 100}}},
+		{Description: "Unused Applications", Entries: []scan.ScanEntry{{
+			Path: "/Applications/Foo.app", Size: 140,
+			Components: []scan.SizeComponent{
+				{Path: "/Applications/Foo.app", Size: 10},
+				{Path: "/h/Library/Caches/com.foo", Size: 100},
+				{Path: "/h/Library/Caches/com.foo/sub", Size: 30},
+			},
+		}}},
+	}
+	overlaps, dupCounted, dupRemoved := findOverlaps(results)
+	if len(overlaps) != 2 {
+		t.Fatalf("expected 2 overlaps, got %+v", overlaps)
+	}
+	if dupCounted != 130 {
+		t.Errorf("dupCounted = %d, want 130", dupCounted)
+	}
+	if dupRemoved != 0 {
+		t.Errorf("dupRemoved = %d, want 0: paths cleanup does not remove are not removal duplicates", dupRemoved)
+	}
+}
+
+func TestFindOverlaps_PseudoPathsIgnored(t *testing.T) {
+	results := []scan.CategoryResult{
+		// git's .git/objects component is a count-objects estimate under a
+		// pseudo-path entry: a real file inside it must not overlap it.
+		{Description: "Git Repos", Entries: []scan.ScanEntry{{
+			Path: "git-gc:/h/r", Size: 50,
+			Components: []scan.SizeComponent{{Path: "/h/r/.git/objects", Size: 50}},
+		}}},
+		{Description: "Large Files", Entries: []scan.ScanEntry{{Path: "/h/r/.git/objects/pack/p.pack", Size: 30}}},
+		// Non-filesystem components never overlap, even when two entries
+		// with real paths both carry the same one.
+		{Description: "A", Entries: []scan.ScanEntry{{
+			Path: "/h/a", Size: 5,
+			Components: []scan.SizeComponent{{Path: "docker:Images", Size: 5}},
+		}}},
+		{Description: "B", Entries: []scan.ScanEntry{{
+			Path: "/h/b", Size: 5,
+			Components: []scan.SizeComponent{{Path: "docker:Images", Size: 5}},
+		}}},
+	}
+	if overlaps, dupCounted, dupRemoved := findOverlaps(results); len(overlaps) != 0 || dupCounted != 0 || dupRemoved != 0 {
+		t.Errorf("spurious overlap %+v (dupCounted=%d dupRemoved=%d)", overlaps, dupCounted, dupRemoved)
+	}
+}
+
 func TestPrintOverlaps_Verbose(t *testing.T) {
 	withVerbose(t, true)
 
@@ -291,27 +343,35 @@ func TestRootCmd_VerboseOverlapsDryRun(t *testing.T) {
 }
 
 func TestVerboseOverlapsBeforeCleanup(t *testing.T) {
-	t.Run("scan", func(t *testing.T) {
-		assertOverlapsBeforeCleanup(t, func() { scanCmd.Run(scanCmd, nil) })
-	})
-	t.Run("root", func(t *testing.T) {
-		orig := flagHomeFiles
-		flagHomeFiles = true
-		t.Cleanup(func() { flagHomeFiles = orig })
-		assertOverlapsBeforeCleanup(t, func() { rootCmd.Run(rootCmd, nil) })
-	})
+	for _, jsonOut := range []bool{false, true} {
+		name := "text"
+		if jsonOut {
+			name = "json"
+		}
+		t.Run("scan/"+name, func(t *testing.T) {
+			assertOverlapsBeforeCleanup(t, jsonOut, func() { scanCmd.Run(scanCmd, nil) })
+		})
+		t.Run("root/"+name, func(t *testing.T) {
+			orig := flagHomeFiles
+			flagHomeFiles = true
+			t.Cleanup(func() { flagHomeFiles = orig })
+			assertOverlapsBeforeCleanup(t, jsonOut, func() { rootCmd.Run(rootCmd, nil) })
+		})
+	}
 }
 
 // assertOverlapsBeforeCleanup runs a forced (non-dry-run) cleanup of a temp
-// file listed in two categories and checks the overlap section is printed
-// before the cleanup summary.
-func assertOverlapsBeforeCleanup(t *testing.T, run func()) {
+// file listed in two categories. In text mode it checks the overlap section
+// is printed before the cleanup summary; with --json it checks the section
+// is not appended to the JSON output.
+func assertOverlapsBeforeCleanup(t *testing.T, jsonOut bool, run func()) {
 	t.Helper()
 	withVerbose(t, true)
-	origEng, origDry, origForce, origLarge, origOld := eng, flagDryRun, flagForce, flagScanLargeFiles, flagScanOldFiles
+	origEng, origDry, origForce, origLarge, origOld, origJSON := eng, flagDryRun, flagForce, flagScanLargeFiles, flagScanOldFiles, flagJSON
 	t.Cleanup(func() {
-		eng, flagDryRun, flagForce, flagScanLargeFiles, flagScanOldFiles = origEng, origDry, origForce, origLarge, origOld
+		eng, flagDryRun, flagForce, flagScanLargeFiles, flagScanOldFiles, flagJSON = origEng, origDry, origForce, origLarge, origOld, origJSON
 	})
+	flagJSON = jsonOut
 
 	file := filepath.Join(t.TempDir(), "a.mp4")
 	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
@@ -332,6 +392,12 @@ func assertOverlapsBeforeCleanup(t *testing.T, run func()) {
 		out = captureStdout(t, run)
 	})
 	section := strings.Index(out, "\nCounted More Than Once\n")
+	if jsonOut {
+		if section >= 0 {
+			t.Errorf("overlap section must not be printed with --json:\n%s", out)
+		}
+		return
+	}
 	if section < 0 || section > strings.Index(out, "Cleanup complete") {
 		t.Errorf("expected overlap section before cleanup summary:\n%s", out)
 	}

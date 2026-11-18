@@ -12,10 +12,11 @@ type ScanEntry struct {
 	// RiskLevel indicates the deletion risk (safe, moderate, risky).
 	RiskLevel string `json:"risk_level"`
 	// Components optionally breaks Size down into the individual paths (or
-	// sources) it was summed from. It is set when Size covers anything other
-	// than exactly Path, or when cleanup would not delete Path. When set, the
-	// component sizes sum to Size. When empty, Size is the size of Path alone
-	// and cleanup removes Path.
+	// sources) it was summed from. It is always set when Size covers anything
+	// other than exactly Path, or when cleanup would not delete Path; some
+	// scanners (unused apps) set it on every entry. When set, the component
+	// sizes sum to Size. When empty, Size is the size of Path alone and
+	// cleanup removes Path.
 	Components []SizeComponent `json:"components,omitempty"`
 }
 

@@ -303,3 +303,34 @@ func findCategory(results []scan.CategoryResult, category string) *scan.Category
 	}
 	return nil
 }
+
+func TestProjectNameFromManifest(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"package.json", write("package.json", `{"name":"node-app"}`), "node-app"},
+		{"Cargo.toml", write("Cargo.toml", "[package]\nname = \"rust-app\"\n"), "rust-app"},
+		{"Package.swift", write("Package.swift", `let package = Package(name: "SwiftApp")`), "SwiftApp"},
+		{"missing file", filepath.Join(dir, "nope", "package.json"), ""},
+		{"missing dir", filepath.Join(dir, "absent-dir", "package.json"), ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := projectNameFromManifest(tt.path); got != tt.want {
+				t.Errorf("projectNameFromManifest(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}

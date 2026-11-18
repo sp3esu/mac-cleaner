@@ -1,6 +1,6 @@
 module github.com/sp3esu/mac-cleaner
 
-go 1.25.7
+go 1.25.10
 
 require github.com/spf13/cobra v1.10.2
 

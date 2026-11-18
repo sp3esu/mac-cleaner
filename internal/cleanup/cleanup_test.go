@@ -371,6 +371,15 @@ func TestGitGC_BytesFreedIsMeasuredDelta(t *testing.T) {
 	if err := os.WriteFile(garbage, make([]byte, 700), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// The expected shrink is whatever scan.DirSize counts for the pruned
+	// file, so the test holds whether sizes are apparent or allocated.
+	want, err := scan.DirSize(garbage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want <= 0 || want == 5000 {
+		t.Fatalf("scan.DirSize(garbage) = %d, need > 0 and != the 5000 estimate", want)
+	}
 	stubGitCleanup(t, func(repoPath string, hasLFS bool) error {
 		// Simulate gc pruning one file inside .git.
 		return os.Remove(filepath.Join(repoPath, ".git", "objects", "garbage"))
@@ -380,8 +389,8 @@ func TestGitGC_BytesFreedIsMeasuredDelta(t *testing.T) {
 	if res.Removed != 1 || res.Failed != 0 {
 		t.Fatalf("Removed=%d Failed=%d, want 1/0 (errors: %v)", res.Removed, res.Failed, res.Errors)
 	}
-	if res.BytesFreed != 700 {
-		t.Errorf("BytesFreed = %d, want 700 (measured .git shrink)", res.BytesFreed)
+	if res.BytesFreed != want {
+		t.Errorf("BytesFreed = %d, want %d (measured .git shrink)", res.BytesFreed, want)
 	}
 }
 

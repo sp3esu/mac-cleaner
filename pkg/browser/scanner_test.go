@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size,
@@ -47,7 +48,7 @@ func TestScanSafariWithData(t *testing.T) {
 		t.Errorf("expected description 'Safari Cache', got %q", result.Description)
 	}
 
-	expectedSize := int64(1500)
+	expectedSize := scantest.OnDisk(t, 1000, 500)
 	if result.TotalSize != expectedSize {
 		t.Errorf("expected total size %d, got %d", expectedSize, result.TotalSize)
 	}
@@ -98,15 +99,15 @@ func TestScanChromeWithData(t *testing.T) {
 	if result.Entries[0].Description != "Chrome (Default)" {
 		t.Errorf("expected 'Chrome (Default)', got %q", result.Entries[0].Description)
 	}
-	if result.Entries[0].Size != 800 {
-		t.Errorf("expected size 800, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 800); result.Entries[0].Size != want {
+		t.Errorf("expected size %d, got %d", want, result.Entries[0].Size)
 	}
 }
 
 func TestScanChromeMultipleProfiles(t *testing.T) {
 	home := t.TempDir()
 	chromeDir := filepath.Join(home, "Library", "Caches", "Google", "Chrome")
-	writeFile(t, filepath.Join(chromeDir, "Default", "Cache", "data_0"), 500)
+	writeFile(t, filepath.Join(chromeDir, "Default", "Cache", "data_0"), 5000)
 	writeFile(t, filepath.Join(chromeDir, "Profile 1", "Cache", "data_0"), 300)
 
 	result := scanChrome(home)
@@ -118,15 +119,15 @@ func TestScanChromeMultipleProfiles(t *testing.T) {
 		t.Fatalf("expected 2 entries (Default + Profile 1), got %d", len(result.Entries))
 	}
 
-	// Should be sorted by size descending: Default (500) first.
-	if result.Entries[0].Size != 500 {
-		t.Errorf("expected first entry size 500, got %d", result.Entries[0].Size)
+	// Should be sorted by size descending: Default (5000 bytes) first.
+	if want := scantest.OnDisk(t, 5000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
-	if result.Entries[1].Size != 300 {
-		t.Errorf("expected second entry size 300, got %d", result.Entries[1].Size)
+	if want := scantest.OnDisk(t, 300); result.Entries[1].Size != want {
+		t.Errorf("expected second entry size %d, got %d", want, result.Entries[1].Size)
 	}
 
-	expectedTotal := int64(800)
+	expectedTotal := scantest.OnDisk(t, 5000, 300)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -177,8 +178,8 @@ func TestScanFirefoxWithData(t *testing.T) {
 	if len(result.Entries) < 1 {
 		t.Fatal("expected at least 1 entry")
 	}
-	if result.TotalSize != 700 {
-		t.Errorf("expected total size 700, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 700); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 

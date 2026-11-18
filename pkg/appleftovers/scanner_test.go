@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size,
@@ -180,14 +181,14 @@ func TestScanIOSBackups(t *testing.T) {
 	}
 
 	// Entries should be sorted by size descending.
-	if result.Entries[0].Size != 5000 {
-		t.Errorf("expected first entry size 5000, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 3000, 2000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
-	if result.Entries[1].Size != 1000 {
-		t.Errorf("expected second entry size 1000, got %d", result.Entries[1].Size)
+	if want := scantest.OnDisk(t, 1000); result.Entries[1].Size != want {
+		t.Errorf("expected second entry size %d, got %d", want, result.Entries[1].Size)
 	}
 
-	expectedTotal := int64(6000)
+	expectedTotal := scantest.OnDisk(t, 3000, 2000, 1000)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -316,7 +317,7 @@ func TestScanOldDownloadsWithDirectories(t *testing.T) {
 	}
 
 	// Directory size should be sum of its files.
-	expectedSize := int64(2000)
+	expectedSize := scantest.OnDisk(t, 1500, 500)
 	if result.Entries[0].Size != expectedSize {
 		t.Errorf("expected size %d, got %d", expectedSize, result.Entries[0].Size)
 	}

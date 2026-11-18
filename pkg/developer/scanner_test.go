@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // writeFile is a test helper that creates a file with the given size,
@@ -36,7 +37,7 @@ func TestScanXcodeMissing(t *testing.T) {
 func TestScanXcodeWithData(t *testing.T) {
 	home := t.TempDir()
 	derivedData := filepath.Join(home, "Library", "Developer", "Xcode", "DerivedData")
-	writeFile(t, filepath.Join(derivedData, "MyApp-abc123", "Build", "Products", "app.o"), 1000)
+	writeFile(t, filepath.Join(derivedData, "MyApp-abc123", "Build", "Products", "app.o"), 5000)
 	writeFile(t, filepath.Join(derivedData, "OtherApp-def456", "Build", "Products", "lib.o"), 500)
 
 	result := scanXcodeDerivedData(home)
@@ -54,14 +55,14 @@ func TestScanXcodeWithData(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
 
-	expectedTotal := int64(1500)
+	expectedTotal := scantest.OnDisk(t, 5000, 500)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}
 
 	// Entries should be sorted by size descending.
-	if result.Entries[0].Size != 1000 {
-		t.Errorf("expected first entry size 1000, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 5000); result.Entries[0].Size != want {
+		t.Errorf("expected first entry size %d, got %d", want, result.Entries[0].Size)
 	}
 }
 
@@ -104,7 +105,7 @@ func TestScanNpmWithData(t *testing.T) {
 		t.Errorf("expected description 'npm Cache', got %q", result.Description)
 	}
 
-	expectedTotal := int64(2100)
+	expectedTotal := scantest.OnDisk(t, 2000, 100)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -143,7 +144,7 @@ func TestScanYarnWithData(t *testing.T) {
 		t.Fatalf("expected 1 entry (single blob), got %d", len(result.Entries))
 	}
 
-	expectedTotal := int64(4500)
+	expectedTotal := scantest.OnDisk(t, 3000, 1500)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -177,7 +178,7 @@ func TestScanHomebrewWithData(t *testing.T) {
 		t.Errorf("expected description 'Homebrew Cache', got %q", result.Description)
 	}
 
-	expectedTotal := int64(13000)
+	expectedTotal := scantest.OnDisk(t, 5000, 8000)
 	if result.TotalSize != expectedTotal {
 		t.Errorf("expected total size %d, got %d", expectedTotal, result.TotalSize)
 	}
@@ -375,8 +376,8 @@ func TestScanSimulatorCachesWithData(t *testing.T) {
 	if len(result.Entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 6000 {
-		t.Errorf("expected total size 6000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 4000, 2000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -402,8 +403,8 @@ func TestScanSimulatorLogsWithData(t *testing.T) {
 	if result.Category != "dev-simulator-logs" {
 		t.Errorf("expected category 'dev-simulator-logs', got %q", result.Category)
 	}
-	if result.TotalSize != 1500 {
-		t.Errorf("expected total size 1500, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 1500); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -433,8 +434,8 @@ func TestScanXcodeDeviceSupportWithData(t *testing.T) {
 	if len(result.Entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result.Entries))
 	}
-	if result.TotalSize != 8000 {
-		t.Errorf("expected total size 8000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 5000, 3000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -460,8 +461,8 @@ func TestScanXcodeArchivesWithData(t *testing.T) {
 	if result.Category != "dev-xcode-archives" {
 		t.Errorf("expected category 'dev-xcode-archives', got %q", result.Category)
 	}
-	if result.TotalSize != 7000 {
-		t.Errorf("expected total size 7000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 7000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -487,8 +488,8 @@ func TestScanPnpmStoreWithData(t *testing.T) {
 	if result.Category != "dev-pnpm" {
 		t.Errorf("expected category 'dev-pnpm', got %q", result.Category)
 	}
-	if result.TotalSize != 5000 {
-		t.Errorf("expected total size 5000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 5000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -515,8 +516,8 @@ func TestScanCocoaPodsWithData(t *testing.T) {
 	if result.Category != "dev-cocoapods" {
 		t.Errorf("expected category 'dev-cocoapods', got %q", result.Category)
 	}
-	if result.TotalSize != 5000 {
-		t.Errorf("expected total size 5000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 3000, 2000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -542,8 +543,8 @@ func TestScanGradleWithData(t *testing.T) {
 	if result.Category != "dev-gradle" {
 		t.Errorf("expected category 'dev-gradle', got %q", result.Category)
 	}
-	if result.TotalSize != 4000 {
-		t.Errorf("expected total size 4000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 4000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 
@@ -569,8 +570,8 @@ func TestScanPipWithData(t *testing.T) {
 	if result.Category != "dev-pip" {
 		t.Errorf("expected category 'dev-pip', got %q", result.Category)
 	}
-	if result.TotalSize != 6000 {
-		t.Errorf("expected total size 6000, got %d", result.TotalSize)
+	if want := scantest.OnDisk(t, 6000); result.TotalSize != want {
+		t.Errorf("expected total size %d, got %d", want, result.TotalSize)
 	}
 }
 

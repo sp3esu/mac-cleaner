@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sp3esu/mac-cleaner/internal/scan"
+	"github.com/sp3esu/mac-cleaner/internal/scan/scantest"
 )
 
 // sumSizes returns the total size of the given components.
@@ -103,8 +104,8 @@ func TestScanUnusedApps_UnusedDetected(t *testing.T) {
 		t.Errorf("expected path %q, got %q", filepath.Join(appDir, "OldApp.app"), entry.Path)
 	}
 
-	// Size should include bundle (5100) + Library caches (2000) = 7100.
-	expectedSize := int64(7100)
+	// Size should include bundle (100 + 5000) + Library caches (2000), on disk.
+	expectedSize := scantest.OnDisk(t, 100, 5000, 2000)
 	if entry.Size != expectedSize {
 		t.Errorf("expected size %d, got %d", expectedSize, entry.Size)
 	}
@@ -204,8 +205,8 @@ func TestScanUnusedApps_LibraryFootprintIncluded(t *testing.T) {
 		t.Fatal("expected non-nil result")
 	}
 
-	// Bundle (1000) + Caches (5000) + AppSupport (3000) + Containers (2000) = 11000
-	expectedSize := int64(11000)
+	// Bundle (1000) + Caches (5000) + AppSupport (3000) + Containers (2000), on disk.
+	expectedSize := scantest.OnDisk(t, 1000, 5000, 3000, 2000)
 	if result.Entries[0].Size != expectedSize {
 		t.Errorf("expected size %d (bundle + Library), got %d", expectedSize, result.Entries[0].Size)
 	}
@@ -258,8 +259,8 @@ func TestScanUnusedApps_PlistBuddyErrorStillScans(t *testing.T) {
 	}
 
 	// Size should be bundle only (no Library data without bundleID).
-	if result.Entries[0].Size != 2000 {
-		t.Errorf("expected size 2000, got %d", result.Entries[0].Size)
+	if want := scantest.OnDisk(t, 2000); result.Entries[0].Size != want {
+		t.Errorf("expected size %d, got %d", want, result.Entries[0].Size)
 	}
 }
 
@@ -494,9 +495,10 @@ func TestLibraryFootprint(t *testing.T) {
 
 	size := sumSizes(libraryFootprint(home, "com.test.app", "TestApp"))
 
-	// Should include Caches (1000) + AppSupport (2000) + Preferences plist (500) = 3500
-	if size != 3500 {
-		t.Errorf("expected library footprint 3500, got %d", size)
+	// Should include Caches (1000) + AppSupport (2000) directories on disk,
+	// plus the Preferences plist (500), which pathSize sizes by file length.
+	if want := scantest.OnDisk(t, 1000, 2000) + 500; size != want {
+		t.Errorf("expected library footprint %d, got %d", want, size)
 	}
 }
 
@@ -509,8 +511,8 @@ func TestLibraryFootprint_EmptyBundleID(t *testing.T) {
 
 	size := sumSizes(libraryFootprint(home, "", "MyApp"))
 
-	if size != 2000 {
-		t.Errorf("expected library footprint 2000, got %d", size)
+	if want := scantest.OnDisk(t, 1500, 500); size != want {
+		t.Errorf("expected library footprint %d, got %d", want, size)
 	}
 }
 
@@ -801,8 +803,8 @@ func TestScanUnusedApps_ComponentsExplainSize(t *testing.T) {
 	if got := sumSizes(e.Components); got != e.Size {
 		t.Errorf("components sum %d != entry size %d", got, e.Size)
 	}
-	if e.Size != 10500 {
-		t.Errorf("expected size 10500, got %d", e.Size)
+	if want := scantest.OnDisk(t, 1000, 9000, 500); e.Size != want {
+		t.Errorf("expected size %d, got %d", want, e.Size)
 	}
 
 	byPath := map[string]scan.SizeComponent{}
@@ -812,8 +814,9 @@ func TestScanUnusedApps_ComponentsExplainSize(t *testing.T) {
 	if len(byPath) != 3 {
 		t.Fatalf("expected 3 components (bundle, Containers, Caches), got %+v", e.Components)
 	}
-	if b := byPath[appPath]; !b.Removed || b.Size != 1000 {
-		t.Errorf("bundle component = %+v, want Removed=true Size=1000", b)
+	bundleSize := scantest.OnDisk(t, 1000)
+	if b := byPath[appPath]; !b.Removed || b.Size != bundleSize {
+		t.Errorf("bundle component = %+v, want Removed=true Size=%d", b, bundleSize)
 	}
 	for _, p := range []string{containers, caches} {
 		c, ok := byPath[p]
@@ -827,8 +830,8 @@ func TestScanUnusedApps_ComponentsExplainSize(t *testing.T) {
 			t.Errorf("library component note = %q, want %q", c.Note, libraryNote)
 		}
 	}
-	if got := e.RemovedSize(); got != 1000 {
-		t.Errorf("RemovedSize = %d, want 1000 (bundle only)", got)
+	if got := e.RemovedSize(); got != bundleSize {
+		t.Errorf("RemovedSize = %d, want %d (bundle only)", got, bundleSize)
 	}
 }
 
@@ -871,8 +874,9 @@ func TestLibraryFootprint_ComponentsNotRemoved(t *testing.T) {
 	if len(comps) != 3 {
 		t.Fatalf("expected 3 non-empty components, got %+v", comps)
 	}
-	if sumSizes(comps) != 1320 {
-		t.Errorf("expected total 1320, got %d", sumSizes(comps))
+	// Directories are sized on disk; the LaunchAgents plist (20) by file length.
+	if want := scantest.OnDisk(t, 1000, 300) + 20; sumSizes(comps) != want {
+		t.Errorf("expected total %d, got %d", want, sumSizes(comps))
 	}
 	for _, c := range comps {
 		if c.Removed || c.Size == 0 {

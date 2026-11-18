@@ -7,7 +7,7 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 ## Features
 
 ### System Caches
-- **User App Caches** — `~/Library/Caches/` (safe)
+- **User App Caches** — `~/Library/Caches/` (safe). Cache folders covered by a dedicated flag are not included, so skipping or keeping that item also protects its data: `com.apple.Safari` (`--safari`), `Google/Chrome` (`--chrome`), `Firefox` (`--firefox`), `yarn` (`--yarn`), `Homebrew` (`--homebrew`), `CocoaPods` (`--cocoapods`), `pip` (`--pip`), `Adobe` (`--adobe`), `com.bohemiancoding.sketch3` (`--sketch`), `com.microsoft.teams2` (`--teams`).
 - **User Logs** — `~/Library/Logs/` (safe)
 - **QuickLook Thumbnails** — per-user QuickLook cache (safe)
 
@@ -267,7 +267,7 @@ At the end of a verbose run, a `Counted More Than Once` section lists every path
           cleanup removes 0 B of 71.4 GB counted
 ```
 
-Sizes are apparent file sizes (logical length) in SI units (1 GB = 10^9 bytes, as in Finder). `du -h` reports disk usage in 1024-based units, so its numbers differ, especially for sparse files such as disk images. Docker and git sizes are estimates. In `--json` output the same breakdown is available as an optional `components` array on each entry.
+Sizes are disk space allocated on disk (as `du` reports), with hard-linked files counted once, in SI units (1 GB = 10^9 bytes, as in Finder). `du -h` uses 1024-based units, so its numbers differ slightly. APFS clones are still counted at full size. Docker and git sizes are estimates. In `--json` output the same breakdown is available as an optional `components` array on each entry.
 
 ### Category Skip Flags
 

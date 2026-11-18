@@ -12,8 +12,29 @@ import (
 	"github.com/sp3esu/mac-cleaner/internal/scan"
 )
 
+// ownedCaches lists paths relative to ~/Library/Caches that a dedicated
+// item scanner reports and cleans on its own. system-caches never emits
+// them, nor any directory that contains them, so a skip flag such as
+// --skip-chrome or an interactive "keep" for one of these items cannot be
+// bypassed by deleting a parent system-caches entry. Paths use "/" and are
+// matched case-insensitively (APFS is case-insensitive; Yarn v1 creates
+// "Yarn").
+var ownedCaches = []string{
+	"com.apple.Safari",           // browser-safari: pkg/browser/scanner.go scanSafari
+	"Google/Chrome",              // browser-chrome: pkg/browser/scanner.go scanChrome
+	"Firefox",                    // browser-firefox: pkg/browser/scanner.go scanFirefox
+	"yarn",                       // dev-yarn: pkg/developer/scanner.go scanYarnCache
+	"Homebrew",                   // dev-homebrew: pkg/developer/scanner.go scanHomebrew
+	"CocoaPods",                  // dev-cocoapods: pkg/developer/scanner.go scanCocoaPods
+	"pip",                        // dev-pip: pkg/developer/scanner.go scanPip
+	"Adobe",                      // creative-adobe: pkg/creative/scanner.go scanAdobeCaches
+	"com.bohemiancoding.sketch3", // creative-sketch: pkg/creative/scanner.go scanSketchCache
+	"com.microsoft.teams2",       // msg-teams: pkg/messaging/scanner.go scanTeamsCache
+}
+
 // Scan discovers and sizes system cache directories. It scans
-// ~/Library/Caches, ~/Library/Logs, and QuickLook thumbnail caches.
+// ~/Library/Caches (minus ownedCaches), ~/Library/Logs, and QuickLook
+// thumbnail caches.
 // Blocked paths are skipped with stderr warnings. No files are modified.
 func Scan() ([]scan.CategoryResult, error) {
 	home, err := os.UserHomeDir()
@@ -24,7 +45,7 @@ func Scan() ([]scan.CategoryResult, error) {
 	var results []scan.CategoryResult
 
 	// User App Caches
-	if cr, err := scan.ScanTopLevel(filepath.Join(home, "Library", "Caches"), "system-caches", "User App Caches"); err == nil && cr != nil {
+	if cr, err := scan.ScanTopLevelExcluding(filepath.Join(home, "Library", "Caches"), "system-caches", "User App Caches", ownedCaches); err == nil && cr != nil {
 		cr.SetRiskLevels(safety.RiskForCategory)
 		if len(cr.Entries) > 0 || len(cr.PermissionIssues) > 0 {
 			results = append(results, *cr)
@@ -113,7 +134,13 @@ func scanQuickLook(cacheParent, category, description string) (*scan.CategoryRes
 
 		var size int64
 		if entry.IsDir() {
-			s, err := scan.DirSize(entryPath)
+			s, denied, err := scan.DirUsage(entryPath)
+			for _, d := range denied {
+				permIssues = append(permIssues, scan.PermissionIssue{
+					Path:        d,
+					Description: filepath.Base(d) + " (permission denied)",
+				})
+			}
 			if err != nil {
 				if os.IsPermission(err) {
 					permIssues = append(permIssues, scan.PermissionIssue{
@@ -135,7 +162,7 @@ func scanQuickLook(cacheParent, category, description string) (*scan.CategoryRes
 				}
 				continue
 			}
-			size = info.Size()
+			size = scan.FileDiskUsage(info)
 		}
 
 		if size == 0 {

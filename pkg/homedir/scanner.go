@@ -1,7 +1,11 @@
 // Package homedir scans the user's home directory for large and old files
 // that may be candidates for cleanup. It produces two categories:
 // "home-large-files" for files >= 100 MB and "home-old-files" for files
-// that are both >= 180 days old and >= 10 MB.
+// that are both >= 180 days old and >= 10 MB. Sizes and thresholds use
+// allocated disk space. The walk never descends into macOS package
+// directories (Photos/Music libraries, apps, VM bundles), version-control
+// metadata (.git, .hg, .svn) or installed-tool directories (~/bin, ~/go/bin),
+// because deleting a single file inside them corrupts the whole unit.
 package homedir
 
 import (
@@ -10,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/sp3esu/mac-cleaner/internal/safety"
@@ -25,6 +31,44 @@ const (
 	// defaultOldFileMinSize is the minimum file size for the "old files" category (10 MB).
 	defaultOldFileMinSize = 10 * 1024 * 1024
 )
+
+// packageSuffixes are directory-name suffixes of macOS packages and
+// app-managed stores. Their contents are never listed individually.
+var packageSuffixes = []string{
+	".photoslibrary", ".musiclibrary", ".tvlibrary", ".imovielibrary",
+	".fcpbundle", ".logicx", ".app", ".bundle", ".framework",
+	".sparsebundle", ".pvm", ".vmwarevm", ".utm",
+}
+
+// vcsDirs are version-control metadata directories, skipped at any depth.
+var vcsDirs = []string{".git", ".hg", ".svn"}
+
+// skipDir reports whether the walk must not descend into a directory with
+// this name. Matching is case-insensitive, as APFS is by default.
+func skipDir(name string) bool {
+	lower := strings.ToLower(name)
+	for _, v := range vcsDirs {
+		if lower == v {
+			return true
+		}
+	}
+	for _, suffix := range packageSuffixes {
+		if len(lower) > len(suffix) && strings.HasSuffix(lower, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// allocatedSize returns the bytes allocated on disk for a file, falling
+// back to its logical size when block counts are unavailable.
+// TODO: switch to scan.FileDiskUsage once the allocated-disk-usage PR merges.
+func allocatedSize(info fs.FileInfo) int64 {
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		return st.Blocks * 512
+	}
+	return info.Size()
+}
 
 // Scan discovers large and old files under the user's home directory.
 // It returns one CategoryResult per category that has at least one entry.
@@ -52,6 +96,13 @@ func scanFrom(root string) ([]scan.CategoryResult, error) {
 			filepath.Join(root, "Applications"),
 			filepath.Join(root, ".Trash"),
 			filepath.Join(root, "Downloads"),
+			filepath.Join(root, "go", "bin"),
+			filepath.Join(root, "bin"),
+			filepath.Join(root, "Movies", "TV", "Media.localized"),
+			filepath.Join(root, "Music", "Music"),
+		},
+		OnDir: func(path string, d fs.DirEntry, depth int) bool {
+			return depth == 0 || !skipDir(d.Name())
 		},
 		OnFile: func(path string, d fs.DirEntry, depth int) {
 			// Skip symlinks.
@@ -64,7 +115,7 @@ func scanFrom(root string) ([]scan.CategoryResult, error) {
 				return
 			}
 
-			size := info.Size()
+			size := allocatedSize(info)
 			mtime := info.ModTime()
 			age := now.Sub(mtime)
 

@@ -125,6 +125,63 @@ func TestScheduleTargets(t *testing.T) {
 	}
 }
 
+func TestScheduleTargets_RejectsUnschedulable(t *testing.T) {
+	rejected := []string{
+		"large-files", "old-files", "orphaned-prefs", "old-downloads", "mail",
+		"messages", "ios-backups", "vm-parallels", "xcode-archives",
+		"photos-syndication", "docker",
+	}
+	for _, target := range rejected {
+		_, err := scheduleTargets([]string{target}, false)
+		if err == nil {
+			t.Errorf("%s: expected error", target)
+			continue
+		}
+		if !strings.Contains(err.Error(), target) {
+			t.Errorf("%s: error does not name the target: %v", target, err)
+		}
+	}
+
+	// Every rejected target is named in one error.
+	_, err := scheduleTargets(append([]string{"derived-data"}, rejected...), false)
+	if err == nil {
+		t.Fatal("mixed list: expected error")
+	}
+	for _, target := range rejected {
+		if !strings.Contains(err.Error(), target) {
+			t.Errorf("mixed list: error does not name %s: %v", target, err)
+		}
+	}
+	if strings.Contains(err.Error(), "derived-data") {
+		t.Errorf("mixed list: error names an accepted target: %v", err)
+	}
+
+	accepted := []string{"derived-data", "npm", "simulator-caches", "pip"}
+	got, err := scheduleTargets(accepted, false)
+	if err != nil || !reflect.DeepEqual(got, accepted) {
+		t.Errorf("accepted targets: got %v, %v", got, err)
+	}
+}
+
+func TestScheduleInstall_DryRunRejectsRiskyTarget(t *testing.T) {
+	m, f := setupSchedule(t)
+	flagDryRun = true
+	flagScheduleTargets = []string{"large-files"}
+	out, _, err := runSchedule(t, runScheduleInstall)
+	if err == nil || !strings.Contains(err.Error(), "large-files") {
+		t.Fatalf("expected error naming large-files, got %v (output %q)", err, out)
+	}
+	if strings.Contains(out, "would install") {
+		t.Errorf("dry run must not report an install: %q", out)
+	}
+	if _, err := os.Stat(schedule.PlistPath(m.Home)); !errors.Is(err, os.ErrNotExist) {
+		t.Error("plist must not be written")
+	}
+	if len(f.calls) != 0 {
+		t.Errorf("no launchctl calls expected, got %v", f.calls)
+	}
+}
+
 func TestScheduleTargets_DoesNotMutateInput(t *testing.T) {
 	in := make([]string, 1, 4)
 	in[0] = "derived-data"

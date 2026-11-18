@@ -28,14 +28,16 @@ func writeFile(t *testing.T, path string, size int) {
 // --- Orphaned Preferences tests ---
 
 func TestScanOrphanedPrefs(t *testing.T) {
+	isolateAppRoots(t)
 	home := t.TempDir()
 
-	// Create Preferences directory with plist files.
+	// Create Preferences directory with plist files, last modified long ago.
 	prefsDir := filepath.Join(home, "Library", "Preferences")
 	writeFile(t, filepath.Join(prefsDir, "com.example.removed.plist"), 500)
 	writeFile(t, filepath.Join(prefsDir, "com.apple.finder.plist"), 300)
 	writeFile(t, filepath.Join(prefsDir, "com.known.app.plist"), 200)
 	writeFile(t, filepath.Join(prefsDir, "com.known.app.helper.plist"), 100)
+	backdateAll(t, prefsDir, 200)
 
 	// Create a fake app directory with one .app that returns "com.known.app".
 	appDir := filepath.Join(home, "Applications")
@@ -97,6 +99,7 @@ func TestScanOrphanedPrefsNoPlistBuddy(t *testing.T) {
 }
 
 func TestScanOrphanedPrefsApplePrefixSkipped(t *testing.T) {
+	isolateAppRoots(t)
 	home := t.TempDir()
 
 	// Create Preferences directory with various com.apple.* plist files.

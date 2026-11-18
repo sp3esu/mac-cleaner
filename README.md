@@ -36,7 +36,7 @@ English | [Polski](docs/README_PL.md) | [Deutsch](docs/README_DE.md) | [Укра
 - **.build (Swift)** — `.build/` directories in Swift Package Manager projects (safe)
 - **target (Rust)** — `target/` directories in Cargo/Rust projects (safe)
 - **venv (Python)** — `venv/` and `.venv/` directories in Python projects (moderate)
-- **build (Java/Kotlin)** — `build/` directories in Gradle/Maven projects (safe)
+- **build (Java/Kotlin)** — `build/` directories next to `build.gradle` or `build.gradle.kts` in Gradle projects (safe). A `build/` beside only a `pom.xml` is not flagged: Maven writes its output to `target/`, so `build/` there usually holds hand-written files.
 
 Project caches are detected by walking your home directory and validating each candidate against its manifest file (e.g., `package.json` for node_modules, `Cargo.toml` for target). This prevents false positives on generic directory names. Projects inactive for 6+ months are flagged with a staleness indicator.
 
@@ -44,7 +44,7 @@ Project caches are detected by walking your home directory and validating each c
 - **Large Files (>100 MB)** — files larger than 100 MB found in your home directory (risky)
 - **Old Files (>180 days)** — files older than 180 days and larger than 10 MB found in your home directory (risky)
 
-Home directory scanning excludes `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads`, and dotfile directories (e.g., `~/.config`). Results are marked as "risky" because these are personal files, not regenerable caches.
+Home directory scanning excludes `~/Library`, `~/Applications`, `~/.Trash`, `~/Downloads`, and dotfile directories (e.g., `~/.config`). Results are marked as "risky" because these are personal files, not regenerable caches. It also never descends into macOS packages and app libraries (`.photoslibrary`, `.musiclibrary`, `.tvlibrary`, `.imovielibrary`, `.fcpbundle`, `.logicx`, `.app`, `.bundle`, `.framework`, `.sparsebundle`, `.pvm`, `.vmwarevm`, `.utm`), version-control metadata (`.git`, `.hg`, `.svn`), installed tools (`~/bin`, `~/go/bin`), or the Music and TV media folders (`~/Music/Music`, `~/Movies/TV/Media.localized`): deleting one file inside them corrupts the whole library, repository or install. The size thresholds are compared against allocated disk space, so a sparse file (such as a VM disk image) that occupies little space is not reported as large.
 
 > **Note:** iCloud Drive placeholder files may report their original size even when evicted from local storage.
 
@@ -59,6 +59,8 @@ Git repository cleanup discovers `.git` directories under your home folder, repo
 - **Orphaned Preferences** — `.plist` files in `~/Library/Preferences/` for uninstalled apps (risky)
 - **iOS Device Backups** — `~/Library/Application Support/MobileSync/Backup/` (risky)
 - **Old Downloads** — files in `~/Downloads/` older than 90 days (moderate)
+
+Orphaned preferences never include macOS system domains (names without a reverse-DNS dot such as `loginwindow`, dot-files such as `.GlobalPreferences`, anything containing `com.apple.`, `systemgroup.*`, and `org.cups.PrintingPrefs`) or any `.plist` modified in the last 90 days. Installed apps are recognised by their own bundle ID and by the IDs of the helper apps, login items and extensions nested inside them, including apps under `/Library/Application Support`. If the bundle ID of any installed app cannot be read, no orphaned preferences are reported for that run. A folder in `~/Downloads` counts as old only if nothing inside it was modified in the last 90 days; folders too deep or too large to check fully are left alone.
 
 ### Creative App Caches
 - **Adobe Caches** — `~/Library/Caches/Adobe/` (safe)
@@ -382,7 +384,7 @@ mac-cleaner schedule uninstall   # remove the agent
 |------|-------------|
 | `--at HH:MM` | Time of day to run, 24-hour (default `03:00`) |
 | `--weekdays` | Comma-separated days, e.g. `mon,wed,fri` (default every day) |
-| `--targets` | Scan items to clean, using `scan` flag names (default `derived-data`) |
+| `--targets` | Cache items to clean, using `scan` flag names (default `derived-data`). Risky and user-data items are refused (see below) |
 | `--simulator-caches` | Also clean iOS Simulator caches |
 | `--even-if-running` | Clean even while Xcode is running (by default the run is skipped) |
 
@@ -390,6 +392,7 @@ Notes:
 - If the Mac is asleep at the scheduled time, the job runs on wake; if it is powered off, that run is skipped.
 - Output is appended to `~/Library/Logs/mac-cleaner/scheduled.log`.
 - Running `install` again replaces the existing schedule. When installed via Homebrew, the stable `/opt/homebrew/bin/mac-cleaner` path is used so upgrades keep working.
+- Because scheduled runs delete without asking, `install` refuses targets that are risky or hold user data, such as `large-files`, `old-files`, `orphaned-prefs`, `old-downloads`, `ios-backups`, `mail`, `messages`, `xcode-archives`, `docker` and the VM targets. `derived-data` is the one risky-rated exception, since Xcode regenerates it.
 
 ## License
 

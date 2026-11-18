@@ -114,6 +114,42 @@ func TestScanJavaBuild(t *testing.T) {
 	}
 }
 
+// TestMavenBuildDirNotFlagged: Maven writes its output to target/, so a
+// build/ dir next to pom.xml is hand-written content and must not be
+// flagged. build/ next to build.gradle or build.gradle.kts still is.
+func TestMavenBuildDirNotFlagged(t *testing.T) {
+	root := t.TempDir()
+	mvn := filepath.Join(root, "maven-app")
+	os.MkdirAll(filepath.Join(mvn, "build", "scripts"), 0755)
+	os.WriteFile(filepath.Join(mvn, "pom.xml"), []byte("<project/>"), 0644)
+	os.WriteFile(filepath.Join(mvn, "build", "scripts", "release.sh"), make([]byte, 1024), 0644)
+	for _, manifest := range []string{"build.gradle", "build.gradle.kts"} {
+		dir := filepath.Join(root, "gradle-app-"+manifest)
+		os.MkdirAll(filepath.Join(dir, "build"), 0755)
+		os.WriteFile(filepath.Join(dir, manifest), []byte("plugins {}"), 0644)
+		os.WriteFile(filepath.Join(dir, "build", "x"), make([]byte, 1024), 0644)
+	}
+
+	found := findCategory(scanWithRoot(t, root), "proj-java")
+	if found == nil {
+		t.Fatal("expected proj-java category for the Gradle projects")
+	}
+	var got []string
+	for _, e := range found.Entries {
+		rel, _ := filepath.Rel(root, e.Path)
+		got = append(got, rel)
+	}
+	sort.Strings(got)
+	want := []string{
+		filepath.Join("gradle-app-build.gradle", "build"),
+		filepath.Join("gradle-app-build.gradle.kts", "build"),
+	}
+	sort.Strings(want)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("proj-java entries = %v, want %v (maven-app/build must not be flagged)", got, want)
+	}
+}
+
 func TestNoFalsePositive(t *testing.T) {
 	root := t.TempDir()
 	// Create "build" dir without any manifest

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/sp3esu/mac-cleaner/internal/safety"
 	"github.com/sp3esu/mac-cleaner/internal/schedule"
 )
 
@@ -81,7 +82,7 @@ func init() {
 	f := scheduleInstallCmd.Flags()
 	f.StringVar(&flagScheduleAt, "at", "03:00", "time of day to run (HH:MM, 24-hour)")
 	f.StringVar(&flagScheduleWeekdays, "weekdays", "", "comma-separated days to run, e.g. mon,wed,fri (default every day)")
-	f.StringSliceVar(&flagScheduleTargets, "targets", []string{"derived-data"}, "scan items to clean (see 'mac-cleaner scan --help')")
+	f.StringSliceVar(&flagScheduleTargets, "targets", []string{"derived-data"}, "cache items to clean (see 'mac-cleaner scan --help'); risky and user-data items are refused")
 	f.BoolVar(&flagScheduleSimCaches, "simulator-caches", false, "also clean iOS Simulator caches")
 	f.BoolVar(&flagScheduleEvenIfRunning, "even-if-running", false, "clean even while Xcode is running")
 
@@ -94,31 +95,55 @@ func init() {
 	rootCmd.AddCommand(scheduleCmd)
 }
 
+// schedulable reports whether a category may be cleaned by the unattended
+// scheduled job, which always runs with --force. Risky categories are
+// refused, except dev-xcode (DerivedData, the regenerable default target).
+// app-old-downloads is moderate but holds user files, so it is refused too.
+func schedulable(categoryID string) bool {
+	switch categoryID {
+	case "dev-xcode":
+		return true
+	case "app-old-downloads":
+		return false
+	}
+	return safety.RiskForCategory(categoryID) != safety.RiskRisky
+}
+
 // scheduleTargets validates and de-duplicates the requested targets
-// against the targeted scan flags in scanGroups.
+// against the targeted scan flags in scanGroups, and rejects targets that
+// must not be deleted unattended.
 func scheduleTargets(requested []string, simCaches bool) ([]string, error) {
 	if simCaches {
 		requested = append(append([]string(nil), requested...), "simulator-caches")
 	}
-	valid := map[string]bool{}
+	category := map[string]string{}
 	for _, g := range scanGroups {
 		for _, item := range g.Items {
 			if item.FlagName != "" && item.ScanFlag != nil {
-				valid[item.FlagName] = true
+				category[item.FlagName] = item.CategoryID
 			}
 		}
 	}
 	seen := map[string]bool{}
-	var targets []string
+	var targets, refused []string
 	for _, t := range requested {
 		t = strings.TrimPrefix(strings.TrimSpace(t), "--")
-		if !valid[t] {
+		id, ok := category[t]
+		if !ok {
 			return nil, fmt.Errorf("unknown target %q (see 'mac-cleaner scan --help' for targeted scan flags)", t)
 		}
-		if !seen[t] {
-			seen[t] = true
-			targets = append(targets, t)
+		if seen[t] {
+			continue
 		}
+		seen[t] = true
+		if !schedulable(id) {
+			refused = append(refused, t)
+			continue
+		}
+		targets = append(targets, t)
+	}
+	if len(refused) > 0 {
+		return nil, fmt.Errorf("cannot schedule %s: scheduled runs delete without confirmation, so only regenerable caches are allowed (risky or user-data targets are refused)", strings.Join(refused, ", "))
 	}
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("at least one target is required")

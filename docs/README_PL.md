@@ -90,7 +90,7 @@ Czyszczenie repozytoriow Git wykrywa katalogi `.git` w katalogu domowym, wyswiet
 - **Maszyny wirtualne VMware Fusion** — `~/Virtual Machines.localized/` obrazy dysków (ryzykowne)
 
 ### Nieużywane aplikacje
-- **Nieużywane aplikacje** — aplikacje w `/Applications` i `~/Applications` nieotwierane od ponad 180 dni, z całkowitym zajmowanym miejscem włącznie z danymi `~/Library/` (ryzykowne)
+- **Nieużywane aplikacje** — aplikacje w `/Applications` i `~/Applications` nieotwierane od ponad 180 dni, z całkowitym zajmowanym miejscem włącznie z danymi `~/Library/` (ryzykowne). Aplikacje, które działają, mają zadanie launchd, zapisały dane `~/Library/` lub zostały zainstalowane w tym okresie albo udostępniają rozszerzenia (Szybki przegląd, Spotlight, Safari itp.), nie są wymieniane
 
 Szczegóły w dokumentacji [Wykrywanie nieużywanych aplikacji](unused-apps_PL.md).
 

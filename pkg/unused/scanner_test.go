@@ -3,6 +3,7 @@ package unused
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,22 @@ func writeFile(t *testing.T, path string, size int) {
 	}
 }
 
+// backdate sets the access and modification times of root and everything
+// under it to when. Changing a child's times does not touch its parent's
+// mtime, so the walk order does not matter.
+func backdate(t *testing.T, root string, when time.Time) {
+	t.Helper()
+	err := filepath.WalkDir(root, func(p string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Chtimes(p, when, when)
+	})
+	if err != nil {
+		t.Fatalf("backdate %s: %v", root, err)
+	}
+}
+
 // mockRunner returns a CmdRunner that maps commands to predefined responses.
 // The key is "command arg0 arg1 ..." joined by space.
 type mockResponse struct {
@@ -56,6 +73,10 @@ func newMockRunner(responses map[string]mockResponse) CmdRunner {
 		if resp, ok := responses[name]; ok {
 			return resp.output, resp.err
 		}
+		// Default: only launchd is running, unless a test sets "ps".
+		if name == "ps" {
+			return []byte("/sbin/launchd\n"), nil
+		}
 		return nil, fmt.Errorf("mock: no response for %q", key)
 	}
 }
@@ -72,7 +93,7 @@ func TestScanUnusedApps_UnusedDetected(t *testing.T) {
 	cacheDir := filepath.Join(home, "Library", "Caches", "com.example.oldapp")
 	writeFile(t, filepath.Join(cacheDir, "cache.db"), 2000)
 	oldTime := time.Now().Add(-365 * 24 * time.Hour)
-	os.Chtimes(cacheDir, oldTime, oldTime)
+	backdate(t, cacheDir, oldTime)
 
 	oldDate := oldTime.Format(mdlsDateLayout)
 
@@ -185,7 +206,7 @@ func TestScanUnusedApps_LibraryFootprintIncluded(t *testing.T) {
 	writeFile(t, filepath.Join(libDirs[2], "Data", "db.sqlite"), 2000)
 	oldTime := time.Now().Add(-200 * 24 * time.Hour)
 	for _, d := range libDirs {
-		os.Chtimes(d, oldTime, oldTime)
+		backdate(t, d, oldTime)
 	}
 
 	oldDate := oldTime.Format(mdlsDateLayout)
@@ -495,9 +516,9 @@ func TestLibraryFootprint(t *testing.T) {
 
 	size := sumSizes(libraryFootprint(home, "com.test.app", "TestApp"))
 
-	// Should include Caches (1000) + AppSupport (2000) directories on disk,
-	// plus the Preferences plist (500), which pathSize sizes by file length.
-	if want := scantest.OnDisk(t, 1000, 2000) + 500; size != want {
+	// Should include Caches (1000) + AppSupport (2000) + Preferences plist
+	// (500), all sized on disk.
+	if want := scantest.OnDisk(t, 1000, 2000, 500); size != want {
 		t.Errorf("expected library footprint %d, got %d", want, size)
 	}
 }
@@ -540,7 +561,7 @@ func TestLibraryLastModified(t *testing.T) {
 		oldTime := time.Now().Add(-365 * 24 * time.Hour)
 		os.Chtimes(oldDir, oldTime, oldTime)
 
-		result := libraryLastModified(home, "com.test.app", "TestApp")
+		result := libraryLastModified(home, "com.test.app", "TestApp", time.Now().Add(-defaultThreshold))
 		if result.IsZero() {
 			t.Fatal("expected non-zero time")
 		}
@@ -554,7 +575,7 @@ func TestLibraryLastModified(t *testing.T) {
 	t.Run("returns zero for nonexistent paths", func(t *testing.T) {
 		home := t.TempDir()
 
-		result := libraryLastModified(home, "com.nonexistent.app", "NonExistent")
+		result := libraryLastModified(home, "com.nonexistent.app", "NonExistent", time.Now().Add(-defaultThreshold))
 		if !result.IsZero() {
 			t.Errorf("expected zero time, got %v", result)
 		}
@@ -565,7 +586,7 @@ func TestLibraryLastModified(t *testing.T) {
 
 		writeFile(t, filepath.Join(home, "Library", "Application Support", "MyApp", "data"), 100)
 
-		result := libraryLastModified(home, "com.other.id", "MyApp")
+		result := libraryLastModified(home, "com.other.id", "MyApp", time.Now().Add(-defaultThreshold))
 		if result.IsZero() {
 			t.Fatal("expected non-zero time from appName path")
 		}
@@ -578,7 +599,7 @@ func TestLibraryLastModified(t *testing.T) {
 		writeFile(t, filepath.Join(home, "Library", "Application Support", "SameName", "data"), 100)
 
 		// bundleID == appName → appName paths skipped, but bundleID path matches.
-		result := libraryLastModified(home, "SameName", "SameName")
+		result := libraryLastModified(home, "SameName", "SameName", time.Now().Add(-defaultThreshold))
 		if result.IsZero() {
 			t.Fatal("expected non-zero time from bundleID path")
 		}
@@ -757,7 +778,7 @@ func TestScanUnusedApps_OldLibraryDataStillDetected(t *testing.T) {
 	cacheDir := filepath.Join(home, "Library", "Caches", "com.example.trulyold")
 	writeFile(t, filepath.Join(cacheDir, "old.db"), 2000)
 	oldTime := time.Now().Add(-365 * 24 * time.Hour)
-	os.Chtimes(cacheDir, oldTime, oldTime)
+	backdate(t, cacheDir, oldTime)
 
 	runner := newMockRunner(responses)
 
@@ -786,8 +807,8 @@ func TestScanUnusedApps_ComponentsExplainSize(t *testing.T) {
 	writeFile(t, filepath.Join(containers, "Data", "disk.raw"), 9000)
 	writeFile(t, filepath.Join(caches, "data.db"), 500)
 	oldTime := time.Now().Add(-200 * 24 * time.Hour)
-	os.Chtimes(containers, oldTime, oldTime)
-	os.Chtimes(caches, oldTime, oldTime)
+	backdate(t, containers, oldTime)
+	backdate(t, caches, oldTime)
 
 	runner := newMockRunner(map[string]mockResponse{
 		"mdls -name kMDItemLastUsedDate -raw " + appPath: {output: []byte(oldTime.Format(mdlsDateLayout))},
@@ -874,13 +895,604 @@ func TestLibraryFootprint_ComponentsNotRemoved(t *testing.T) {
 	if len(comps) != 3 {
 		t.Fatalf("expected 3 non-empty components, got %+v", comps)
 	}
-	// Directories are sized on disk; the LaunchAgents plist (20) by file length.
-	if want := scantest.OnDisk(t, 1000, 300) + 20; sumSizes(comps) != want {
+	// Directories and the LaunchAgents plist (20) are all sized on disk.
+	if want := scantest.OnDisk(t, 1000, 300, 20); sumSizes(comps) != want {
 		t.Errorf("expected total %d, got %d", want, sumSizes(comps))
 	}
 	for _, c := range comps {
 		if c.Removed || c.Size == 0 {
 			t.Errorf("unexpected component %+v", c)
 		}
+	}
+}
+
+// addApp creates a minimal .app bundle under appDir and registers the mdls
+// (kMDItemLastUsedDate) and PlistBuddy responses for it. An empty bundleID
+// makes PlistBuddy fail. It returns the bundle path.
+func addApp(t *testing.T, responses map[string]mockResponse, appDir, name, bundleID, lastUsed string) string {
+	t.Helper()
+	appPath := filepath.Join(appDir, name+".app")
+	writeFile(t, filepath.Join(appPath, "Contents", "MacOS", name), 1000)
+	responses["mdls -name kMDItemLastUsedDate -raw "+appPath] = mockResponse{output: []byte(lastUsed)}
+	key := "/usr/libexec/PlistBuddy -c Print :CFBundleIdentifier " + filepath.Join(appPath, "Contents", "Info.plist")
+	if bundleID == "" {
+		responses[key] = mockResponse{err: fmt.Errorf("no plist")}
+	} else {
+		responses[key] = mockResponse{output: []byte(bundleID + "\n")}
+	}
+	return appPath
+}
+
+// longAgo is well before the default 180-day cutoff.
+var longAgo = time.Now().Add(-400 * 24 * time.Hour)
+
+// entryPaths returns the entry paths of a scan result (nil-safe).
+func entryPaths(cr *scan.CategoryResult) []string {
+	if cr == nil {
+		return nil
+	}
+	var paths []string
+	for _, e := range cr.Entries {
+		paths = append(paths, e.Path)
+	}
+	return paths
+}
+
+func TestScanUnusedApps_RunningProcessSkipped(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	responses := map[string]mockResponse{}
+	running := addApp(t, responses, appDir, "Magnet", "com.example.magnet", longAgo.Format(mdlsDateLayout))
+	// "Mag.app" shares a name prefix with "Magnet.app" but is not running.
+	idle := addApp(t, responses, appDir, "Mag", "com.example.mag", longAgo.Format(mdlsDateLayout))
+
+	psCalls := 0
+	mock := newMockRunner(responses)
+	runner := func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if name == "ps" {
+			psCalls++
+			if strings.Join(args, " ") != "-axo comm=" {
+				t.Errorf("unexpected ps args %q", args)
+			}
+			return []byte("/sbin/launchd\n" + running + "/Contents/MacOS/Magnet\n/usr/bin/zsh\n"), nil
+		}
+		return mock(ctx, name, args...)
+	}
+
+	result := scanUnusedApps(home, defaultThreshold, runner)
+	got := entryPaths(result)
+	if len(got) != 1 || got[0] != idle {
+		t.Fatalf("expected only %s flagged, got %v", idle, got)
+	}
+	if psCalls != 1 {
+		t.Errorf("ps should run once per scan, ran %d times", psCalls)
+	}
+}
+
+func TestScanUnusedApps_PsFailureFlagsNothing(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	responses := map[string]mockResponse{"ps": {err: fmt.Errorf("ps: operation not permitted")}}
+	addApp(t, responses, appDir, "OldApp", "com.example.oldapp", longAgo.Format(mdlsDateLayout))
+	addApp(t, responses, appDir, "Other", "", longAgo.Format(mdlsDateLayout))
+
+	result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses))
+	if result == nil {
+		t.Fatal("expected a result carrying the ps failure note")
+	}
+	if len(result.Entries) != 0 || result.TotalSize != 0 {
+		t.Errorf("no app may be flagged when ps fails, got %v", entryPaths(result))
+	}
+	if len(result.PermissionIssues) != 1 || result.PermissionIssues[0].Path != "ps" {
+		t.Fatalf("expected one ps note, got %+v", result.PermissionIssues)
+	}
+	if !strings.Contains(result.PermissionIssues[0].Description, "not permitted") {
+		t.Errorf("note should carry the ps error, got %q", result.PermissionIssues[0].Description)
+	}
+}
+
+func TestScanUnusedApps_UserLaunchAgentIntoBundleSkipped(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	responses := map[string]mockResponse{}
+	appPath := addApp(t, responses, appDir, "Updater", "com.example.updater", longAgo.Format(mdlsDateLayout))
+
+	plist := filepath.Join(home, "Library", "LaunchAgents", "com.vendor.agent.plist")
+	writeFile(t, plist, 10)
+	responses["plutil -convert json -o - "+plist] = mockResponse{
+		output: []byte(`{"Label":"com.vendor.agent","ProgramArguments":["` + appPath + `/Contents/MacOS/agent","--bg"]}`),
+	}
+
+	if result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses)); result != nil {
+		t.Fatalf("app with a LaunchAgent into its bundle must be skipped, got %v", entryPaths(result))
+	}
+}
+
+func TestScanUnusedApps_RecentPreferencesSkipped(t *testing.T) {
+	const id = "com.example.prefs"
+	tests := []struct {
+		name string
+		rel  []string // path under ~/Library written now
+	}{
+		{"preferences plist", []string{"Preferences", id + ".plist"}},
+		{"ByHost plist", []string{"Preferences", "ByHost", id + ".0F3A-UUID.plist"}},
+		{"group container", []string{"Group Containers", "TEAM123." + id, "Library", "db.sqlite"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			appDir := filepath.Join(home, "Applications")
+			responses := map[string]mockResponse{}
+			addApp(t, responses, appDir, "Prefs", id, longAgo.Format(mdlsDateLayout))
+
+			p := filepath.Join(append([]string{home, "Library"}, tt.rel...)...)
+			writeFile(t, p, 100)
+			// Only the leaf is fresh: backdate every directory above it.
+			backdate(t, filepath.Join(home, "Library"), longAgo)
+			now := time.Now()
+			if err := os.Chtimes(p, now, now); err != nil {
+				t.Fatal(err)
+			}
+
+			if result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses)); result != nil {
+				t.Fatalf("app with %s written now must be skipped, got %v", tt.name, entryPaths(result))
+			}
+		})
+	}
+}
+
+func TestScanUnusedApps_GroupContainerNameMustMatch(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	responses := map[string]mockResponse{}
+	appPath := addApp(t, responses, appDir, "Prefs", "com.example.prefs", longAgo.Format(mdlsDateLayout))
+	// A different app's group container whose name merely contains the ID.
+	writeFile(t, filepath.Join(home, "Library", "Group Containers", "TEAM.com.example.prefs.other", "db"), 100)
+
+	got := entryPaths(scanUnusedApps(home, defaultThreshold, newMockRunner(responses)))
+	if len(got) != 1 || got[0] != appPath {
+		t.Fatalf("unrelated group container must not count as activity, got %v", got)
+	}
+}
+
+func TestScanUnusedApps_NestedContainerWriteSkipped(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	responses := map[string]mockResponse{}
+	addApp(t, responses, appDir, "Docker", "com.example.docker", longAgo.Format(mdlsDateLayout))
+
+	container := filepath.Join(home, "Library", "Containers", "com.example.docker")
+	disk := filepath.Join(container, "Data", "vms", "0", "data", "disk.raw")
+	writeFile(t, disk, 4096)
+	// Mirror Docker.raw: every directory is old, only the disk image is
+	// being written. Its depth below Containers/<id> is 5.
+	backdate(t, container, longAgo)
+	now := time.Now()
+	if err := os.Chtimes(disk, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	if result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses)); result != nil {
+		t.Fatalf("app whose container data is written now must be skipped, got %v", entryPaths(result))
+	}
+}
+
+func TestScanUnusedApps_DateAddedFallback(t *testing.T) {
+	tests := []struct {
+		name      string
+		dateAdded mockResponse
+		wantFlag  bool
+	}{
+		{"added today", mockResponse{output: []byte(time.Now().Add(-time.Hour).Format(mdlsDateLayout))}, false},
+		{"added long ago", mockResponse{output: []byte(longAgo.Format(mdlsDateLayout))}, true},
+		{"date added null", mockResponse{output: []byte("(null)")}, true},
+		{"mdls fails", mockResponse{err: fmt.Errorf("mdls failed")}, true},
+		{"unparseable", mockResponse{output: []byte("garbage")}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			appDir := filepath.Join(home, "Applications")
+			responses := map[string]mockResponse{}
+			appPath := addApp(t, responses, appDir, "Fresh", "com.example.fresh", "(null)")
+			responses["mdls -name kMDItemDateAdded -raw "+appPath] = tt.dateAdded
+
+			result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses))
+			if !tt.wantFlag {
+				if result != nil {
+					t.Fatalf("app added within the threshold must be skipped, got %v", entryPaths(result))
+				}
+				return
+			}
+			if result == nil || len(result.Entries) != 1 {
+				t.Fatalf("expected app flagged, got %v", entryPaths(result))
+			}
+			if d := result.Entries[0].Description; d != "Fresh (no usage history)" {
+				t.Errorf("description = %q, want 'Fresh (no usage history)'", d)
+			}
+		})
+	}
+}
+
+func TestScanUnusedApps_ExtensionHostSkipped(t *testing.T) {
+	tests := []struct {
+		name string
+		rel  string // file created inside the bundle
+		skip bool
+	}{
+		{"appex plugin", "Contents/PlugIns/Preview.appex/Contents/Info.plist", true},
+		{"QuickLook generator", "Contents/Library/QuickLook/x.qlgenerator/Contents/Info.plist", true},
+		{"Spotlight importer", "Contents/Library/Spotlight/x.mdimporter/Contents/Info.plist", true},
+		{"system extension", "Contents/Library/SystemExtensions/x.systemextension/Contents/Info.plist", true},
+		{"non-appex plugin", "Contents/PlugIns/codec.bundle/Contents/Info.plist", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			appDir := filepath.Join(home, "Applications")
+			responses := map[string]mockResponse{}
+			appPath := addApp(t, responses, appDir, "Host", "com.example.host", longAgo.Format(mdlsDateLayout))
+			writeFile(t, filepath.Join(appPath, filepath.FromSlash(tt.rel)), 10)
+
+			got := entryPaths(scanUnusedApps(home, defaultThreshold, newMockRunner(responses)))
+			if tt.skip && len(got) != 0 {
+				t.Fatalf("extension host must be skipped, got %v", got)
+			}
+			if !tt.skip && (len(got) != 1 || got[0] != appPath) {
+				t.Fatalf("expected %s flagged, got %v", appPath, got)
+			}
+		})
+	}
+}
+
+func TestLibraryFootprint_ResolvesOnDiskCase(t *testing.T) {
+	home := t.TempDir()
+	onDisk := filepath.Join(home, "Library", "Application Support", "discord")
+	writeFile(t, filepath.Join(onDisk, "Cache", "data_0"), 1000)
+
+	comps := libraryFootprint(home, "com.hnc.Discord", "Discord")
+	if len(comps) != 1 {
+		t.Fatalf("expected 1 component, got %+v", comps)
+	}
+	if comps[0].Path != onDisk {
+		t.Errorf("component path = %q, want on-disk case %q", comps[0].Path, onDisk)
+	}
+	if comps[0].Size != scantest.OnDisk(t, 1000) || comps[0].Removed {
+		t.Errorf("unexpected component %+v", comps[0])
+	}
+}
+
+func TestLibraryFootprint_SameDirCountedOnce(t *testing.T) {
+	home := t.TempDir()
+	// bundleID "myapp" and appName "MyApp" name the same directory on a
+	// case-insensitive volume (and after case resolution on any volume).
+	writeFile(t, filepath.Join(home, "Library", "Application Support", "MyApp", "data"), 1000)
+	writeFile(t, filepath.Join(home, "Library", "Logs", "myapp", "log.txt"), 200)
+
+	comps := libraryFootprint(home, "myapp", "MyApp")
+	if got, want := sumSizes(comps), scantest.OnDisk(t, 1000, 200); got != want {
+		t.Errorf("expected %d (each dir once), got %d from %+v", want, got, comps)
+	}
+	if len(comps) != 2 {
+		t.Errorf("expected 2 components, got %+v", comps)
+	}
+}
+
+func TestPathSize(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "prefs.plist")
+	writeFile(t, file, 1234)
+	writeFile(t, filepath.Join(dir, "sub", "a"), 100)
+
+	if got, want := pathSize(file), mustDirSize(t, file); got != want || got == 0 {
+		t.Errorf("pathSize(file) = %d, want scan.DirSize %d", got, want)
+	}
+	if got, want := pathSize(filepath.Join(dir, "sub")), mustDirSize(t, filepath.Join(dir, "sub")); got != want {
+		t.Errorf("pathSize(dir) = %d, want %d", got, want)
+	}
+	if got := pathSize(filepath.Join(dir, "missing")); got != 0 {
+		t.Errorf("pathSize(missing) = %d, want 0", got)
+	}
+}
+
+func mustDirSize(t *testing.T, p string) int64 {
+	t.Helper()
+	n, err := scan.DirSize(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestScanUnusedApps_GenuinelyUnusedStillFlagged(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	const id = "com.example.stale"
+	responses := map[string]mockResponse{
+		"ps": {output: []byte("/sbin/launchd\n/Applications/Other.app/Contents/MacOS/Other\n")},
+	}
+	appPath := addApp(t, responses, appDir, "Stale", id, longAgo.Format(mdlsDateLayout))
+
+	lib := filepath.Join(home, "Library")
+	prefs := filepath.Join(lib, "Preferences", id+".plist")
+	caches := filepath.Join(lib, "Caches", id)
+	container := filepath.Join(lib, "Containers", id)
+	writeFile(t, prefs, 300)
+	writeFile(t, filepath.Join(caches, "a", "b.db"), 500)
+	writeFile(t, filepath.Join(container, "Data", "Library", "x.db"), 2000)
+	agent := filepath.Join(lib, "LaunchAgents", "com.vendor.other.plist")
+	writeFile(t, agent, 10)
+	responses["plutil -convert json -o - "+agent] = mockResponse{
+		output: []byte(`{"Label":"com.vendor.other","Program":"/Applications/Other.app/Contents/MacOS/Other"}`),
+	}
+	backdate(t, lib, longAgo)
+
+	result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses))
+	if result == nil || len(result.Entries) != 1 {
+		t.Fatalf("expected the stale app flagged, got %v", entryPaths(result))
+	}
+	e := result.Entries[0]
+	if e.Path != appPath || e.Description != "Stale (last used "+longAgo.Format("Jan 2006")+")" {
+		t.Errorf("unexpected entry %+v", e)
+	}
+	want := map[string]struct {
+		size    int64
+		removed bool
+	}{
+		appPath:   {scantest.OnDisk(t, 1000), true}, // bundle under home: cleanup removes it
+		container: {scantest.OnDisk(t, 2000), false},
+		caches:    {scantest.OnDisk(t, 500), false},
+		prefs:     {scantest.OnDisk(t, 300), false},
+	}
+	if len(e.Components) != len(want) {
+		t.Fatalf("expected %d components, got %+v", len(want), e.Components)
+	}
+	for _, c := range e.Components {
+		w, ok := want[c.Path]
+		if !ok {
+			t.Errorf("unexpected component %+v", c)
+			continue
+		}
+		if c.Size != w.size || c.Removed != w.removed {
+			t.Errorf("component %s = size %d removed %v, want %d %v", c.Path, c.Size, c.Removed, w.size, w.removed)
+		}
+	}
+	wantSize, wantRemoved := scantest.OnDisk(t, 1000, 2000, 500, 300), scantest.OnDisk(t, 1000)
+	if e.Size != wantSize || e.RemovedSize() != wantRemoved {
+		t.Errorf("size %d removed %d, want %d and %d", e.Size, e.RemovedSize(), wantSize, wantRemoved)
+	}
+}
+
+// withSystemLaunchdDirs points the system launchd directories at dirs for
+// the duration of a test.
+func withSystemLaunchdDirs(t *testing.T, dirs ...string) {
+	t.Helper()
+	orig := systemLaunchdDirs
+	systemLaunchdDirs = dirs
+	t.Cleanup(func() { systemLaunchdDirs = orig })
+}
+
+func TestScanUnusedApps_LaunchdJobs(t *testing.T) {
+	const id = "com.example.vm"
+	tests := []struct {
+		name     string
+		json     func(appPath string) string
+		plutilOK bool
+		skip     bool
+	}{
+		{"Program inside bundle", func(a string) string {
+			return `{"Label":"x","Program":"` + a + `/Contents/Library/LaunchServices/helper"}`
+		}, true, true},
+		{"ProgramArguments[0] inside bundle", func(a string) string {
+			return `{"Label":"x","ProgramArguments":["` + a + `/Contents/MacOS/vmnetd","-d"]}`
+		}, true, true},
+		{"absolute BundleProgram inside bundle", func(a string) string {
+			return `{"Label":"x","BundleProgram":"` + a + `/Contents/MacOS/agent"}`
+		}, true, true},
+		{"AssociatedBundleIdentifiers string", func(string) string {
+			return `{"Label":"x","Program":"/Library/PrivilegedHelperTools/x","AssociatedBundleIdentifiers":"` + id + `"}`
+		}, true, true},
+		{"AssociatedBundleIdentifiers array", func(string) string {
+			return `{"Label":"x","Program":"/Library/PrivilegedHelperTools/x","AssociatedBundleIdentifiers":["com.other","` + id + `"]}`
+		}, true, true},
+		{"unrelated job", func(string) string {
+			return `{"Label":"x","ProgramArguments":["/Library/PrivilegedHelperTools/x"],"AssociatedBundleIdentifiers":["com.other"]}`
+		}, true, false},
+		{"relative BundleProgram", func(string) string {
+			return `{"Label":"x","BundleProgram":"Contents/MacOS/agent"}`
+		}, true, false},
+		{"malformed JSON", func(string) string { return `{not json` }, true, false},
+		{"plutil fails", func(string) string { return "" }, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			daemons := filepath.Join(home, "sys", "LaunchDaemons")
+			withSystemLaunchdDirs(t, filepath.Join(home, "sys", "LaunchAgents"), daemons)
+			appDir := filepath.Join(home, "Applications")
+			responses := map[string]mockResponse{}
+			appPath := addApp(t, responses, appDir, "VM", id, longAgo.Format(mdlsDateLayout))
+
+			plist := filepath.Join(daemons, "com.vendor.vmnetd.plist")
+			writeFile(t, plist, 10)
+			key := "plutil -convert json -o - " + plist
+			if tt.plutilOK {
+				responses[key] = mockResponse{output: []byte(tt.json(appPath))}
+			} else {
+				responses[key] = mockResponse{err: fmt.Errorf("plutil: invalid plist")}
+			}
+
+			got := entryPaths(scanUnusedApps(home, defaultThreshold, newMockRunner(responses)))
+			if tt.skip && len(got) != 0 {
+				t.Fatalf("app with a matching launchd job must be skipped, got %v", got)
+			}
+			if !tt.skip && (len(got) != 1 || got[0] != appPath) {
+				t.Fatalf("expected %s flagged, got %v", appPath, got)
+			}
+		})
+	}
+}
+
+func TestScanUnusedApps_EmptyPsOutputFlagsNothing(t *testing.T) {
+	home := t.TempDir()
+	appDir := filepath.Join(home, "Applications")
+	responses := map[string]mockResponse{"ps": {output: []byte("\n")}}
+	addApp(t, responses, appDir, "OldApp", "com.example.oldapp", longAgo.Format(mdlsDateLayout))
+
+	result := scanUnusedApps(home, defaultThreshold, newMockRunner(responses))
+	if result == nil || len(result.Entries) != 0 || len(result.PermissionIssues) != 1 {
+		t.Fatalf("empty ps output must fail closed with a note, got %+v", result)
+	}
+}
+
+func TestIsRunning(t *testing.T) {
+	procs := []string{"/Applications/Foo.app/Contents/MacOS/Foo", "/usr/bin/zsh"}
+	tests := []struct {
+		app  string
+		want bool
+	}{
+		{"/Applications/Foo.app", true},
+		{"/applications/foo.app", true}, // APFS is case-insensitive
+		{"/Applications/Fo.app", false},
+		{"/Applications/Foo.app/Contents/MacOS/Foo", false}, // the bundle itself, not a path inside
+		{"/Applications/Bar.app", false},
+	}
+	for _, tt := range tests {
+		if got := isRunning(tt.app, procs); got != tt.want {
+			t.Errorf("isRunning(%q) = %v, want %v", tt.app, got, tt.want)
+		}
+	}
+}
+
+func TestNewestModTime(t *testing.T) {
+	cutoff := time.Now().Add(-defaultThreshold)
+
+	// tree creates root/<rel> (a file), backdates everything, then marks
+	// only the file as modified now.
+	tree := func(t *testing.T, rel ...string) (string, string) {
+		t.Helper()
+		root := t.TempDir()
+		f := filepath.Join(append([]string{root}, rel...)...)
+		writeFile(t, f, 10)
+		backdate(t, root, longAgo)
+		now := time.Now()
+		if err := os.Chtimes(f, now, now); err != nil {
+			t.Fatal(err)
+		}
+		return root, f
+	}
+
+	t.Run("finds a fresh file at the depth cap", func(t *testing.T) {
+		root, _ := tree(t, "a", "b", "c", "new.raw") // depth 4
+		if got := newestModTime(root, cutoff, 4, 5000); !got.After(cutoff) {
+			t.Errorf("expected fresh mtime, got %v", got)
+		}
+	})
+
+	t.Run("does not descend past the depth cap", func(t *testing.T) {
+		root, _ := tree(t, "a", "b", "c", "d", "new.raw") // depth 5
+		got := newestModTime(root, cutoff, 4, 5000)
+		if got.After(cutoff) {
+			t.Errorf("entry below the depth cap must not be visited, got %v", got)
+		}
+		if got.IsZero() {
+			t.Error("expected the old mtimes of visited entries, got zero")
+		}
+	})
+
+	t.Run("stops after the entry cap", func(t *testing.T) {
+		root := t.TempDir()
+		for i := 0; i < 10; i++ {
+			writeFile(t, filepath.Join(root, fmt.Sprintf("a%02d", i)), 1)
+		}
+		writeFile(t, filepath.Join(root, "z-new"), 1) // visited last (lexical order)
+		backdate(t, root, longAgo)
+		now := time.Now()
+		if err := os.Chtimes(filepath.Join(root, "z-new"), now, now); err != nil {
+			t.Fatal(err)
+		}
+		if got := newestModTime(root, cutoff, 4, 5); got.After(cutoff) {
+			t.Errorf("entries past the cap must not be visited, got %v", got)
+		}
+		if got := newestModTime(root, cutoff, 4, 5000); !got.After(cutoff) {
+			t.Errorf("with a large cap the fresh file must be found, got %v", got)
+		}
+	})
+
+	t.Run("regular file root", func(t *testing.T) {
+		_, f := tree(t, "only")
+		if got := newestModTime(f, cutoff, 4, 5000); !got.After(cutoff) {
+			t.Errorf("expected the file's own fresh mtime, got %v", got)
+		}
+	})
+
+	t.Run("missing root is zero", func(t *testing.T) {
+		if got := newestModTime(filepath.Join(t.TempDir(), "nope"), cutoff, 4, 5000); !got.IsZero() {
+			t.Errorf("expected zero, got %v", got)
+		}
+	})
+
+	t.Run("unreadable subdirectory is skipped", func(t *testing.T) {
+		root, _ := tree(t, "locked", "new.raw")
+		locked := filepath.Join(root, "locked")
+		if err := os.Chmod(locked, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(locked, 0755) })
+		got := newestModTime(root, cutoff, 4, 5000)
+		if got.After(cutoff) || got.IsZero() {
+			t.Errorf("expected only the old visible mtimes, got %v", got)
+		}
+	})
+}
+
+func TestOnDiskCase(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "discord"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		in, want string
+	}{
+		{filepath.Join(dir, "discord"), filepath.Join(dir, "discord")},
+		{filepath.Join(dir, "Discord"), filepath.Join(dir, "discord")},
+		{filepath.Join(dir, "DISCORD"), filepath.Join(dir, "discord")},
+		{filepath.Join(dir, "Slack"), filepath.Join(dir, "Slack")},                           // no match
+		{filepath.Join(dir, "missing", "Discord"), filepath.Join(dir, "missing", "Discord")}, // unreadable parent
+	}
+	for _, tt := range tests {
+		if got := onDiskCase(tt.in); got != tt.want {
+			t.Errorf("onDiskCase(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestLibraryLastModified_ContainerDataBeyondTopLevel(t *testing.T) {
+	home := t.TempDir()
+	container := filepath.Join(home, "Library", "Containers", "com.example.docker")
+	disk := filepath.Join(container, "Data", "vms", "0", "data", "Docker.raw")
+	writeFile(t, disk, 10)
+	backdate(t, container, longAgo)
+	now := time.Now()
+	if err := os.Chtimes(disk, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	cutoff := time.Now().Add(-defaultThreshold)
+	if got := libraryLastModified(home, "com.example.docker", "Docker", cutoff); !got.After(cutoff) {
+		t.Errorf("Docker.raw written now (depth 4 below Containers/<id>/Data) must count, got %v", got)
+	}
+}
+
+func TestHasLaunchdJob(t *testing.T) {
+	jobs := []launchdJob{{programs: []string{"/Library/PrivilegedHelperTools/x"}, bundleIDs: []string{"com.example.app"}}}
+	if hasLaunchdJob("/Applications/App.app", "", jobs) {
+		t.Error("an app without a bundle ID must only match by program path")
+	}
+	if !hasLaunchdJob("/Applications/App.app", "COM.example.APP", jobs) {
+		t.Error("bundle IDs should match case-insensitively")
+	}
+	if hasLaunchdJob("/Applications/App.app", "com.example.other", nil) {
+		t.Error("no jobs, no match")
 	}
 }

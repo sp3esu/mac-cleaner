@@ -90,7 +90,7 @@ Git repository cleanup discovers `.git` directories under your home folder, repo
 - **VMware Fusion VMs** — `~/Virtual Machines.localized/` disk images (risky)
 
 ### Unused Applications
-- **Unused Apps** — applications in `/Applications` and `~/Applications` not opened in 180+ days, with total disk footprint including `~/Library/` data (risky)
+- **Unused Apps** — applications in `/Applications` and `~/Applications` not opened in 180+ days, with total disk footprint including `~/Library/` data (risky). Apps that are running, have a launchd job, wrote `~/Library/` data or were installed within that period, or host extensions (Quick Look, Spotlight, Safari and similar) are not listed
 
 For details, see [Unused Applications Detection](docs/unused-apps.md).
 

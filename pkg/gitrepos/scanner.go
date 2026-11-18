@@ -24,8 +24,9 @@ type CmdRunner func(ctx context.Context, name string, args ...string) ([]byte, e
 
 // gitNote explains git-repos entries in the size breakdown: the size is an
 // estimate of loose and garbage objects, and cleanup repacks the repository
-// with git gc rather than deleting files.
-const gitNote = "estimate from 'git count-objects -v' (loose + garbage objects); cleanup runs 'git gc --aggressive', no files are deleted directly"
+// with git gc, which also prunes unreachable objects.
+const gitNote = "estimate from 'git count-objects -v' (loose + garbage objects); cleanup runs 'git gc --aggressive', " +
+	"which repacks objects and also prunes unreachable objects older than git's expiry (e.g. dropped stashes)"
 
 // lookPathFn wraps exec.LookPath for test injection.
 var lookPathFn = exec.LookPath
@@ -87,8 +88,12 @@ func scanFrom(root string, runner CmdRunner) ([]scan.CategoryResult, error) {
 				return false
 			}
 
-			// Get reclaimable estimate.
+			// Get reclaimable estimate. A repository with nothing loose or
+			// garbage to repack is not listed: git gc would free nothing.
 			reclaimable := countObjectsReclaimable(runner, repoRoot)
+			if reclaimable == 0 {
+				return false
+			}
 
 			// Check for LFS.
 			hasLFS := false
@@ -98,10 +103,8 @@ func scanFrom(root string, runner CmdRunner) ([]scan.CategoryResult, error) {
 			}
 
 			// Build description.
-			desc := filepath.Base(repoRoot) + " (.git " + scan.FormatSize(gitDirSize) + ")"
-			if reclaimable > 0 {
-				desc += " ~" + scan.FormatSize(reclaimable) + " reclaimable"
-			}
+			desc := filepath.Base(repoRoot) + " (.git " + scan.FormatSize(gitDirSize) + ")" +
+				" ~" + scan.FormatSize(reclaimable) + " reclaimable"
 			if hasLFS {
 				desc += " [LFS]"
 			}

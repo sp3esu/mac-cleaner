@@ -23,6 +23,24 @@ func withVerbose(t *testing.T, verbose bool) {
 // compositeResults returns one category with a composite entry (bundle plus
 // a library path that cleanup does not remove) and a plain entry.
 func compositeResults() []scan.CategoryResult {
+	return compositeResultsUnder("/tmp/vt")
+}
+
+// compositeResultsUnder is compositeResults with every path under dir
+// instead of /tmp/vt.
+func compositeResultsUnder(dir string) []scan.CategoryResult {
+	results := compositeResultsAt()
+	for i := range results[0].Entries {
+		e := &results[0].Entries[i]
+		e.Path = strings.Replace(e.Path, "/tmp/vt", dir, 1)
+		for j := range e.Components {
+			e.Components[j].Path = strings.Replace(e.Components[j].Path, "/tmp/vt", dir, 1)
+		}
+	}
+	return results
+}
+
+func compositeResultsAt() []scan.CategoryResult {
 	return []scan.CategoryResult{{
 		Category:    "unused-apps",
 		Description: "Unused Applications",
@@ -50,13 +68,13 @@ func TestPrintResults_VerboseBreakdown(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		"Sizes are apparent file sizes",
+		"Sizes are disk space allocated on disk (as du reports)",
 		"        /tmp/vt/Big.app\n",
 		"2.0 kB  /tmp/vt/Library/Containers/big  (counted, not removed by cleanup)  - app data in ~/Library",
 		"1.0 kB  /tmp/vt/Big.app  - app bundle\n",
 		"cleanup removes 1.0 kB of 3.0 kB counted",
 		"        /tmp/vt/plain\n",
-		"Total: 3.5 kB reclaimable",
+		"Total: 1.5 kB reclaimable (3.5 kB counted)\n",
 		"cleanup removes 1.5 kB of 3.5 kB counted",
 	} {
 		if !strings.Contains(out, want) {
@@ -85,7 +103,7 @@ func TestPrintResults_VerboseLegendOnce(t *testing.T) {
 		printResults(compositeResults(), true, "First")
 		printResults(compositeResults(), true, "Second")
 	})
-	if n := strings.Count(out, "Sizes are apparent file sizes"); n != 1 {
+	if n := strings.Count(out, "Sizes are disk space allocated"); n != 1 {
 		t.Errorf("legend printed %d times, want 1:\n%s", n, out)
 	}
 }
@@ -116,12 +134,12 @@ func TestPrintResults_NonVerboseUnchanged(t *testing.T) {
 	out := captureStdout(t, func() {
 		printResults(compositeResults(), true, "Title")
 	})
-	for _, unwanted := range []string{"Sizes are apparent", "/tmp/vt/Library", "cleanup removes", "not removed"} {
+	for _, unwanted := range []string{"Sizes are disk space", "/tmp/vt/Library", "cleanup removes", "not removed"} {
 		if strings.Contains(out, unwanted) {
 			t.Errorf("non-verbose output contains %q:\n%s", unwanted, out)
 		}
 	}
-	if !strings.Contains(out, "Total: 3.5 kB reclaimable") {
+	if !strings.Contains(out, "Total: 1.5 kB reclaimable (3.5 kB counted, see --verbose)\n") {
 		t.Errorf("expected total line, got:\n%s", out)
 	}
 }
@@ -168,17 +186,19 @@ func TestCleanupProgress_VerboseReportsNotRemoved(t *testing.T) {
 	flagJSON = false
 	defer func() { flagJSON = oldJSON }()
 
+	// Paths under a temp dir pass the safety check.
+	dir := t.TempDir()
 	var buf bytes.Buffer
-	cb := cleanupProgress(nil, &buf, compositeResults())
+	cb := cleanupProgress(nil, &buf, compositeResultsUnder(dir))
 	cb("Unused Applications", "", 1, 2)
-	cb("Unused Applications", "/tmp/vt/Big.app", 1, 2)
-	cb("Unused Applications", "/tmp/vt/plain", 2, 2)
+	cb("Unused Applications", dir+"/Big.app", 1, 2)
+	cb("Unused Applications", dir+"/plain", 2, 2)
 
 	out := buf.String()
-	if !strings.Contains(out, "  removing /tmp/vt/Big.app\n    not removed: /tmp/vt/Library/Containers/big (2.0 kB) - app data in ~/Library\n") {
+	if !strings.Contains(out, "  removing "+dir+"/Big.app\n    not removed: "+dir+"/Library/Containers/big (2.0 kB) - app data in ~/Library\n") {
 		t.Errorf("expected not-removed component after entry, got:\n%s", out)
 	}
-	if strings.Contains(out, "not removed: /tmp/vt/Big.app") {
+	if strings.Contains(out, "not removed: "+dir+"/Big.app") {
 		t.Errorf("removed bundle must not be reported as not removed:\n%s", out)
 	}
 	if strings.Count(out, "not removed:") != 1 {
@@ -192,14 +212,51 @@ func TestCleanupProgress_VerboseNoteOmittedWhenEmpty(t *testing.T) {
 	flagJSON = false
 	defer func() { flagJSON = oldJSON }()
 
+	dir := t.TempDir()
 	results := []scan.CategoryResult{{Entries: []scan.ScanEntry{{
-		Path:       "docker:Images",
-		Size:       5,
-		Components: []scan.SizeComponent{{Path: "docker:Images", Size: 5}},
+		Path: dir + "/X.app",
+		Size: 5,
+		Components: []scan.SizeComponent{
+			{Path: dir + "/X.app", Removed: true},
+			{Path: dir + "/lib", Size: 5},
+		},
 	}}}}
 	var buf bytes.Buffer
-	cleanupProgress(nil, &buf, results)("Docker", "docker:Images", 1, 1)
-	if !strings.HasSuffix(buf.String(), "    not removed: docker:Images (5 B)\n") {
+	cleanupProgress(nil, &buf, results)("Apps", dir+"/X.app", 1, 1)
+	if !strings.HasSuffix(buf.String(), "    not removed: "+dir+"/lib (5 B)\n") {
 		t.Errorf("unexpected output:\n%s", buf.String())
+	}
+}
+
+func TestCleanupProgress_VerboseNoRemovingForPseudoOrBlocked(t *testing.T) {
+	withVerbose(t, true)
+	oldJSON := flagJSON
+	flagJSON = false
+	defer func() { flagJSON = oldJSON }()
+
+	results := []scan.CategoryResult{{Entries: []scan.ScanEntry{
+		{Path: "docker:Images", Size: 5, Components: []scan.SizeComponent{{Path: "docker:Images", Size: 5}}},
+		{Path: "/Applications/Docker.app", Size: 7, Components: []scan.SizeComponent{{Path: "/Applications/Docker.app", Size: 7}}},
+	}}}
+	var buf bytes.Buffer
+	cb := cleanupProgress(nil, &buf, results)
+	cb("Docker", "docker:Images", 1, 4)
+	cb("Unused Applications", "/Applications/Docker.app", 2, 4)
+	cb("Unused Applications", "/System/Library/x", 3, 4)
+	cb("Git", "git-gc:/h/repo", 4, 4)
+
+	out := buf.String()
+	if strings.Contains(out, "removing") || strings.Contains(out, "not removed:") {
+		t.Errorf("pseudo-paths and blocked paths must not print removing lines:\n%s", out)
+	}
+	for _, want := range []string{
+		"  skipping docker:Images (not a filesystem path)\n",
+		"  skipping /Applications/Docker.app (blocked: ",
+		"  skipping /System/Library/x (blocked: SIP-protected)\n",
+		"  git gc in /h/repo\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
 	}
 }

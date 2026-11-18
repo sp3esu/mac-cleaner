@@ -51,9 +51,9 @@ L'analyse du repertoire personnel exclut `~/Library`, `~/Applications`, `~/.Tras
 ### Nettoyage des depots Git
 - **Depots Git** — repertoires `.git/` trouves dans le repertoire personnel (modere)
 
-Le nettoyage des depots Git decouvre les repertoires `.git` sous votre dossier personnel, affiche leur taille et l'espace recuperable estime via `git count-objects`, et propose un nettoyage `git gc --aggressive`. Pour les depots avec Git LFS (detectes via `.git/lfs`), `git lfs prune` est execute automatiquement lorsque `git-lfs` est installe. Les depots avec des operations actives (presence de `index.lock`) sont ignores en toute securite.
+Le nettoyage des depots Git decouvre les repertoires `.git` sous votre dossier personnel, affiche leur taille et l'espace recuperable estime via `git count-objects`, et propose un nettoyage `git gc --aggressive`. Pour les depots avec Git LFS (detectes via `.git/lfs`), `git lfs prune` est execute automatiquement lorsque `git-lfs` est installe. Les depots avec des operations actives (presence de `index.lock`) sont ignores en toute securite, de meme que les depots sans rien a reempaqueter (estimation de 0 B). Avant `git gc`, le nettoyage reverifie chaque depot et l'ignore tant que `index.lock` ou `gc.pid` est present.
 
-> **Remarque :** Le nettoyage execute `git gc --aggressive` et `git lfs prune` — aucun fichier de depot n'est supprime. C'est sans danger pour tous les depots.
+> **Remarque :** Le nettoyage execute `git gc --aggressive` et `git lfs prune`. Il ne supprime pas les fichiers de la copie de travail, mais `git gc` reempaquette les objets et supprime aussi les objets inaccessibles plus anciens que le delai d'expiration de git (par exemple des stashes abandonnes), et `git lfs prune` supprime les anciennes copies LFS locales. Le resume du nettoyage indique la reduction mesuree de `.git`, et non l'estimation du scan.
 
 ### Restes d'applications
 - **Préférences orphelines** — fichiers `.plist` dans `~/Library/Preferences/` pour les applications désinstallées (risqué)
@@ -177,7 +177,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 
 **Tout analyser, sortie JSON :**
 ```bash
-./mac-cleaner --all --json
+./mac-cleaner --all --dry-run --json
 ```
 
 **Tout analyser, mais ignorer Docker et les sauvegardes iOS :**
@@ -254,6 +254,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--verbose` | Liste détaillée des fichiers |
 | `--force` | Ignorer la demande de confirmation |
 | `--help-json` | Sortie de l'aide structurée en JSON pour les agents IA |
+
+### Totaux et résumé du nettoyage
+
+Chaque ligne `Total: X reclaimable` indique ce que le nettoyage supprime réellement, chaque chemin étant compté une fois. Lorsque cela diffère de tout ce que le scan a compté, le total compté suit, par exemple `Total: 0 B reclaimable (76.8 GB counted, see --verbose)`. Les octets comptés mais non supprimés comprennent les applications inutilisées dans `/Applications` (bloquées par la vérification de sécurité) et leurs données dans `~/Library`, les entrées Docker et Time Machine, les dépôts git (le nettoyage exécute `git gc` au lieu de supprimer des fichiers) et les chemins listés par plusieurs catégories. Le résumé du dry-run affiche, par catégorie, les octets que le nettoyage supprime, triés selon cette taille.
+
+Avant la suppression, la demande de confirmation liste ce qui sera définitivement supprimé (avec les octets supprimés), les dépôts que `git gc` va réempaqueter (avec l'estimation) et ce qui est listé mais non supprimé (entrées Docker et Time Machine, bundles bloqués et données laissées en place comme les données `~/Library` d'une application inutilisée). Son total correspond à ce qui sera supprimé.
+
+Après le nettoyage, `Cleanup complete: N items removed, X freed` indique les octets réellement libérés : chaque chemin supprimé compté une fois, plus la réduction mesurée de chaque répertoire `.git`. Les éléments sans rien à supprimer (entrées Docker et Time Machine, chemins déjà supprimés ou absents, dépôts git occupés) sont signalés comme ignorés, séparément des échecs.
+
+Avec `--json`, la sortie conserve `total_size` (tout ce qui est compté) et ajoute `unique_size` (compté, chaque chemin une fois) et `removable_size` (ce que le nettoyage supprime) ; chaque catégorie reçoit aussi `removable_size`. Combinez `--json` avec `--dry-run` pour une sortie de scan uniquement. Sans `--dry-run`, `--json` poursuit avec le nettoyage, et la demande de confirmation ainsi que le résumé du nettoyage sont envoyés sur stderr afin que stdout reste un seul document JSON.
 
 ### Détail des tailles en mode verbeux
 
@@ -356,7 +366,7 @@ mac-cleaner scan --dev-caches --safari
 mac-cleaner scan --all --skip-docker
 
 # Sortie en JSON pour l'automatisation
-mac-cleaner scan --npm --json
+mac-cleaner scan --npm --json --dry-run
 ```
 
 Exécutez `mac-cleaner scan --help` pour la liste complète des drapeaux ciblés regroupés par catégorie.

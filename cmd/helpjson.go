@@ -85,7 +85,7 @@ func buildHelpJSON() helpJSON {
 			{Flag: "--force", Description: "bypass confirmation prompt (for automation)"},
 		},
 		Examples: []helpExample{
-			{Command: "mac-cleaner scan --npm --yarn --json", Description: "Scan only npm and yarn caches, output as JSON"},
+			{Command: "mac-cleaner scan --npm --yarn --json --dry-run", Description: "Scan only npm and yarn caches, output as JSON (no deletion)"},
 			{Command: "mac-cleaner scan --all --skip-docker --dry-run", Description: "Dry-run scan everything except Docker"},
 			{Command: "mac-cleaner scan --dev-caches --safari", Description: "Scan all developer caches plus Safari"},
 			{Command: "mac-cleaner --all --dry-run", Description: "Preview all reclaimable space"},

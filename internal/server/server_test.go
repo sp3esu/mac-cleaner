@@ -1122,3 +1122,134 @@ func TestServer_CleanupWithInvalidToken(t *testing.T) {
 		t.Errorf("expected 'invalid token' error, got: %q", resp.Error)
 	}
 }
+
+// startHonestServer serves an engine whose scanner lists a temp file twice
+// (in two categories) plus a docker pseudo-path entry, and returns the
+// socket path and the file.
+func startHonestServer(t *testing.T, name string) (string, string) {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "cache.bin")
+	if err := os.WriteFile(file, make([]byte, 100), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	eng := engine.New()
+	eng.Register(engine.NewScanner(engine.ScannerInfo{ID: "honest", Name: "Honest"}, func() ([]scan.CategoryResult, error) {
+		entry := scan.ScanEntry{Path: file, Description: "cache", Size: 100}
+		return []scan.CategoryResult{
+			{Category: "home-large-files", Description: "Large", Entries: []scan.ScanEntry{entry}, TotalSize: 100},
+			{Category: "home-old-files", Description: "Old", Entries: []scan.ScanEntry{entry}, TotalSize: 100},
+			{Category: "dev-docker", Description: "Docker", TotalSize: 5000, Entries: []scan.ScanEntry{{
+				Path: "docker:Images", Size: 5000,
+				Components: []scan.SizeComponent{{Path: "docker:Images", Size: 5000}},
+			}}},
+		}, nil
+	}))
+
+	socketPath := filepath.Join(os.TempDir(), name)
+	os.Remove(socketPath)
+	t.Cleanup(func() { os.Remove(socketPath) })
+	srv := New(socketPath, "test-1.0.0", eng)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	t.Cleanup(srv.Shutdown)
+	go srv.Serve(ctx)
+	waitForSocket(t, socketPath)
+	return socketPath, file
+}
+
+// scanForResult sends a scan on conn and decodes the final result into v.
+func scanForResult(t *testing.T, conn net.Conn, v any) {
+	t.Helper()
+	sendRequest(t, conn, Request{ID: "s", Method: MethodScan})
+	responses := readAllResponses(t, conn, 5*time.Second)
+	final := responses[len(responses)-1]
+	if final.Type != ResponseResult {
+		t.Fatalf("expected scan result, got %+v", final)
+	}
+	b, _ := json.Marshal(final.Result)
+	if err := json.Unmarshal(b, v); err != nil {
+		t.Fatalf("unmarshal scan result: %v", err)
+	}
+}
+
+func TestServer_HonestSizesAndSkipped(t *testing.T) {
+	socketPath, file := startHonestServer(t, "mc-test-honest.sock")
+	conn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	var sr struct {
+		TotalSize     int64  `json:"total_size"`
+		RemovableSize int64  `json:"removable_size"`
+		UniqueSize    int64  `json:"unique_size"`
+		Token         string `json:"token"`
+		Categories    []struct {
+			Category      string `json:"category"`
+			TotalSize     int64  `json:"total_size"`
+			RemovableSize int64  `json:"removable_size"`
+		} `json:"categories"`
+	}
+	scanForResult(t, conn, &sr)
+	// Counted: 100 + 100 + 5000. The file is counted twice; docker deletes nothing.
+	if sr.TotalSize != 5200 || sr.UniqueSize != 5100 || sr.RemovableSize != 100 {
+		t.Errorf("total=%d unique=%d removable=%d, want 5200/5100/100", sr.TotalSize, sr.UniqueSize, sr.RemovableSize)
+	}
+	if len(sr.Categories) != 3 || sr.Categories[2].RemovableSize != 0 || sr.Categories[0].RemovableSize != 100 {
+		t.Errorf("unexpected per-category removable sizes: %+v", sr.Categories)
+	}
+
+	// All three categories are risky, so they must be named explicitly.
+	params, _ := json.Marshal(CleanupParams{Token: sr.Token, Categories: []string{"home-large-files", "home-old-files", "dev-docker"}})
+	sendRequest(t, conn, Request{ID: "c", Method: MethodCleanup, Params: params})
+	responses := readAllResponses(t, conn, 5*time.Second)
+	final := responses[len(responses)-1]
+	if final.Type != ResponseResult {
+		t.Fatalf("expected cleanup result, got %+v", final)
+	}
+	b, _ := json.Marshal(final.Result)
+	var cr map[string]any
+	if err := json.Unmarshal(b, &cr); err != nil {
+		t.Fatal(err)
+	}
+	// Removed once, the duplicate and docker skipped, 100 bytes freed.
+	if cr["removed"] != float64(1) || cr["skipped"] != float64(2) || cr["failed"] != float64(0) || cr["bytes_freed"] != float64(100) {
+		t.Errorf("unexpected cleanup result: %s", b)
+	}
+	if _, err := os.Stat(file); !os.IsNotExist(err) {
+		t.Error("file should be deleted")
+	}
+}
+
+func TestServer_TokenInvalidatedOnDisconnect(t *testing.T) {
+	socketPath, file := startHonestServer(t, "mc-test-token-disc.sock")
+
+	conn1, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	var sr struct {
+		Token string `json:"token"`
+	}
+	scanForResult(t, conn1, &sr)
+	conn1.Close()
+
+	// The server handles one connection at a time, so conn2's request is
+	// read only after conn1's handler has returned and invalidated the token.
+	conn2, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn2.Close()
+	params, _ := json.Marshal(CleanupParams{Token: sr.Token, Categories: []string{"home-large-files"}})
+	sendRequest(t, conn2, Request{ID: "c", Method: MethodCleanup, Params: params})
+	responses := readAllResponses(t, conn2, 5*time.Second)
+	final := responses[len(responses)-1]
+	if final.Type != ResponseError || !strings.Contains(final.Error, "token") {
+		t.Fatalf("expected token error after disconnect, got %+v", final)
+	}
+	if _, err := os.Stat(file); err != nil {
+		t.Errorf("nothing may be deleted with a token from a closed connection: %v", err)
+	}
+}

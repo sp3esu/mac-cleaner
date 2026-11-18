@@ -51,9 +51,9 @@ Skanowanie katalogu domowego wyklucza `~/Library`, `~/Applications`, `~/.Trash`,
 ### Czyszczenie repozytoriow Git
 - **Repozytoria Git** — katalogi `.git/` znalezione w katalogu domowym (umiarkowane)
 
-Czyszczenie repozytoriow Git wykrywa katalogi `.git` w katalogu domowym, wyswietla ich rozmiar i szacowana mozliwa do odzyskania przestrzen za pomoca `git count-objects` oraz oferuje czyszczenie `git gc --aggressive`. Dla repozytoriow z Git LFS (wykrytych przez `.git/lfs`) automatycznie uruchamiane jest `git lfs prune`, gdy `git-lfs` jest zainstalowany. Repozytoria z aktywnymi operacjami (obecnosc `index.lock`) sa bezpiecznie pomijane.
+Czyszczenie repozytoriow Git wykrywa katalogi `.git` w katalogu domowym, wyswietla ich rozmiar i szacowana mozliwa do odzyskania przestrzen za pomoca `git count-objects` oraz oferuje czyszczenie `git gc --aggressive`. Dla repozytoriow z Git LFS (wykrytych przez `.git/lfs`) automatycznie uruchamiane jest `git lfs prune`, gdy `git-lfs` jest zainstalowany. Repozytoria z aktywnymi operacjami (obecnosc `index.lock`) sa bezpiecznie pomijane, podobnie jak repozytoria, w ktorych nie ma nic do przepakowania (szacunek 0 B). Przed uruchomieniem `git gc` czyszczenie ponownie sprawdza kazde repozytorium i pomija je, dopoki istnieje `index.lock` lub `gc.pid`.
 
-> **Uwaga:** Czyszczenie uruchamia `git gc --aggressive` i `git lfs prune` — nie usuwa zadnych plikow repozytorium. Jest to bezpieczne dla wszystkich repozytoriow.
+> **Uwaga:** Czyszczenie uruchamia `git gc --aggressive` i `git lfs prune`. Nie usuwa plikow z katalogu roboczego, ale `git gc` przepakowuje obiekty i usuwa tez nieosiagalne obiekty starsze niz okres wygasania git (np. porzucone stashe), a `git lfs prune` usuwa stare lokalne kopie LFS. Podsumowanie czyszczenia podaje zmierzone zmniejszenie `.git`, a nie szacunek ze skanu.
 
 ### Pozostałości aplikacji
 - **Osierocone preferencje** — pliki `.plist` w `~/Library/Preferences/` dla odinstalowanych aplikacji (ryzykowne)
@@ -177,7 +177,7 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 
 **Skanuj wszystko, wyjście JSON:**
 ```bash
-./mac-cleaner --all --json
+./mac-cleaner --all --dry-run --json
 ```
 
 **Skanuj wszystko, ale pomiń Docker i kopie zapasowe iOS:**
@@ -254,6 +254,16 @@ mac-cleaner completion powershell | Out-String | Invoke-Expression
 | `--verbose` | Szczegółowa lista plików |
 | `--force` | Pomiń monit o potwierdzenie |
 | `--help-json` | Wynik strukturalnej pomocy w formacie JSON dla agentów AI |
+
+### Sumy i podsumowanie czyszczenia
+
+Każda linia `Total: X reclaimable` pokazuje, co czyszczenie faktycznie usuwa, przy czym każda ścieżka jest liczona raz. Gdy różni się to od wszystkiego, co policzył skan, po niej podawana jest suma policzona, na przykład `Total: 0 B reclaimable (76.8 GB counted, see --verbose)`. Policzone, ale nieusuwane są m.in. nieużywane aplikacje w `/Applications` (blokowane przez kontrolę bezpieczeństwa) i ich dane w `~/Library`, wpisy Docker i Time Machine, repozytoria git (czyszczenie uruchamia `git gc` zamiast usuwać pliki) oraz ścieżki wymienione przez więcej niż jedną kategorię. Podsumowanie dry-run pokazuje dla każdej kategorii bajty, które czyszczenie usuwa, posortowane według tego rozmiaru.
+
+Przed usunięciem monit o potwierdzenie wymienia, co zostanie trwale usunięte (z liczbą usuwanych bajtów), które repozytoria `git gc` przepakuje (z szacunkiem) oraz co jest wymienione, ale nieusuwane (wpisy Docker i Time Machine, zablokowane pakiety i pozostawione dane, np. dane nieużywanej aplikacji w `~/Library`). Jego suma to to, co zostanie usunięte.
+
+Po czyszczeniu `Cleanup complete: N items removed, X freed` podaje faktycznie zwolnione bajty: każdą usuniętą ścieżkę liczoną raz plus zmierzone zmniejszenie każdego katalogu `.git`. Elementy, w których nie było nic do usunięcia (wpisy Docker i Time Machine, ścieżki już usunięte lub nieistniejące, zajęte repozytoria git), są raportowane jako pominięte, osobno od błędów.
+
+Z `--json` wynik zachowuje `total_size` (wszystko policzone) i dodaje `unique_size` (policzone, każda ścieżka raz) oraz `removable_size` (to, co czyszczenie usuwa); każda kategoria również dostaje `removable_size`. Łącz `--json` z `--dry-run`, aby uzyskać wynik samego skanu. Bez `--dry-run` `--json` przechodzi do czyszczenia, a monit o potwierdzenie i podsumowanie czyszczenia trafiają na stderr, dzięki czemu stdout pozostaje pojedynczym dokumentem JSON.
 
 ### Szczegółowy rozkład rozmiarów
 
@@ -356,7 +366,7 @@ mac-cleaner scan --dev-caches --safari
 mac-cleaner scan --all --skip-docker
 
 # Wynik w formacie JSON do automatyzacji
-mac-cleaner scan --npm --json
+mac-cleaner scan --npm --json --dry-run
 ```
 
 Uruchom `mac-cleaner scan --help`, aby zobaczyć pełną listę flag ukierunkowanych pogrupowanych według kategorii.

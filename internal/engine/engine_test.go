@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -648,5 +650,132 @@ func TestTokenError_String(t *testing.T) {
 	expected := "invalid token abc123: expired"
 	if err.Error() != expected {
 		t.Errorf("expected %q, got %q", expected, err.Error())
+	}
+}
+
+// scanTempFiles registers a scanner returning one temp file per category ID,
+// scans, and returns the token plus each category's file path.
+func scanTempFiles(t *testing.T, eng *Engine, categories ...string) (ScanToken, map[string]string) {
+	t.Helper()
+	dir := t.TempDir()
+	paths := map[string]string{}
+	var results []scan.CategoryResult
+	for _, id := range categories {
+		p := filepath.Join(dir, id)
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		paths[id] = p
+		results = append(results, scan.CategoryResult{
+			Category: id, Description: id,
+			Entries: []scan.ScanEntry{{Path: p, Size: 1}}, TotalSize: 1,
+		})
+	}
+	eng.Register(mockScanner("tmp", "Tmp", results, nil))
+	events, done := eng.ScanAll(context.Background(), nil)
+	drainEvents(events)
+	return (<-done).Token, paths
+}
+
+func runCleanup(eng *Engine, token ScanToken, ids []string) CleanupDone {
+	events, done := eng.Cleanup(context.Background(), token, ids)
+	for range events {
+	}
+	return <-done
+}
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+func TestCleanup_EmptyCategoriesExcludesRisky(t *testing.T) {
+	eng := New()
+	// system-caches is safe, home-large-files is risky.
+	token, paths := scanTempFiles(t, eng, "system-caches", "home-large-files")
+
+	res := runCleanup(eng, token, nil)
+	if res.Err != nil {
+		t.Fatalf("unexpected error: %v", res.Err)
+	}
+	if exists(paths["system-caches"]) {
+		t.Error("non-risky category should be cleaned when no categories are given")
+	}
+	if !exists(paths["home-large-files"]) {
+		t.Error("risky category must not be cleaned unless named explicitly")
+	}
+	if res.Result.Removed != 1 {
+		t.Errorf("Removed = %d, want 1", res.Result.Removed)
+	}
+}
+
+func TestCleanup_ExplicitRiskyIncluded(t *testing.T) {
+	eng := New()
+	token, paths := scanTempFiles(t, eng, "system-caches", "home-large-files")
+
+	res := runCleanup(eng, token, []string{"home-large-files"})
+	if res.Err != nil {
+		t.Fatalf("unexpected error: %v", res.Err)
+	}
+	if exists(paths["home-large-files"]) {
+		t.Error("risky category named explicitly should be cleaned")
+	}
+	if !exists(paths["system-caches"]) {
+		t.Error("category not named must not be cleaned")
+	}
+}
+
+func TestCleanup_ExpiredToken(t *testing.T) {
+	eng := New()
+	token, paths := scanTempFiles(t, eng, "system-caches")
+
+	eng.mu.Lock()
+	eng.lastToken.entry.created = time.Now().Add(-tokenTTL - time.Second)
+	eng.mu.Unlock()
+
+	res := runCleanup(eng, token, nil)
+	var tokenErr *TokenError
+	if !errors.As(res.Err, &tokenErr) || tokenErr.Reason != "expired" {
+		t.Fatalf("expected expired TokenError, got %v", res.Err)
+	}
+	if !exists(paths["system-caches"]) {
+		t.Error("nothing may be deleted with an expired token")
+	}
+	// The expired token is discarded.
+	eng.mu.Lock()
+	cleared := eng.lastToken.entry == nil
+	eng.mu.Unlock()
+	if !cleared {
+		t.Error("expired token should be cleared")
+	}
+}
+
+func TestCleanup_TokenWithinTTL(t *testing.T) {
+	eng := New()
+	token, _ := scanTempFiles(t, eng, "system-caches")
+
+	eng.mu.Lock()
+	eng.lastToken.entry.created = time.Now().Add(-tokenTTL + time.Minute)
+	eng.mu.Unlock()
+
+	if res := runCleanup(eng, token, nil); res.Err != nil {
+		t.Fatalf("token younger than TTL rejected: %v", res.Err)
+	}
+}
+
+func TestInvalidateToken(t *testing.T) {
+	eng := New()
+	token, paths := scanTempFiles(t, eng, "system-caches")
+
+	eng.InvalidateToken()
+	eng.InvalidateToken() // idempotent
+
+	res := runCleanup(eng, token, nil)
+	var tokenErr *TokenError
+	if !errors.As(res.Err, &tokenErr) {
+		t.Fatalf("expected TokenError after InvalidateToken, got %v", res.Err)
+	}
+	if !exists(paths["system-caches"]) {
+		t.Error("nothing may be deleted with an invalidated token")
 	}
 }

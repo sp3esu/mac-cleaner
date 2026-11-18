@@ -65,8 +65,14 @@ type CategoryResult struct {
 	Description string `json:"description"`
 	// Entries lists the individual scannable items in this category.
 	Entries []ScanEntry `json:"entries"`
-	// TotalSize is the sum of all entry sizes in bytes.
+	// TotalSize is the sum of all entry sizes in bytes: what was counted,
+	// which can include data cleanup leaves in place and estimates.
 	TotalSize int64 `json:"total_size"`
+	// RemovableSize is the number of bytes cleanup deletes for this
+	// category: the sum of each entry's RemovedSize (pseudo-path entries
+	// such as docker: or git-gc: delete no files and add 0). Set by
+	// Summarize; paths shared with other categories are counted here too.
+	RemovableSize int64 `json:"removable_size"`
 	// PermissionIssues records paths that could not be scanned.
 	PermissionIssues []PermissionIssue `json:"permission_issues,omitempty"`
 }
@@ -84,8 +90,41 @@ func (cr *CategoryResult) SetRiskLevels(riskFn func(string) string) {
 type ScanSummary struct {
 	// Categories holds results for each scanned category.
 	Categories []CategoryResult `json:"categories"`
-	// TotalSize is the sum of all category sizes in bytes.
+	// TotalSize is the sum of all category sizes in bytes: what was
+	// counted, with paths counted by more than one entry counted each time.
 	TotalSize int64 `json:"total_size"`
+	// UniqueSize is TotalSize with every path counted once.
+	UniqueSize int64 `json:"unique_size"`
+	// RemovableSize is the number of bytes cleanup deletes, with every
+	// path counted once (see Reclaimable).
+	RemovableSize int64 `json:"removable_size"`
 	// PermissionIssues records paths that could not be scanned.
 	PermissionIssues []PermissionIssue `json:"permission_issues,omitempty"`
+}
+
+// Summarize aggregates results into a ScanSummary. It sets each category's
+// RemovableSize (the sum of its entries' RemovedSize, counting only real
+// filesystem paths) on a copy of results,
+// and fills the summary's TotalSize (sum of category TotalSize), UniqueSize
+// (TotalSize minus bytes counted more than once), RemovableSize (Reclaimable,
+// de-duplicated) and PermissionIssues. The input slice is not modified.
+func Summarize(results []CategoryResult) ScanSummary {
+	cats := make([]CategoryResult, len(results))
+	copy(cats, results)
+
+	var s ScanSummary
+	for i := range cats {
+		var removable int64
+		for _, e := range cats[i].Entries {
+			removable += removedPathSize(e)
+		}
+		cats[i].RemovableSize = removable
+		s.TotalSize += cats[i].TotalSize
+		s.PermissionIssues = append(s.PermissionIssues, cats[i].PermissionIssues...)
+	}
+	_, dupCounted, _ := FindOverlaps(cats)
+	s.Categories = cats
+	s.UniqueSize = s.TotalSize - dupCounted
+	s.RemovableSize = Reclaimable(cats)
+	return s
 }

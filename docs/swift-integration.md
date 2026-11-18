@@ -78,10 +78,18 @@ Run a full scan with streaming progress. Optional `skip` param filters category 
 ← {"id":"3","type":"progress","result":{"event":"scanner_done","scanner_id":"system","label":"System Caches"}}
 ← {"id":"3","type":"progress","result":{"event":"scanner_start","scanner_id":"browser","label":"Browser Data"}}
 ...
-← {"id":"3","type":"result","result":{"categories":[...],"total_size":12345678,"token":"a1b2c3d4..."}}
+← {"id":"3","type":"result","result":{"categories":[...],"total_size":12345678,"removable_size":9000000,"unique_size":11000000,"token":"a1b2c3d4..."}}
 ```
 
-Each entry may carry an optional `components` array that breaks its `size` down into the paths it was summed from. It is always present when the size covers more than the entry's `path`, or when cleanup does not delete `path` (for example unused apps, Docker, git repositories, Time Machine snapshots); unused-app entries always carry it, even when it holds a single removed component equal to `path`. Component sizes sum to the entry `size`; `removed` tells whether cleanup deletes that path. Cleanup deletes at most the entry's `path` (for `git-gc:` entries it runs `git gc` instead of deleting files). The same path can be counted by more than one entry (for example a file in both `home-large-files` and `home-old-files`, or `browser-chrome` inside a `system-caches` directory); `components` does not flag this, so clients that sum sizes across categories should de-duplicate by path. Decoders that ignore unknown keys (Swift `Codable` default) are unaffected.
+The result carries three totals:
+
+- `total_size` — everything counted (unchanged meaning): the sum of the categories' `total_size`. It includes data cleanup leaves in place (an unused app's `~/Library` data, `/Applications` bundles blocked by the safety check), Docker and git estimates, and paths counted by more than one entry.
+- `unique_size` — `total_size` with every path counted once.
+- `removable_size` — what cleanup deletes: the removed size of every real filesystem path, each path counted once. Docker, Time Machine and git entries add 0 (cleanup deletes no files for them). This is the number to show as "will be freed".
+
+Each category also carries `removable_size`, the bytes cleanup deletes for that category (paths shared with other categories are counted in each). `removable_size <= unique_size <= total_size`. Paths are compared case-insensitively, as on the default APFS volume.
+
+Each entry may carry an optional `components` array that breaks its `size` down into the paths it was summed from. It is always present when the size covers more than the entry's `path`, or when cleanup does not delete `path` (for example unused apps, Docker, git repositories, Time Machine snapshots); unused-app entries always carry it, even when it holds a single removed component equal to `path`. Component sizes sum to the entry `size`; `removed` tells whether cleanup deletes that path. Cleanup deletes at most the entry's `path` (for `git-gc:` entries it runs `git gc` instead of deleting files). The same path can be counted by more than one entry (for example a file in both `home-large-files` and `home-old-files`, or `browser-chrome` inside a `system-caches` directory); `components` does not flag this; the result's `unique_size` and `removable_size` already count each path once, so clients need not de-duplicate themselves. Cleanup runs `git gc --aggressive`, which repacks objects and also prunes unreachable objects older than git's expiry (for example dropped stashes); repositories with nothing to repack are not listed. Decoders that ignore unknown keys (Swift `Codable` default) are unaffected.
 
 ```json
 {"path":"/Applications/Docker.app","description":"Docker (last used Dec 2024)","size":71400000000,"risk_level":"risky",
@@ -92,15 +100,19 @@ Each entry may carry an optional `components` array that breaks its `size` down 
 
 ### `cleanup`
 
-Clean up scan results. Requires the `token` returned by a prior `scan` call (replay protection). Optional `categories` param filters which category IDs to clean.
+Clean up scan results. Requires the `token` returned by a prior `scan` call on the same connection, no older than 15 minutes (replay protection). Optional `categories` param filters which category IDs to clean. When `categories` is omitted or empty, every scanned category is cleaned **except risky ones** (for example `home-large-files`, `unused-apps`, `sysdata-mail`, `app-ios-backups`; see the `risk_level` reported by `categories`); risky categories are cleaned only when listed explicitly in `categories`.
 
 ```json
 → {"id":"4","method":"cleanup","params":{"token":"a1b2c3d4...","categories":["system-caches","system-logs"]}}
 ← {"id":"4","type":"progress","result":{"event":"cleanup_category_start","category":"User App Caches","current":1,"total":10}}
 ← {"id":"4","type":"progress","result":{"event":"cleanup_entry","category":"User App Caches","entry_path":"/Users/...","current":1,"total":10}}
 ...
-← {"id":"4","type":"result","result":{"removed":8,"failed":2,"bytes_freed":5000000,"errors":["..."]}}
+← {"id":"4","type":"result","result":{"removed":8,"skipped":3,"failed":2,"bytes_freed":5000000,"errors":["..."]}}
 ```
+
+- `bytes_freed` is what cleanup actually freed: the removed size of each deleted path (an unused app's `~/Library` data is not included, since it is not deleted), each path counted once, plus the measured shrink of each `.git` directory after `git gc` (not the scan's estimate).
+- `skipped` counts entries left alone without an error: `docker:` and `tmutil:` entries (cleanup never deletes them), paths that no longer exist, paths already deleted with an earlier entry (the same path, or a path inside a deleted directory), and git repositories with `index.lock` or `gc.pid` present. Skipped entries are not in `errors`.
+- `failed` counts entries that could not be removed, including paths blocked by the safety check (such as `/Applications` bundles); each has a message in `errors`.
 
 ### `shutdown`
 
@@ -179,33 +191,40 @@ struct CategoryResult: Codable {
     let category: String
     let description: String
     let entries: [ScanEntry]
-    let totalSize: Int64
+    let totalSize: Int64        // counted
+    let removableSize: Int64?   // deleted by cleanup
 
     enum CodingKeys: String, CodingKey {
         case category, description, entries
         case totalSize = "total_size"
+        case removableSize = "removable_size"
     }
 }
 
 struct ScanResult: Codable {
     let categories: [CategoryResult]
-    let totalSize: Int64
+    let totalSize: Int64        // counted
+    let removableSize: Int64?   // deleted by cleanup, each path once
+    let uniqueSize: Int64?      // counted, each path once
     let token: String
 
     enum CodingKeys: String, CodingKey {
         case categories, token
         case totalSize = "total_size"
+        case removableSize = "removable_size"
+        case uniqueSize = "unique_size"
     }
 }
 
 struct CleanupResult: Codable {
     let removed: Int
+    let skipped: Int?
     let failed: Int
-    let bytesFreed: Int64
+    let bytesFreed: Int64       // actually freed
     var errors: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case removed, failed, errors
+        case removed, skipped, failed, errors
         case bytesFreed = "bytes_freed"
     }
 }
@@ -366,7 +385,7 @@ try process.run()
 ## Error Handling
 
 - **Concurrent operations:** Only one scan or cleanup can run at a time. Additional requests get an error response.
-- **Cleanup without scan:** The server requires a valid scan token before cleanup (replay protection). The token is returned in the scan result and must be passed in the cleanup request. After cleanup, the token is consumed (single-use).
+- **Cleanup without scan:** The server requires a valid scan token before cleanup (replay protection). The token is returned in the scan result and must be passed in the cleanup request. After cleanup, the token is consumed (single-use). A token expires 15 minutes after its scan (error `expired`), and only the most recent scan's token is valid; scan again to get a new one.
 - **Client disconnect:** If the client disconnects during a scan or cleanup, the server stops streaming and cleans up gracefully. See "Connection Behavior" below for details.
 - **Idle timeout:** Connections idle for more than 5 minutes are automatically closed. See "Connection Behavior" below for details.
 - **Stale sockets:** On startup, the server detects and removes stale socket files from crashed instances.
@@ -376,7 +395,7 @@ try process.run()
 - **Idle timeout:** The server closes connections that are idle for more than 5 minutes (no messages sent or received). Swift clients should handle `NWConnection.State.failed` or `.waiting` by reconnecting. If your app has long idle periods, send periodic `ping` requests as a keepalive mechanism.
 - **Client disconnect during scan:** If the client disconnects while a scan is running, the server cancels the scan via context cancellation and cleans up all goroutines. No goroutine leaks occur. The server immediately accepts new connections.
 - **Client disconnect during cleanup:** If the client disconnects while cleanup is running, file deletion continues to completion (by design -- partially-deleted state is worse than completing the operation). Progress events are silently dropped since the connection is gone. The server accepts new connections after cleanup finishes.
-- **Reconnection:** After any disconnect (intentional, timeout, or crash), the client can simply open a new connection to the same socket path. A new `scan` must be performed before `cleanup` (tokens are per-connection and invalidated on disconnect).
+- **Reconnection:** After any disconnect (intentional, timeout, or crash), the client can simply open a new connection to the same socket path. A new `scan` must be performed before `cleanup`: the server discards the scan token when the connection that obtained it closes, so a token never outlives its connection (and expires after 15 minutes in any case).
 
 ## Testing with socat
 

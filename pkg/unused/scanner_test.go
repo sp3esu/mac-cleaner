@@ -516,9 +516,9 @@ func TestLibraryFootprint(t *testing.T) {
 
 	size := sumSizes(libraryFootprint(home, "com.test.app", "TestApp"))
 
-	// Should include Caches (1000) + AppSupport (2000) directories on disk,
-	// plus the Preferences plist (500), which pathSize sizes by file length.
-	if want := scantest.OnDisk(t, 1000, 2000) + 500; size != want {
+	// Should include Caches (1000) + AppSupport (2000) + Preferences plist
+	// (500), all sized on disk.
+	if want := scantest.OnDisk(t, 1000, 2000, 500); size != want {
 		t.Errorf("expected library footprint %d, got %d", want, size)
 	}
 }
@@ -895,8 +895,8 @@ func TestLibraryFootprint_ComponentsNotRemoved(t *testing.T) {
 	if len(comps) != 3 {
 		t.Fatalf("expected 3 non-empty components, got %+v", comps)
 	}
-	// Directories are sized on disk; the LaunchAgents plist (20) by file length.
-	if want := scantest.OnDisk(t, 1000, 300) + 20; sumSizes(comps) != want {
+	// Directories and the LaunchAgents plist (20) are all sized on disk.
+	if want := scantest.OnDisk(t, 1000, 300, 20); sumSizes(comps) != want {
 		t.Errorf("expected total %d, got %d", want, sumSizes(comps))
 	}
 	for _, c := range comps {
@@ -1157,7 +1157,7 @@ func TestLibraryFootprint_ResolvesOnDiskCase(t *testing.T) {
 	if comps[0].Path != onDisk {
 		t.Errorf("component path = %q, want on-disk case %q", comps[0].Path, onDisk)
 	}
-	if comps[0].Size != 1000 || comps[0].Removed {
+	if comps[0].Size != scantest.OnDisk(t, 1000) || comps[0].Removed {
 		t.Errorf("unexpected component %+v", comps[0])
 	}
 }
@@ -1170,8 +1170,8 @@ func TestLibraryFootprint_SameDirCountedOnce(t *testing.T) {
 	writeFile(t, filepath.Join(home, "Library", "Logs", "myapp", "log.txt"), 200)
 
 	comps := libraryFootprint(home, "myapp", "MyApp")
-	if got := sumSizes(comps); got != 1200 {
-		t.Errorf("expected 1200 (each dir once), got %d from %+v", got, comps)
+	if got, want := sumSizes(comps), scantest.OnDisk(t, 1000, 200); got != want {
+		t.Errorf("expected %d (each dir once), got %d from %+v", want, got, comps)
 	}
 	if len(comps) != 2 {
 		t.Errorf("expected 2 components, got %+v", comps)
@@ -1239,10 +1239,10 @@ func TestScanUnusedApps_GenuinelyUnusedStillFlagged(t *testing.T) {
 		size    int64
 		removed bool
 	}{
-		appPath:   {1000, true}, // bundle under home: cleanup removes it
-		container: {2000, false},
-		caches:    {500, false},
-		prefs:     {300, false},
+		appPath:   {scantest.OnDisk(t, 1000), true}, // bundle under home: cleanup removes it
+		container: {scantest.OnDisk(t, 2000), false},
+		caches:    {scantest.OnDisk(t, 500), false},
+		prefs:     {scantest.OnDisk(t, 300), false},
 	}
 	if len(e.Components) != len(want) {
 		t.Fatalf("expected %d components, got %+v", len(want), e.Components)
@@ -1257,8 +1257,9 @@ func TestScanUnusedApps_GenuinelyUnusedStillFlagged(t *testing.T) {
 			t.Errorf("component %s = size %d removed %v, want %d %v", c.Path, c.Size, c.Removed, w.size, w.removed)
 		}
 	}
-	if e.Size != 3800 || e.RemovedSize() != 1000 {
-		t.Errorf("size %d removed %d, want 3800 and 1000", e.Size, e.RemovedSize())
+	wantSize, wantRemoved := scantest.OnDisk(t, 1000, 2000, 500, 300), scantest.OnDisk(t, 1000)
+	if e.Size != wantSize || e.RemovedSize() != wantRemoved {
+		t.Errorf("size %d removed %d, want %d and %d", e.Size, e.RemovedSize(), wantSize, wantRemoved)
 	}
 }
 
